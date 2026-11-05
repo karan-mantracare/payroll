@@ -3,7 +3,8 @@ import { employees, users, sensitiveEmployeeDetails, departments, locations, tea
 import { eq, and } from "drizzle-orm";
 import { SessionContext } from "../permissions/types";
 import { buildScopeCondition } from "./filter";
-import { redactSensitiveDetails, RedactedSensitiveEmployee } from "../permissions/redactor";
+import { redactSensitiveDetails, RedactedSensitiveEmployee, RawSensitiveEmployee } from "../permissions/redactor";
+import { decryptField } from "../security/crypto";
 
 export interface ScopedEmployeeRecord {
   id: string;
@@ -119,7 +120,21 @@ export async function getScopedEmployeeById(
 
   let sensitiveData: RedactedSensitiveEmployee | undefined;
   if (sensitiveRows.length > 0) {
-    sensitiveData = redactSensitiveDetails(sensitiveRows[0], session);
+    const row = sensitiveRows[0];
+    const decryptedDetails: RawSensitiveEmployee = {
+      id: row.id,
+      employeeId: row.employeeId,
+      basicSalary: parseFloat(decryptField(row.basicSalaryEncrypted)),
+      grossSalary: parseFloat(decryptField(row.grossSalaryEncrypted)),
+      netSalary: parseFloat(decryptField(row.netSalaryEncrypted)),
+      bankName: row.bankName,
+      bankAccountNumber: decryptField(row.bankAccountNumberEncrypted),
+      bankIfsc: decryptField(row.bankIfscEncrypted),
+      taxIdentifier: decryptField(row.taxIdentifierEncrypted),
+      identityDocumentNumber: decryptField(row.identityDocumentNumberEncrypted),
+      identityDocumentUrl: decryptField(row.identityDocumentUrlEncrypted),
+    };
+    sensitiveData = redactSensitiveDetails(decryptedDetails, session);
   }
 
   return {

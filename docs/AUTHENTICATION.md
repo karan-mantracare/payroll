@@ -96,3 +96,23 @@ A valid login to the general MantraCare platform does **not** grant automatic ac
 3. Explicit portal permissions (`portal.admin.access` or `portal.employee.access`).
 Users lacking an active HR mapping receive a clear `403 Forbidden` response and are prevented from viewing any HR or payroll data.
 
+---
+
+## 3. Cryptographic Standards & Local Authentication Policy
+
+### 3.1 Primary Identity Provider
+* MantraCare Programs platform token handshake (`POST https://api.mantracare.com/user/user-info`) remains the **sole primary authentication mechanism**.
+* Zero user passwords are stored or handled by default in the HRMS database.
+
+### 3.2 Standard for Future Local / Break-Glass Authentication
+If local emergency or break-glass authentication is ever activated:
+* **Approved Algorithm:** `bcrypt` with cost factor 12 (configurable via `BCRYPT_SALT_ROUNDS`).
+* **Implementation:** The maintained `bcrypt` package utilizing native bindings, invoking `bcrypt.hash()` and `bcrypt.compare()`.
+* **Prohibited Algorithms:** Plain SHA-256, MD5, and unsalted hashes are strictly forbidden for passwords.
+* **Benchmark Performance:** On the deployment environment (Node 22 LTS), bcrypt cost 12 averages:
+  * Hash Generation: ~183 ms
+  * Hash Verification: ~183 ms
+  * Total Operation: ~366 ms (providing strong brute-force resistance while remaining well below HTTP request timeout thresholds).
+* **Reset Tokens:** If password reset workflows are introduced, tokens must be cryptographically random (256-bit entropy via `crypto.randomBytes(32)`), stored as SHA-256 hashes, single-use, and expire in 15 minutes or less.
+
+

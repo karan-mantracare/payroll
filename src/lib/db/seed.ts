@@ -1,6 +1,7 @@
 import { rawClient } from "./client";
 import { runMigrations } from "./migrate";
 import { DEFAULT_ROLES } from "../permissions/registry";
+import { encryptField } from "../security/crypto";
 
 export async function seedDatabase() {
   await runMigrations();
@@ -224,19 +225,22 @@ export async function seedDatabase() {
       ],
     });
 
-    // Insert Sensitive Financial Details
+    // Insert Sensitive Financial Details (AES-256-GCM Encrypted at rest)
     await rawClient.execute({
       sql: `INSERT OR REPLACE INTO sensitive_employee_details
-            (id, employee_id, basic_salary, gross_salary, net_salary, bank_name, bank_account_number, bank_ifsc, tax_identifier, identity_document_number, identity_document_url, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'HDFC Bank', ?, 'HDFC0001234', ?, 'IND-ID-99901', 'https://secure.mantracare.com/docs/id.pdf', ?);`,
+            (id, employee_id, basic_salary_encrypted, gross_salary_encrypted, net_salary_encrypted, bank_name, bank_account_number_encrypted, bank_ifsc_encrypted, tax_identifier_encrypted, identity_document_number_encrypted, identity_document_url_encrypted, key_version, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'HDFC Bank', ?, ?, ?, ?, ?, 'v1', ?);`,
       args: [
         `sens_${u.empId}`,
         u.empId,
-        u.basic,
-        u.gross,
-        u.net,
-        u.bankAcc,
-        u.taxId,
+        encryptField(u.basic),
+        encryptField(u.gross),
+        encryptField(u.net),
+        encryptField(u.bankAcc),
+        encryptField("HDFC0001234"),
+        encryptField(u.taxId),
+        encryptField("IND-ID-99901"),
+        encryptField("https://secure.mantracare.com/docs/id.pdf"),
         now,
       ],
     });

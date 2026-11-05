@@ -79,20 +79,21 @@ export async function runMigrations() {
     );
   `);
 
-  // Sensitive Details
+  // Sensitive Details (AES-256-GCM Encrypted at rest)
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS sensitive_employee_details (
       id TEXT PRIMARY KEY,
       employee_id TEXT NOT NULL UNIQUE REFERENCES employees(id),
-      basic_salary REAL NOT NULL,
-      gross_salary REAL NOT NULL,
-      net_salary REAL NOT NULL,
+      basic_salary_encrypted TEXT NOT NULL,
+      gross_salary_encrypted TEXT NOT NULL,
+      net_salary_encrypted TEXT NOT NULL,
       bank_name TEXT NOT NULL,
-      bank_account_number TEXT NOT NULL,
-      bank_ifsc TEXT NOT NULL,
-      tax_identifier TEXT NOT NULL,
-      identity_document_number TEXT NOT NULL,
-      identity_document_url TEXT NOT NULL,
+      bank_account_number_encrypted TEXT NOT NULL,
+      bank_ifsc_encrypted TEXT NOT NULL,
+      tax_identifier_encrypted TEXT NOT NULL,
+      identity_document_number_encrypted TEXT NOT NULL,
+      identity_document_url_encrypted TEXT NOT NULL,
+      key_version TEXT NOT NULL DEFAULT 'v1',
       updated_at INTEGER NOT NULL
     );
   `);

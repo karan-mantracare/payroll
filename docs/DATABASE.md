@@ -89,15 +89,23 @@ erDiagram
 * `roles`: `key` (PK), `name`, `description`, `is_system`
 * `user_roles`: `id` (PK), `user_id` (FK), `role_key` (FK), `custom_scope_json` (TEXT)
 
-### 3.8 `sensitive_employee_details` (Confidential)
-* `id` (TEXT, PK)
-* `employee_id` (TEXT, UNIQUE, FK)
-* `basic_salary` (REAL)
-* `gross_salary` (REAL)
-* `net_salary` (REAL)
-* `bank_name` (TEXT)
-* `bank_account_number` (TEXT)
-* `bank_ifsc` (TEXT)
+### 3.8 `sensitive_employee_details` (Confidential & Encrypted at Rest)
+All sensitive financial and identity fields are encrypted at the application layer using **AES-256-GCM** before writing to Turso:
+* `id` (TEXT, PK): UUID
+* `employee_id` (TEXT, UNIQUE, FK): Ref `employees.id`
+* `basic_salary_encrypted` (TEXT): Envelope format `keyVersion:iv:authTag:ciphertext`
+* `gross_salary_encrypted` (TEXT): Envelope format `keyVersion:iv:authTag:ciphertext`
+* `net_salary_encrypted` (TEXT): Envelope format `keyVersion:iv:authTag:ciphertext`
+* `bank_name` (TEXT): Institution name
+* `bank_account_number_encrypted` (TEXT): Envelope format `keyVersion:iv:authTag:ciphertext`
+* `bank_ifsc` (TEXT): IFSC routing code
+* `tax_identifier_encrypted` (TEXT): PAN / SSN envelope `keyVersion:iv:authTag:ciphertext`
+* `identity_doc_url_encrypted` (TEXT): Encrypted document URL / secure storage reference
+* `created_at` (INTEGER)
+* `updated_at` (INTEGER)
+
+> **Key Storage & Versioning:** Master encryption keys (`HRMS_ENCRYPTION_KEY_V1`, `HRMS_ENCRYPTION_KEY_V2`) are kept in server-side environment secrets completely separate from Turso credentials. The encryption envelope supports on-the-fly zero-downtime key rotation via `rotateField()`.
+
 * `tax_identifier` (TEXT) (e.g. PAN / SSN)
 * `identity_document_url` (TEXT)
 * `updated_at` (INTEGER)

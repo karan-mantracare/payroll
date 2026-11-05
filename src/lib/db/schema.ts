@@ -79,22 +79,23 @@ export const employees = sqliteTable("employees", {
   updatedAt: integer("updated_at").notNull(),
 });
 
-// 7. Sensitive Employee Financial & Identity Details
+// 7. Sensitive Employee Financial & Identity Details (Encrypted at rest with AES-256-GCM)
 export const sensitiveEmployeeDetails = sqliteTable("sensitive_employee_details", {
   id: text("id").primaryKey(),
   employeeId: text("employee_id")
     .notNull()
     .unique()
     .references(() => employees.id),
-  basicSalary: real("basic_salary").notNull(),
-  grossSalary: real("gross_salary").notNull(),
-  netSalary: real("net_salary").notNull(),
+  basicSalaryEncrypted: text("basic_salary_encrypted").notNull(),
+  grossSalaryEncrypted: text("gross_salary_encrypted").notNull(),
+  netSalaryEncrypted: text("net_salary_encrypted").notNull(),
   bankName: text("bank_name").notNull(),
-  bankAccountNumber: text("bank_account_number").notNull(),
-  bankIfsc: text("bank_ifsc").notNull(),
-  taxIdentifier: text("tax_identifier").notNull(), // PAN, SSN, Tax ID
-  identityDocumentNumber: text("identity_document_number").notNull(),
-  identityDocumentUrl: text("identity_document_url").notNull(),
+  bankAccountNumberEncrypted: text("bank_account_number_encrypted").notNull(),
+  bankIfscEncrypted: text("bank_ifsc_encrypted").notNull(),
+  taxIdentifierEncrypted: text("tax_identifier_encrypted").notNull(), // PAN, SSN, Tax ID
+  identityDocumentNumberEncrypted: text("identity_document_number_encrypted").notNull(),
+  identityDocumentUrlEncrypted: text("identity_document_url_encrypted").notNull(),
+  keyVersion: text("key_version").notNull().default("v1"),
   updatedAt: integer("updated_at").notNull(),
 });
 
