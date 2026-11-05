@@ -142,6 +142,20 @@ export async function runMigrations() {
     );
   `);
 
+  // Employee Reporting Manager History
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS employee_manager_history (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL REFERENCES employees(id),
+      previous_manager_id TEXT,
+      new_manager_id TEXT,
+      reason TEXT NOT NULL,
+      effective_date TEXT NOT NULL,
+      changed_by_user_id TEXT NOT NULL REFERENCES users(id),
+      created_at INTEGER NOT NULL
+    );
+  `);
+
   // Employee Documents
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS employee_documents (

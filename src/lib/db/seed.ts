@@ -15,6 +15,7 @@ export async function seedDatabase() {
   await rawClient.execute("DELETE FROM used_tokens;");
   await rawClient.execute("DELETE FROM employee_documents;");
   await rawClient.execute("DELETE FROM employee_status_history;");
+  await rawClient.execute("DELETE FROM employee_manager_history;");
   await rawClient.execute("DELETE FROM sensitive_employee_details;");
   await rawClient.execute("DELETE FROM user_roles;");
   await rawClient.execute("DELETE FROM employees;");

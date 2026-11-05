@@ -20,8 +20,31 @@ import {
   X,
   History,
   CheckCircle2,
+  Network,
+  Users2,
+  ChevronRight,
+  ChevronDown,
+  UserCheck,
+  Search,
+  RefreshCw,
+  GitCommit,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthGate";
+
+interface HierarchyNode {
+  id: string;
+  employeeCode: string;
+  name: string;
+  email: string;
+  jobTitle: string;
+  departmentName?: string | null;
+  locationName?: string | null;
+  status: string;
+  managerId: string | null;
+  directReportsCount: number;
+  depth: number;
+  children?: HierarchyNode[];
+}
 
 export default function EmployeeDetailPage({
   params,
@@ -33,6 +56,31 @@ export default function EmployeeDetailPage({
   const [employee, setEmployee] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"details" | "hierarchy">("details");
+
+  // Hierarchy Data State
+  const [hierarchyData, setHierarchyData] = useState<{
+    tree: HierarchyNode | null;
+    managerChain: any[];
+    directReports: any[];
+    history: any[];
+  } | null>(null);
+  const [hierarchyLoading, setHierarchyLoading] = useState(false);
+  const [hierarchySearch, setHierarchySearch] = useState("");
+  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
+
+  // Change Manager Modal State
+  const [showManagerModal, setShowManagerModal] = useState(false);
+  const [managerCandidates, setManagerCandidates] = useState<any[]>([]);
+  const [selectedManagerId, setSelectedManagerId] = useState<string>("");
+  const [managerReason, setManagerReason] = useState("");
+  const [managerEffectiveDate, setManagerEffectiveDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [managerValidation, setManagerValidation] = useState<{ valid: boolean; error?: string } | null>(null);
+  const [validatingManager, setValidatingManager] = useState(false);
+  const [submittingManager, setSubmittingManager] = useState(false);
+  const [managerError, setManagerError] = useState<string | null>(null);
 
   // Edit Modal State
   const [showEditModal, setShowEditModal] = useState(false);
@@ -103,9 +151,125 @@ export default function EmployeeDetailPage({
     }
   };
 
+  const fetchHierarchy = async () => {
+    setHierarchyLoading(true);
+    try {
+      const res = await fetch(`/payrol/api/hierarchy/${id}`);
+      if (res.ok) {
+        const json = await res.json();
+        setHierarchyData(json);
+        // Expand root by default
+        if (json.tree) {
+          setExpandedNodes((prev) => ({ ...prev, [json.tree.id]: true }));
+        }
+      }
+    } catch {
+      // Ignore hierarchy loading errors gracefully
+    } finally {
+      setHierarchyLoading(false);
+    }
+  };
+
+  const fetchManagerCandidates = async () => {
+    try {
+      const res = await fetch(`/payrol/api/employees?pageSize=100&status=ACTIVE`);
+      if (res.ok) {
+        const json = await res.json();
+        // Exclude current employee
+        setManagerCandidates(
+          (json.data || []).filter((e: any) => e.id !== id && e.employeeCode !== id)
+        );
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
   useEffect(() => {
     fetchEmployee();
   }, [id]);
+
+  useEffect(() => {
+    if (activeTab === "hierarchy") {
+      fetchHierarchy();
+    }
+  }, [activeTab, id]);
+
+  const toggleNode = (nodeId: string) => {
+    setExpandedNodes((prev) => ({
+      ...prev,
+      [nodeId]: !prev[nodeId],
+    }));
+  };
+
+  // Pre-flight manager validation
+  const validateCandidate = async (candidateId: string) => {
+    setSelectedManagerId(candidateId);
+    setManagerValidation(null);
+    setManagerError(null);
+
+    if (!candidateId) {
+      setManagerValidation({ valid: true });
+      return;
+    }
+
+    setValidatingManager(true);
+    try {
+      const res = await fetch("/payrol/api/hierarchy/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeId: employee?.id || id,
+          candidateManagerId: candidateId,
+        }),
+      });
+      const data = await res.json();
+      setManagerValidation(data);
+    } catch (err: any) {
+      setManagerValidation({ valid: false, error: "Network error validating manager." });
+    } finally {
+      setValidatingManager(false);
+    }
+  };
+
+  const handleChangeManagerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!managerReason.trim()) {
+      setManagerError("Please provide a reason for changing the reporting manager.");
+      return;
+    }
+
+    setSubmittingManager(true);
+    setManagerError(null);
+
+    try {
+      const res = await fetch(`/payrol/api/hierarchy/${id}/change-manager`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          newManagerId: selectedManagerId || null,
+          reason: managerReason,
+          effectiveDate: managerEffectiveDate,
+          concurrencyVersion: employee.concurrencyVersion,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update reporting manager.");
+      }
+
+      setShowManagerModal(false);
+      setManagerReason("");
+      setSelectedManagerId("");
+      await fetchEmployee();
+      await fetchHierarchy();
+    } catch (err: any) {
+      setManagerError(err.message);
+    } finally {
+      setSubmittingManager(false);
+    }
+  };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,11 +286,13 @@ export default function EmployeeDetailPage({
         }),
       });
 
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Update failed");
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update employee.");
+      }
 
       setShowEditModal(false);
-      fetchEmployee();
+      await fetchEmployee();
     } catch (err: any) {
       setEditError(err.message);
     } finally {
@@ -136,6 +302,11 @@ export default function EmployeeDetailPage({
 
   const handleStatusSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!statusForm.reason.trim()) {
+      setStatusError("Please provide a detailed reason for the status transition.");
+      return;
+    }
+
     setTransitioning(true);
     setStatusError(null);
 
@@ -149,11 +320,13 @@ export default function EmployeeDetailPage({
         }),
       });
 
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Status transition failed");
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to transition employee status.");
+      }
 
       setShowStatusModal(false);
-      fetchEmployee();
+      await fetchEmployee();
     } catch (err: any) {
       setStatusError(err.message);
     } finally {
@@ -165,37 +338,112 @@ export default function EmployeeDetailPage({
     switch (status) {
       case "ACTIVE":
         return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
-      case "PROBATION":
-        return "bg-blue-500/10 text-blue-400 border-blue-500/20";
       case "ON_LEAVE":
         return "bg-amber-500/10 text-amber-400 border-amber-500/20";
+      case "PROBATION":
+        return "bg-blue-500/10 text-blue-400 border-blue-500/20";
       case "SUSPENDED":
         return "bg-purple-500/10 text-purple-400 border-purple-500/20";
       case "TERMINATED":
         return "bg-rose-500/10 text-rose-400 border-rose-500/20";
       default:
-        return "bg-slate-700 text-slate-300 border-slate-600";
+        return "bg-slate-500/10 text-slate-400 border-slate-500/20";
     }
+  };
+
+  // Render tree node recursive component
+  const renderTreeNode = (node: HierarchyNode) => {
+    const isExpanded = expandedNodes[node.id];
+    const isCurrent = node.id === employee?.id || node.employeeCode === employee?.employeeCode;
+    const hasChildren = node.children && node.children.length > 0;
+    const matchesSearch =
+      hierarchySearch.trim() === "" ||
+      node.name.toLowerCase().includes(hierarchySearch.toLowerCase()) ||
+      node.jobTitle.toLowerCase().includes(hierarchySearch.toLowerCase()) ||
+      node.employeeCode.toLowerCase().includes(hierarchySearch.toLowerCase());
+
+    return (
+      <div key={node.id} className="space-y-2">
+        <div
+          className={`flex items-center justify-between p-3 rounded-lg border transition ${
+            isCurrent
+              ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-400 dark:border-indigo-600 shadow-sm"
+              : matchesSearch
+              ? "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600"
+              : "opacity-40 bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800"
+          }`}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            {hasChildren ? (
+              <button
+                onClick={() => toggleNode(node.id)}
+                className="w-5 h-5 rounded flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+              >
+                {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              </button>
+            ) : (
+              <div className="w-5" />
+            )}
+
+            <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-xs text-slate-600 dark:text-slate-300 shrink-0">
+              {node.name.charAt(0)}
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs text-slate-900 dark:text-white truncate">{node.name}</span>
+                <span className="font-mono text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                  {node.employeeCode}
+                </span>
+                {isCurrent && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    Viewing
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                {node.jobTitle} • {node.departmentName || "Engineering"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+              {node.directReportsCount} Direct Reports
+            </span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full border ${getStatusBadge(node.status)}`}>
+              {node.status}
+            </span>
+          </div>
+        </div>
+
+        {hasChildren && isExpanded && (
+          <div className="pl-6 border-l-2 border-slate-200 dark:border-slate-800 ml-4 space-y-2">
+            {node.children!.map((child) => renderTreeNode(child))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (loading) {
     return (
-      <div className="p-16 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
-        <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
-        <span className="text-sm">Loading employee profile...</span>
+      <div className="min-h-[400px] flex items-center justify-center flex-col gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+        <p className="text-xs text-slate-400">Loading employee master record...</p>
       </div>
     );
   }
 
   if (error || !employee) {
     return (
-      <div className="space-y-4 max-w-xl mx-auto p-8 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+      <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 rounded-xl p-8 text-center max-w-lg mx-auto space-y-4">
         <AlertCircle className="w-10 h-10 text-rose-500 mx-auto" />
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Unable to Load Employee</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">{error || "Employee record not found"}</p>
+        <h2 className="text-base font-bold text-slate-900 dark:text-white">Employee Detail Unavailable</h2>
+        <p className="text-xs text-slate-600 dark:text-slate-400">{error || "Employee not found."}</p>
         <Link
           href="/admin/employees"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Employee Directory
         </Link>
@@ -204,28 +452,32 @@ export default function EmployeeDetailPage({
   }
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {/* Top Navigation */}
-      <div>
+    <div className="space-y-6">
+      {/* Top Header Navigation */}
+      <div className="flex items-center justify-between">
         <Link
           href="/admin/employees"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition mb-3"
+          className="inline-flex items-center gap-2 text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition"
         >
-          <ArrowLeft className="w-3.5 h-3.5" /> Back to Directory
+          <ArrowLeft className="w-4 h-4" />
+          Back to Employee Directory
         </Link>
+        <div className="text-xs text-slate-400 font-mono">
+          Concurrency Version: <span className="text-indigo-400 font-bold">{employee.concurrencyVersion}</span>
+        </div>
       </div>
 
-      {/* Hero Header Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+      {/* Main Profile Header Card */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-2xl font-bold font-mono shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-md">
               {employee.name.charAt(0)}
             </div>
             <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{employee.name}</h1>
-                <span className="px-2.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-xl font-bold text-slate-900 dark:text-white">{employee.name}</h1>
+                <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
                   {employee.employeeCode}
                 </span>
                 <span
@@ -255,6 +507,15 @@ export default function EmployeeDetailPage({
 
           <div className="flex items-center gap-2.5 self-start sm:self-auto">
             <button
+              onClick={() => {
+                fetchManagerCandidates();
+                setShowManagerModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 text-xs font-semibold transition"
+            >
+              <Network className="w-3.5 h-3.5" /> Change Manager
+            </button>
+            <button
               onClick={() => setShowEditModal(true)}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200 text-xs font-semibold transition"
             >
@@ -268,226 +529,507 @@ export default function EmployeeDetailPage({
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Main Grid: Details & History */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Core & Employment Information */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Employment Details Card */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Briefcase className="w-4 h-4 text-indigo-500" /> Employment Master Details
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                <span className="text-slate-400 block mb-0.5">Immutable Employee ID</span>
-                <span className="font-mono font-bold text-sm text-indigo-600 dark:text-indigo-400">
-                  {employee.employeeCode}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                <span className="text-slate-400 block mb-0.5">Internal Primary Key UUID</span>
-                <span className="font-mono text-slate-600 dark:text-slate-300 text-[11px] truncate block">
-                  {employee.id}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                <span className="text-slate-400 block mb-0.5">Employment Type</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {employee.employmentType}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                <span className="text-slate-400 block mb-0.5">Probation Status</span>
-                <span className="font-semibold text-blue-600 dark:text-blue-400">
-                  {employee.probationStatus}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                <span className="text-slate-400 block mb-0.5">Department & Team</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {employee.departmentName || "General"} {employee.teamName ? `• ${employee.teamName}` : ""}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                <span className="text-slate-400 block mb-0.5">Location Center</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {employee.locationName || "HQ"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Personal & Emergency Contact Card */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-              <User className="w-4 h-4 text-indigo-500" /> Personal & Emergency Contacts
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div>
-                <span className="text-slate-400 block mb-0.5">Phone Number</span>
-                <span className="font-medium text-slate-800 dark:text-slate-200">
-                  {employee.phone || "Not specified"}
-                </span>
-              </div>
-
-              <div>
-                <span className="text-slate-400 block mb-0.5">Personal Email</span>
-                <span className="font-medium text-slate-800 dark:text-slate-200">
-                  {employee.personalEmail || "Not specified"}
-                </span>
-              </div>
-
-              <div>
-                <span className="text-slate-400 block mb-0.5">Date of Birth</span>
-                <span className="font-medium text-slate-800 dark:text-slate-200">
-                  {employee.dateOfBirth || "Not specified"}
-                </span>
-              </div>
-
-              <div>
-                <span className="text-slate-400 block mb-0.5">Gender</span>
-                <span className="font-medium text-slate-800 dark:text-slate-200">
-                  {employee.gender || "Not specified"}
-                </span>
-              </div>
-
-              <div>
-                <span className="text-slate-400 block mb-0.5">Emergency Contact Person</span>
-                <span className="font-medium text-slate-800 dark:text-slate-200">
-                  {employee.emergencyContactName || "Not specified"}
-                </span>
-              </div>
-
-              <div>
-                <span className="text-slate-400 block mb-0.5">Emergency Contact Phone</span>
-                <span className="font-medium text-slate-800 dark:text-slate-200">
-                  {employee.emergencyContactPhone || "Not specified"}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Reporting Manager & Status Audit History */}
-        <div className="space-y-6">
-          {/* Reporting Line Card */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-3 flex items-center gap-2">
-              <Shield className="w-4 h-4 text-indigo-500" /> Reporting Line
-            </h2>
-
-            {employee.manager ? (
-              <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                  Direct Manager
-                </span>
-                <div className="font-bold text-slate-900 dark:text-white text-sm">
-                  {employee.manager.name}
-                </div>
-                <div className="text-xs text-indigo-600 dark:text-indigo-400 font-mono mt-0.5">
-                  {employee.manager.employeeCode}
-                </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  {employee.manager.jobTitle}
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/40 text-center text-xs text-slate-400">
-                Top of hierarchy (No reporting manager assigned)
-              </div>
-            )}
-          </div>
-
-          {/* Employment Status Transitions History */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-3 flex items-center gap-2">
-              <History className="w-4 h-4 text-indigo-500" /> Status Audit Trail
-            </h2>
-
-            {employee.statusHistory && employee.statusHistory.length > 0 ? (
-              <div className="relative pl-4 space-y-4 before:absolute before:left-1 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800 text-xs">
-                {employee.statusHistory.map((sh: any) => (
-                  <div key={sh.id} className="relative">
-                    <div className="absolute -left-[19px] top-1 w-2.5 h-2.5 rounded-full bg-indigo-500 ring-4 ring-white dark:ring-slate-900" />
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {sh.previousStatus} → <span className="text-indigo-600 dark:text-indigo-400">{sh.newStatus}</span>
-                      </span>
-                    </div>
-                    <p className="text-slate-500 dark:text-slate-400 mt-0.5 italic">
-                      "{sh.reason}"
-                    </p>
-                    <span className="text-[10px] text-slate-400 block mt-1">
-                      Effective: {sh.effectiveDate} • Recorded {new Date(sh.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/40 text-center text-xs text-slate-400">
-                Initial employment status: {employee.status} (No transitions recorded)
-              </div>
-            )}
-          </div>
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-6 mt-6 border-t border-slate-100 dark:border-slate-800 pt-4">
+          <button
+            onClick={() => setActiveTab("details")}
+            className={`pb-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5 ${
+              activeTab === "details"
+                ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+            }`}
+          >
+            <User className="w-3.5 h-3.5" /> Master Details & Personal
+          </button>
+          <button
+            onClick={() => setActiveTab("hierarchy")}
+            className={`pb-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5 ${
+              activeTab === "hierarchy"
+                ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+            }`}
+          >
+            <Network className="w-3.5 h-3.5" /> Reporting Hierarchy & Tree
+          </button>
         </div>
       </div>
 
-      {/* Edit Profile Modal */}
-      {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Edit className="w-4 h-4 text-indigo-500" /> Edit Employee Profile
+      {/* Tab 1: Details View */}
+      {activeTab === "details" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            {/* Employment Details Card */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-indigo-500" /> Employment Master Details
               </h2>
-              <button onClick={() => setShowEditModal(false)}>
-                <X className="w-5 h-5 text-slate-400 hover:text-white" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-400 block mb-0.5">Immutable Employee ID</span>
+                  <span className="font-mono font-bold text-sm text-indigo-600 dark:text-indigo-400">
+                    {employee.employeeCode}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-400 block mb-0.5">Internal Primary Key UUID</span>
+                  <span className="font-mono text-slate-600 dark:text-slate-300 text-[11px] truncate block">
+                    {employee.id}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-400 block mb-0.5">Employment Type</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">{employee.employmentType}</span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-400 block mb-0.5">Probation Status</span>
+                  <span className="font-semibold text-blue-600 dark:text-blue-400">{employee.probationStatus}</span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-400 block mb-0.5">Department & Team</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {employee.departmentName || "General"} {employee.teamName ? `• ${employee.teamName}` : ""}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-400 block mb-0.5">Location Center</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {employee.locationName || "HQ"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Personal Contacts */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                <User className="w-4 h-4 text-indigo-500" /> Personal & Emergency Contacts
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="text-slate-400 block mb-0.5">Phone Number</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">{employee.phone || "Not specified"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block mb-0.5">Personal Email</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">{employee.personalEmail || "Not specified"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block mb-0.5">Emergency Contact Person</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">{employee.emergencyContactName || "Not specified"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block mb-0.5">Emergency Contact Phone</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">{employee.emergencyContactPhone || "Not specified"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Reporting Line & Status History */}
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-indigo-500" /> Reporting Line
+                </h2>
+                <button
+                  onClick={() => {
+                    fetchManagerCandidates();
+                    setShowManagerModal(true);
+                  }}
+                  className="text-xs text-indigo-500 hover:underline font-semibold"
+                >
+                  Change
+                </button>
+              </div>
+
+              {employee.manager ? (
+                <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    Direct Reporting Manager
+                  </span>
+                  <div className="font-bold text-slate-900 dark:text-white text-sm">{employee.manager.name}</div>
+                  <div className="text-xs text-indigo-600 dark:text-indigo-400 font-mono mt-0.5">
+                    {employee.manager.employeeCode}
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{employee.manager.jobTitle}</div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/40 text-center text-xs text-slate-400">
+                  Top of organization (No reporting manager assigned)
+                </div>
+              )}
+            </div>
+
+            {/* Status History Timeline */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-3 flex items-center gap-2">
+                <History className="w-4 h-4 text-indigo-500" /> Status Transitions
+              </h2>
+              {employee.statusHistory && employee.statusHistory.length > 0 ? (
+                <div className="space-y-3">
+                  {employee.statusHistory.map((h: any) => (
+                    <div key={h.id} className="p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 text-xs">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          {h.previousStatus} → <span className="text-indigo-500">{h.newStatus}</span>
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">{h.effectiveDate}</span>
+                      </div>
+                      <p className="text-slate-500 text-[11px]">{h.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4 text-xs text-slate-400">No transitions recorded yet.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 2: Reporting Hierarchy & Interactive Organizational Tree */}
+      {activeTab === "hierarchy" && (
+        <div className="space-y-6">
+          {/* Top Row: Direct Manager & Upward Chain Card */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Direct Manager Card */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <UserCheck className="w-4 h-4 text-indigo-500" /> Direct Reporting Manager
+                </h3>
+                <button
+                  onClick={() => {
+                    fetchManagerCandidates();
+                    setShowManagerModal(true);
+                  }}
+                  className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
+                >
+                  Edit Manager
+                </button>
+              </div>
+
+              {employee.manager ? (
+                <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-1">
+                  <div className="text-sm font-bold text-slate-900 dark:text-white">{employee.manager.name}</div>
+                  <div className="text-xs font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
+                    {employee.manager.employeeCode}
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">{employee.manager.jobTitle}</div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/40 text-center text-xs text-slate-400">
+                  Top-level executive (Reports directly to Board / No manager assigned)
+                </div>
+              )}
+            </div>
+
+            {/* Upward Leadership Chain */}
+            <div className="md:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <GitCommit className="w-4 h-4 text-indigo-500" /> Upward Leadership Chain
+              </h3>
+
+              {hierarchyLoading ? (
+                <div className="p-4 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                  <span>Tracing manager chain...</span>
+                </div>
+              ) : hierarchyData?.managerChain && hierarchyData.managerChain.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs">
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{employee.name}</span>
+                    <span className="text-[10px] text-slate-400 block font-mono">Self</span>
+                  </div>
+
+                  {hierarchyData.managerChain.map((mgr, idx) => (
+                    <React.Fragment key={mgr.id}>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                      <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs">
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block">{mgr.name}</span>
+                        <span className="text-[10px] text-slate-400 block">{mgr.jobTitle}</span>
+                      </div>
+                    </React.Fragment>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 text-center text-xs text-slate-400">
+                  No upward chain (Top of organization hierarchy).
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Subordinate Organizational Tree */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  <Network className="w-4 h-4 text-indigo-500" /> Organizational Subtree & Direct Reports
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Expand and collapse subordinate reporting lines beneath {employee.name}.
+                </p>
+              </div>
+
+              {/* Hierarchy Tree Search */}
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Filter hierarchy tree..."
+                  value={hierarchySearch}
+                  onChange={(e) => setHierarchySearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            {hierarchyLoading ? (
+              <div className="p-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                <span>Loading hierarchical tree...</span>
+              </div>
+            ) : hierarchyData?.tree ? (
+              <div className="pt-2">{renderTreeNode(hierarchyData.tree)}</div>
+            ) : (
+              <div className="p-8 text-center text-xs text-slate-400">No hierarchy data available.</div>
+            )}
+          </div>
+
+          {/* Reporting Manager Change History Table */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-3">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+              <History className="w-4 h-4 text-indigo-500" /> Reporting Manager Change History
+            </h3>
+
+            {hierarchyData?.history && hierarchyData.history.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <th className="py-2.5 px-3">Effective Date</th>
+                      <th className="py-2.5 px-3">Previous Manager</th>
+                      <th className="py-2.5 px-3">New Manager</th>
+                      <th className="py-2.5 px-3">Reason</th>
+                      <th className="py-2.5 px-3">Changed By</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                    {hierarchyData.history.map((h: any) => (
+                      <tr key={h.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                        <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">{h.effectiveDate}</td>
+                        <td className="py-2.5 px-3">
+                          {h.previousManagerName ? (
+                            <span>
+                              {h.previousManagerName}{" "}
+                              <span className="font-mono text-[10px] text-slate-400">({h.previousManagerCode})</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 italic">None (Top Level)</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {h.newManagerName ? (
+                            <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
+                              {h.newManagerName}{" "}
+                              <span className="font-mono text-[10px] text-indigo-400">({h.newManagerCode})</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 italic">None (Top Level)</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">{h.reason}</td>
+                        <td className="py-2.5 px-3 text-slate-400">{h.changedByUserName}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-4 text-center text-xs text-slate-400">
+                No manager change events recorded in history yet.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CHANGE REPORTING MANAGER MODAL */}
+      {showManagerModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Network className="w-5 h-5 text-indigo-500" />
+                Change Reporting Manager
+              </h2>
+              <button
+                onClick={() => setShowManagerModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="p-5 space-y-4">
-              {editError && (
-                <div className="p-3 rounded-lg bg-rose-500/10 text-rose-500 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" /> {editError}
+            {managerError && (
+              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{managerError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangeManagerSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Select New Reporting Manager
+                </label>
+                <select
+                  value={selectedManagerId}
+                  onChange={(e) => validateCandidate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">-- No Manager (Top-Level Executive) --</option>
+                  {managerCandidates.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.employeeCode}) — {c.jobTitle}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Pre-flight validation status */}
+              {validatingManager && (
+                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 flex items-center gap-2 text-[11px] text-slate-400">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" />
+                  <span>Validating hierarchy cycle detection & rules...</span>
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label className="block font-semibold mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
-                  />
+              {managerValidation && !managerValidation.valid && (
+                <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 text-[11px] text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{managerValidation.error}</span>
                 </div>
+              )}
 
-                <div>
-                  <label className="block font-semibold mb-1">Designation / Title</label>
-                  <input
-                    type="text"
-                    required
-                    value={editForm.jobTitle}
-                    onChange={(e) => setEditForm({ ...editForm, jobTitle: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
-                  />
+              {managerValidation && managerValidation.valid && selectedManagerId && (
+                <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Valid hierarchy assignment. No circular dependency detected.</span>
                 </div>
+              )}
 
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Effective Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={managerEffectiveDate}
+                  onChange={(e) => setManagerEffectiveDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Reason for Manager Change *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="e.g. Promotion, department reorganization, manager transition..."
+                  value={managerReason}
+                  onChange={(e) => setManagerReason(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowManagerModal(false)}
+                  className="px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingManager || (managerValidation !== null && !managerValidation.valid)}
+                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {submittingManager && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  Confirm Manager Reassignment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT PROFILE MODAL */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-lg w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Edit className="w-5 h-5 text-indigo-500" />
+                Edit Employee Details
+              </h2>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleEditSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Job Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.jobTitle}
+                  onChange={(e) => setEditForm({ ...editForm, jobTitle: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold mb-1">Employment Type</label>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Employment Type</label>
                   <select
                     value={editForm.employmentType}
                     onChange={(e) => setEditForm({ ...editForm, employmentType: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="FULL_TIME">Full Time</option>
                     <option value="PART_TIME">Part Time</option>
@@ -497,55 +1039,56 @@ export default function EmployeeDetailPage({
                 </div>
 
                 <div>
-                  <label className="block font-semibold mb-1">Probation Status</label>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Probation Status</label>
                   <select
                     value={editForm.probationStatus}
                     onChange={(e) => setEditForm({ ...editForm, probationStatus: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="IN_PROBATION">In Probation</option>
                     <option value="CONFIRMED">Confirmed</option>
+                    <option value="IN_PROBATION">In Probation</option>
                     <option value="EXTENDED">Extended</option>
-                    <option value="WAIVED">Waived</option>
+                    <option value="NOT_APPLICABLE">Not Applicable</option>
                   </select>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold mb-1">Phone</label>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Phone Number</label>
                   <input
                     type="text"
                     value={editForm.phone}
                     onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
-
                 <div>
-                  <label className="block font-semibold mb-1">Personal Email</label>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Personal Email</label>
                   <input
                     type="email"
                     value={editForm.personalEmail}
                     onChange={(e) => setEditForm({ ...editForm, personalEmail: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold"
+                  className="px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={updating}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition disabled:opacity-50 flex items-center gap-1.5"
                 >
                   {updating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>{updating ? "Saving..." : "Save Changes"}</span>
+                  Save Changes
                 </button>
               </div>
             </form>
@@ -553,38 +1096,37 @@ export default function EmployeeDetailPage({
         </div>
       )}
 
-      {/* Change Status Modal */}
+      {/* STATUS TRANSITION MODAL */}
       {showStatusModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <ArrowRightCircle className="w-4 h-4 text-indigo-500" /> Transition Employment Status
+                <ArrowRightCircle className="w-5 h-5 text-indigo-500" />
+                Transition Employment Status
               </h2>
-              <button onClick={() => setShowStatusModal(false)}>
-                <X className="w-5 h-5 text-slate-400 hover:text-white" />
+              <button
+                onClick={() => setShowStatusModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleStatusSubmit} className="p-5 space-y-4 text-xs">
-              {statusError && (
-                <div className="p-3 rounded-lg bg-rose-500/10 text-rose-500 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" /> {statusError}
-                </div>
-              )}
-
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-400 block mb-0.5">Current Status</span>
-                <span className="font-bold text-sm text-slate-800 dark:text-slate-200">{employee.status}</span>
+            {statusError && (
+              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{statusError}</span>
               </div>
+            )}
 
+            <form onSubmit={handleStatusSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold mb-1">New Target Status *</label>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Target Status *</label>
                 <select
-                  required
                   value={statusForm.newStatus}
                   onChange={(e) => setStatusForm({ ...statusForm, newStatus: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="ACTIVE">ACTIVE</option>
                   <option value="ON_LEAVE">ON_LEAVE</option>
@@ -595,43 +1137,45 @@ export default function EmployeeDetailPage({
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Effective Date *</label>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Effective Date *</label>
                 <input
                   type="date"
                   required
                   value={statusForm.effectiveDate}
                   onChange={(e) => setStatusForm({ ...statusForm, effectiveDate: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Reason for Status Change *</label>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Reason for Transition *
+                </label>
                 <textarea
                   required
                   rows={3}
+                  placeholder="e.g. Approved medical leave, completion of probation period..."
                   value={statusForm.reason}
                   onChange={(e) => setStatusForm({ ...statusForm, reason: e.target.value })}
-                  placeholder="e.g. Approved medical sabbatical for 3 months"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowStatusModal(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold"
+                  className="px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={transitioning}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition disabled:opacity-50 flex items-center gap-1.5"
                 >
                   {transitioning && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>{transitioning ? "Updating..." : "Confirm Transition"}</span>
+                  Confirm Status Transition
                 </button>
               </div>
             </form>
@@ -641,4 +1185,3 @@ export default function EmployeeDetailPage({
     </div>
   );
 }
-

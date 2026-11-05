@@ -119,7 +119,23 @@ export const employeeStatusHistory = sqliteTable("employee_status_history", {
   createdAt: integer("created_at").notNull(),
 });
 
-// 6d. Employee Documents Vault
+// 6d. Reporting Manager Change History
+export const employeeManagerHistory = sqliteTable("employee_manager_history", {
+  id: text("id").primaryKey(),
+  employeeId: text("employee_id")
+    .notNull()
+    .references(() => employees.id),
+  previousManagerId: text("previous_manager_id"),
+  newManagerId: text("new_manager_id"),
+  reason: text("reason").notNull(),
+  effectiveDate: text("effective_date").notNull(),
+  changedByUserId: text("changed_by_user_id")
+    .notNull()
+    .references(() => users.id),
+  createdAt: integer("created_at").notNull(),
+});
+
+// 6e. Employee Documents Vault
 export const employeeDocuments = sqliteTable("employee_documents", {
   id: text("id").primaryKey(),
   employeeId: text("employee_id")

@@ -89,6 +89,15 @@ export const DASH_MODULE_PERMISSIONS = {
   TEAM_APPROVALS_MANAGE: "dash.team_approvals.manage", // Protected (Team Manager/HR only)
 } as const;
 
+// Reporting Hierarchy Permissions
+export const HIERARCHY_PERMISSIONS = {
+  HIERARCHY_READ: "hierarchy.read",
+  HIERARCHY_MANAGE: "hierarchy.manage",
+  HIERARCHY_HISTORY_READ: "hierarchy.history.read",
+  TEAM_DIRECT_REPORTS_READ: "team.direct_reports.read",
+  TEAM_REPORTING_HIERARCHY_READ: "team.reporting_hierarchy.read",
+} as const;
+
 export interface SessionContext {
   userId: string;
   employeeId?: string;
