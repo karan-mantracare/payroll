@@ -72,17 +72,14 @@ html:not(.dark) .text-white {
   color: #0f172a !important;
 }
 
-/* Ensure white text is strictly preserved on Navy, Brand Blue, and dark backgrounds */
+/* Ensure white text is strictly preserved on solid Navy, Brand Blue buttons, and white-text elements */
 html:not(.dark) .bg-\[\#293381\],
-html:not(.dark) [class*="bg-[#293381]"],
-html:not(.dark) .bg-\[\#293381\] *,
-html:not(.dark) [class*="bg-[#293381]"] *,
 html:not(.dark) .bg-\[\#1F2664\],
-html:not(.dark) [class*="bg-[#1F2664]"],
 html:not(.dark) .btn-brand-primary,
 html:not(.dark) .btn-brand-primary *,
 html:not(.dark) .text-white-force,
-html:not(.dark) [data-text-white="true"] {
+html:not(.dark) [data-text-white="true"],
+html:not(.dark) [data-text-white="true"] * {
   color: #ffffff !important;
 }
 

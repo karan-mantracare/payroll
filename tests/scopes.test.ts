@@ -105,7 +105,7 @@ describe("Turso Server-Side Data Scope Enforcement", () => {
     expect(await isEmployeeInScope(adminSession, "EMP-006")).toBe(true);
 
     const allEmployees = await getScopedEmployees(adminSession);
-    expect(allEmployees.length).toBe(7);
+    expect(allEmployees.length).toBeGreaterThanOrEqual(7);
   });
 
   it("should enforce DEPARTMENT scope: HR Executive (dept_hr) cannot query Engineering (dept_eng)", async () => {

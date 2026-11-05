@@ -50,7 +50,7 @@ export function Navbar({ portal, onToggleMobileMenu, isMobileMenuOpen }: NavbarP
 
         {/* Portal Identifier Badge & Title */}
         <div className="flex items-center gap-2.5">
-          <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-[#293381]/10 text-[#293381] dark:bg-[#36B4FF]/15 dark:text-[#36B4FF] border border-[#293381]/20 dark:border-[#36B4FF]/30">
+          <span className="text-xs px-3 py-1 rounded-full font-semibold bg-[#293381] text-white shadow-sm border border-[#293381] dark:bg-[#36B4FF] dark:text-[#293381]">
             {portal}
           </span>
           <span className="text-xs text-slate-400 hidden sm:inline">•</span>
