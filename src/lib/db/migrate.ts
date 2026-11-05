@@ -426,6 +426,35 @@ export async function runMigrations() {
     );
   `);
 
+  // User Credentials
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS user_credentials (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL UNIQUE REFERENCES users(id),
+      password_hash TEXT NOT NULL,
+      password_updated_at INTEGER NOT NULL,
+      failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+      locked_until INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
+
+  // OTP Challenges
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS otp_challenges (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      challenge_token TEXT NOT NULL UNIQUE,
+      otp_hash TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER NOT NULL DEFAULT 5,
+      is_used INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+  `);
+
   console.log("Turso schema migration completed successfully.");
 }
 

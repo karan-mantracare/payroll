@@ -7,17 +7,21 @@ import { Loader2 } from "lucide-react";
 
 export default function RootRedirector() {
   const router = useRouter();
-  const { user, canAccessAdmin, canAccessEmployee } = useAuth();
+  const { user, loading, canAccessAdmin, canAccessEmployee } = useAuth();
 
   useEffect(() => {
-    if (!user) return;
+    if (loading) return;
 
-    if (canAccessAdmin) {
+    if (!user) {
+      router.replace("/login");
+    } else if (canAccessAdmin) {
       router.replace("/admin");
     } else if (canAccessEmployee) {
       router.replace("/dash");
+    } else {
+      router.replace("/login");
     }
-  }, [user, canAccessAdmin, canAccessEmployee, router]);
+  }, [user, loading, canAccessAdmin, canAccessEmployee, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-950 text-slate-900 dark:text-white">
@@ -28,4 +32,3 @@ export default function RootRedirector() {
     </div>
   );
 }
-

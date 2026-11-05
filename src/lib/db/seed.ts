@@ -2,6 +2,7 @@ import { rawClient } from "./client";
 import { runMigrations } from "./migrate";
 import { DEFAULT_ROLES } from "../permissions/registry";
 import { encryptField } from "../security/crypto";
+import { hashPassword } from "../security/password";
 
 export async function seedDatabase() {
   await runMigrations();
@@ -13,6 +14,8 @@ export async function seedDatabase() {
   await rawClient.execute("DELETE FROM audit_logs;");
   await rawClient.execute("DELETE FROM auth_sessions;");
   await rawClient.execute("DELETE FROM used_tokens;");
+  await rawClient.execute("DELETE FROM otp_challenges;");
+  await rawClient.execute("DELETE FROM user_credentials;");
   await rawClient.execute("DELETE FROM attendance_events;");
   await rawClient.execute("DELETE FROM attendance_correction_requests;");
   await rawClient.execute("DELETE FROM attendance_records;");
@@ -247,6 +250,15 @@ export async function seedDatabase() {
       sql: `INSERT OR REPLACE INTO users (id, platform_user_id, email, name, status, created_at, updated_at)
             VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?);`,
       args: [u.id, u.platformUserId, u.email, u.name, now, now],
+    });
+
+    // Insert User Credentials (Default dev/testing password: MantraCare@2026!)
+    const devPasswordHash = await hashPassword("MantraCare@2026!", 12);
+    await rawClient.execute({
+      sql: `INSERT OR REPLACE INTO user_credentials
+            (id, user_id, password_hash, password_updated_at, failed_login_attempts, locked_until, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 0, NULL, ?, ?);`,
+      args: [`cred_${u.id}`, u.id, devPasswordHash, now, now, now],
     });
 
     // Insert Employee Profile

@@ -378,3 +378,34 @@ export const auditLogs = sqliteTable("audit_logs", {
   currentHash: text("current_hash").notNull(), // SHA-256 of (prevHash + payload)
 });
 
+// 14. User Credentials (Direct Email/Password Authentication with Bcrypt)
+export const userCredentials = sqliteTable("user_credentials", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id),
+  passwordHash: text("password_hash").notNull(),
+  passwordUpdatedAt: integer("password_updated_at").notNull(),
+  failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+  lockedUntil: integer("locked_until"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// 15. OTP Challenges (Two-Factor Verification Engine)
+export const otpChallenges = sqliteTable("otp_challenges", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id),
+  challengeToken: text("challenge_token").notNull().unique(),
+  otpHash: text("otp_hash").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(5),
+  isUsed: integer("is_used").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+});
+
+
