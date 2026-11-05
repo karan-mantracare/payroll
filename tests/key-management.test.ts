@@ -14,6 +14,8 @@ import {
 } from "../src/lib/security/key-migration";
 import { seedDatabase } from "../src/lib/db/seed";
 import { db, rawClient } from "../src/lib/db/client";
+import { sensitiveEmployeeDetails } from "../src/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 describe("Cryptographic Key Management, Validation & Safe Rotation", () => {
   const originalEnv = { ...process.env };
@@ -143,31 +145,137 @@ describe("Cryptographic Key Management, Validation & Safe Rotation", () => {
       }
     });
 
-    it("should execute live batch key rotation from v1 to v2 with checkpointing", async () => {
-      const checkpoints: any[] = [];
+    it("should rollback the entire batch via database transaction when an injected failure occurs mid-batch", async () => {
+      // In a batch of 3 records, inject a failure on sens_EMP-002 (the second record in the batch)
+      const failResult = await rotateSensitiveEmployeeDetails({
+        targetVersion: "v2",
+        batchSize: 3,
+        dryRun: false,
+        _testInjectedFailureOnRecordId: "sens_EMP-002",
+      });
+
+      expect(failResult.success).toBe(false);
+      expect(failResult.errors.length).toBeGreaterThan(0);
+      expect(failResult.errors[0].error).toContain("TEST_INJECTED_FAILURE");
+
+      // Verify that sens_EMP-001 (which was processed before EMP-002 in the same batch) was NOT committed
+      // It must have rolled back to v1!
+      const row1Res = await rawClient.execute(
+        "SELECT key_version, basic_salary_encrypted FROM sensitive_employee_details WHERE id = 'sens_EMP-001';"
+      );
+      expect(row1Res.rows[0][0]).toBe("v1");
+      expect(String(row1Res.rows[0][1]).startsWith("v1:")).toBe(true);
+
+      // Verify all rows in the table remain v1
+      const allRows = await rawClient.execute("SELECT key_version FROM sensitive_employee_details;");
+      for (const r of allRows.rows) {
+        expect(r[0]).toBe("v1");
+      }
+    });
+
+    it("should detect concurrent modifications and abort the batch to prevent data overwriting", async () => {
+      // Seed fresh state
+      await seedDatabase();
+
+      // Execute rotation with concurrent modification simulation hook
+      const conflictResult = await rotateSensitiveEmployeeDetails({
+        targetVersion: "v2",
+        batchSize: 3,
+        dryRun: false,
+        _testSimulateConcurrentUpdateBeforeWrite: true,
+      });
+
+      expect(conflictResult.success).toBe(false);
+      expect(conflictResult.errors.length).toBeGreaterThan(0);
+      expect(conflictResult.errors[0].error).toContain("CONCURRENT_MODIFICATION_DETECTED");
+
+      // Verify records rolled back and were NOT updated to v2
+      const allRows = await rawClient.execute("SELECT key_version FROM sensitive_employee_details;");
+      for (const r of allRows.rows) {
+        expect(r[0]).toBe("v1");
+      }
+    });
+
+    it("should make rotation safely resumable after an interruption", async () => {
+      await seedDatabase();
+
+      // Rotate only first batch of 2 records using maxBatches: 1
+      const firstBatch = await rotateSensitiveEmployeeDetails({
+        targetVersion: "v2",
+        batchSize: 2,
+        maxBatches: 1,
+        dryRun: false,
+      });
+
+      expect(firstBatch.success).toBe(true);
+      expect(firstBatch.totalRotated).toBe(2);
+
+      // Verify exactly 2 records are on v2 and 5 records are still on v1
+      const countV2Res = await rawClient.execute("SELECT count(*) FROM sensitive_employee_details WHERE key_version = 'v2';");
+      const countV1Res = await rawClient.execute("SELECT count(*) FROM sensitive_employee_details WHERE key_version = 'v1';");
+      expect(Number(countV2Res.rows[0][0])).toBe(2);
+      expect(Number(countV1Res.rows[0][0])).toBe(5);
+
+      // Resume rotation: it picks up the remaining 5 unmigrated records
+      const resumedBatch = await rotateSensitiveEmployeeDetails({
+        targetVersion: "v2",
+        batchSize: 50,
+        dryRun: false,
+      });
+
+      expect(resumedBatch.success).toBe(true);
+      expect(resumedBatch.totalRotated).toBe(5);
+
+      // Verify now all 7 records are migrated to v2
+      const finalV2Res = await rawClient.execute("SELECT count(*) FROM sensitive_employee_details WHERE key_version = 'v2';");
+      expect(Number(finalV2Res.rows[0][0])).toBe(7);
+    });
+
+    it("should verify all 8 encrypted fields after rotation to v2", async () => {
+      await seedDatabase();
+
       const liveResult = await rotateSensitiveEmployeeDetails({
         targetVersion: "v2",
-        batchSize: 2, // Small batch size to test multiple batch iterations
+        batchSize: 50,
         dryRun: false,
-        onCheckpoint: (info) => checkpoints.push(info),
       });
 
       expect(liveResult.success).toBe(true);
-      expect(liveResult.totalRotated).toBe(liveResult.totalRecordsFound);
-      expect(checkpoints.length).toBeGreaterThan(1);
 
-      // Verify all rows in DB are now v2
-      const rawRows = await rawClient.execute(
-        "SELECT key_version, basic_salary_encrypted, bank_account_number_encrypted FROM sensitive_employee_details;"
-      );
-      for (const row of rawRows.rows) {
-        expect(row[0]).toBe("v2");
-        expect(String(row[1]).startsWith("v2:")).toBe(true);
-        expect(String(row[2]).startsWith("v2:")).toBe(true);
+      const allRows = await db.select().from(sensitiveEmployeeDetails);
+      expect(allRows.length).toBe(7);
 
-        // Verify each row decrypts accurately with the new key
-        const decryptedSalary = decryptField(String(row[1]));
-        expect(parseFloat(decryptedSalary)).toBeGreaterThan(0);
+      for (const row of allRows) {
+        expect(row.keyVersion).toBe("v2");
+
+        // Verify all 8 fields are prefixed with v2:
+        expect(row.basicSalaryEncrypted.startsWith("v2:")).toBe(true);
+        expect(row.grossSalaryEncrypted.startsWith("v2:")).toBe(true);
+        expect(row.netSalaryEncrypted.startsWith("v2:")).toBe(true);
+        expect(row.bankAccountNumberEncrypted.startsWith("v2:")).toBe(true);
+        expect(row.bankIfscEncrypted.startsWith("v2:")).toBe(true);
+        expect(row.taxIdentifierEncrypted.startsWith("v2:")).toBe(true);
+        expect(row.identityDocumentNumberEncrypted.startsWith("v2:")).toBe(true);
+        expect(row.identityDocumentUrlEncrypted.startsWith("v2:")).toBe(true);
+
+        // Verify all 8 fields decrypt accurately with v2
+        const decBasic = decryptField(row.basicSalaryEncrypted);
+        const decGross = decryptField(row.grossSalaryEncrypted);
+        const decNet = decryptField(row.netSalaryEncrypted);
+        const decBankAcc = decryptField(row.bankAccountNumberEncrypted);
+        const decIfsc = decryptField(row.bankIfscEncrypted);
+        const decTaxId = decryptField(row.taxIdentifierEncrypted);
+        const decDocNum = decryptField(row.identityDocumentNumberEncrypted);
+        const decDocUrl = decryptField(row.identityDocumentUrlEncrypted);
+
+        expect(parseFloat(decBasic)).toBeGreaterThan(0);
+        expect(parseFloat(decGross)).toBeGreaterThan(0);
+        expect(parseFloat(decNet)).toBeGreaterThan(0);
+        expect(decBankAcc).toMatch(/^98765432100[1-7]$/);
+        expect(decIfsc).toBe("HDFC0001234");
+        expect(decTaxId).toMatch(/^AAAPL/);
+        expect(decDocNum).toBe("IND-ID-99901");
+        expect(decDocUrl).toBe("https://secure.mantracare.com/docs/id.pdf");
       }
     });
   });

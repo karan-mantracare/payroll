@@ -105,11 +105,9 @@ All sensitive financial and identity fields are encrypted at the application lay
 * `updated_at` (INTEGER)
 
 > **Key Storage & Versioning:** Master encryption keys (`PAYROLL_ENCRYPTION_KEY_V1`, `PAYROLL_ENCRYPTION_KEY_V2`, and `PAYROLL_ACTIVE_KEY_VERSION`) are kept in server-side environment secrets completely separate from Turso credentials. The encryption envelope supports on-the-fly zero-downtime key rotation via `rotateField()` or the batch migration utility `npm run db:rotate-keys`.
+>
+> **Operational Key Retention Policy:** Older encryption keys (e.g. `PAYROLL_ENCRYPTION_KEY_V1`) must NOT be purged from environment secrets immediately upon completing a live database rotation. They must remain configured in production environment variables until all historical database backups, point-in-time recovery archives, and disaster recovery snapshots created during that key's lifecycle have either expired past the backup retention window or been re-encrypted. The rotation engine's pre-flight check actively prevents rotation if older source keys are missing.
 
-
-* `tax_identifier` (TEXT) (e.g. PAN / SSN)
-* `identity_document_url` (TEXT)
-* `updated_at` (INTEGER)
 
 ### 3.9 `auth_sessions` & `used_tokens`
 * `used_tokens`: `token_hash` (TEXT, PK), `used_at` (INTEGER), `expires_at` (INTEGER)

@@ -30,7 +30,7 @@ async function main() {
       batchSize,
       dryRun,
       onCheckpoint: (info) => {
-        console.log(`[Checkpoint] Batch ${info.batchIndex} processed: ${info.processed}/${info.total} records.`);
+        console.log(`[Checkpoint] Batch ${info.batchIndex} processed: ${info.processed}/${info.totalFound} records (Remaining: ${info.remaining}).`);
       },
     });
 
@@ -57,3 +57,4 @@ async function main() {
 }
 
 main();
+
