@@ -1,6 +1,7 @@
+import { assertEncryptionReady } from "./lib/security/config-validator";
+
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { assertEncryptionReady } = await import("./lib/security/crypto");
     // In production or when strictly configured, fail fast on server startup if keys are invalid
     if (process.env.NODE_ENV === "production") {
       try {

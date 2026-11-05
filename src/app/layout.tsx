@@ -5,6 +5,11 @@ import { AuthGate } from "@/components/AuthGate";
 export const metadata: Metadata = {
   title: "MantraCare HRMS & Payroll",
   description: "Enterprise HRMS & Payroll inside the MantraCare Programs Ecosystem",
+  icons: {
+    icon: "/payrol/favicon.ico",
+    shortcut: "/payrol/favicon.png",
+    apple: "/payrol/favicon.png",
+  },
 };
 
 export default function RootLayout({
