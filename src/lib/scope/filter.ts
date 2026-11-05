@@ -69,3 +69,4 @@ export function buildScopeCondition(session: SessionContext): SQL | undefined {
       return eq(employees.id, empId);
   }
 }
+

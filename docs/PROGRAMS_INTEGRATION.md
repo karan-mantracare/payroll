@@ -83,3 +83,4 @@ This document details the architectural integration of the MantraCare HRMS & Pay
 - [x] Tamper-evident SHA-256 hash-chain audit log.
 - [x] Docker image built with Node 22 LTS (avoiding Node 20).
 - [x] CSP frame-ancestors configured for `web.mantracare.com`.
+

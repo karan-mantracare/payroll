@@ -145,3 +145,4 @@ Payroll, bank, tax, and government identity fields are classified as confidentia
 
 ### 3.5 Tamper-Evident Audit Logging
 Audit records form a cryptographic SHA-256 hash chain: `hash_i = SHA-256(hash_{i-1} + record_payload)`. Any attempt to alter, delete, or inject an audit record invalidates the chain.
+

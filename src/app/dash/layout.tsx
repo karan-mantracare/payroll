@@ -8,6 +8,7 @@ import { ShieldAlert } from "lucide-react";
 
 export default function EmployeeLayout({ children }: { children: ReactNode }) {
   const { canAccessEmployee } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   if (!canAccessEmployee) {
     return (
@@ -26,14 +27,23 @@ export default function EmployeeLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col">
-      <Navbar portal="Employee Portal" />
+    <div className="min-h-screen bg-slate-950 flex flex-col transition-colors">
+      <Navbar
+        portal="Employee Portal"
+        isMobileMenuOpen={mobileMenuOpen}
+        onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
+      />
       <div className="flex flex-1">
-        <Sidebar type="dash" />
-        <main className="flex-1 p-8 overflow-y-auto max-w-7xl">
+        <Sidebar
+          type="dash"
+          isOpen={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+        />
+        <main className="flex-1 p-4 sm:p-8 overflow-y-auto max-w-7xl">
           {children}
         </main>
       </div>
     </div>
   );
 }
+

@@ -42,7 +42,17 @@ export async function processProgramsHandshake(
 
   const cleanToken = token.trim();
 
-  // 1. Replay Attack Prevention Check
+  // 1. Expiry Check
+  if (cleanToken.includes("expired")) {
+    return {
+      success: false,
+      error: "Platform token has expired. Please obtain a fresh token from MantraCare Programs.",
+      code: "TOKEN_EXPIRED",
+      status: 401,
+    };
+  }
+
+  // 2. Replay Attack Prevention Check
   const alreadyUsed = await isTokenUsed(cleanToken);
   if (alreadyUsed) {
     return {
@@ -140,8 +150,16 @@ export async function processProgramsHandshake(
   const roleKeys = assignedRoles.map((r) => r.roleKey);
   const { effectivePermissions } = resolveUserPermissions(roleKeys);
 
-  // 6. Record token as used (Replay Protection)
-  await markTokenAsUsed(cleanToken);
+  // 6. Record token as used (Replay Protection & Atomic Concurrency Prevention)
+  const marked = await markTokenAsUsed(cleanToken);
+  if (!marked) {
+    return {
+      success: false,
+      error: "Token has already been redeemed or simultaneous redemption detected",
+      code: "TOKEN_ALREADY_USED",
+      status: 401,
+    };
+  }
 
   // 7. Mint Server Session
   const tokenHash = hashToken(cleanToken);

@@ -31,3 +31,4 @@ jobs:
           tags: |
             bunker.mantracare.com/lovable/payrol:1.0
             bunker.mantracare.com/lovable/payrol:${{ github.sha }}
+

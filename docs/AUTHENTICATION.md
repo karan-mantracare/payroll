@@ -95,3 +95,4 @@ A valid login to the general MantraCare platform does **not** grant automatic ac
 2. An assigned internal role (`user_roles`).
 3. Explicit portal permissions (`portal.admin.access` or `portal.employee.access`).
 Users lacking an active HR mapping receive a clear `403 Forbidden` response and are prevented from viewing any HR or payroll data.
+

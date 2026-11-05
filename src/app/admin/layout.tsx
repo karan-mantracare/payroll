@@ -9,6 +9,7 @@ import Link from "next/link";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { canAccessAdmin } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   if (!canAccessAdmin) {
     return (
@@ -36,14 +37,23 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col">
-      <Navbar portal="Admin Portal" />
+    <div className="min-h-screen bg-slate-950 flex flex-col transition-colors">
+      <Navbar
+        portal="Admin Portal"
+        isMobileMenuOpen={mobileMenuOpen}
+        onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
+      />
       <div className="flex flex-1">
-        <Sidebar type="admin" />
-        <main className="flex-1 p-8 overflow-y-auto max-w-7xl">
+        <Sidebar
+          type="admin"
+          isOpen={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+        />
+        <main className="flex-1 p-4 sm:p-8 overflow-y-auto max-w-7xl">
           {children}
         </main>
       </div>
     </div>
   );
 }
+

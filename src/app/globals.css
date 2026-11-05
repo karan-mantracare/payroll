@@ -4,12 +4,57 @@
 
 :root {
   --foreground-rgb: 248, 250, 252;
-  --background-start-rgb: 15, 23, 42;
-  --background-end-rgb: 2, 6, 23;
+}
+
+html.dark body {
+  color: #f8fafc;
+  background-color: #090d16;
+}
+
+html:not(.dark) body {
+  color: #0f172a;
+  background-color: #f8fafc;
+}
+
+html:not(.dark) .bg-slate-950 {
+  background-color: #f8fafc !important;
+}
+
+html:not(.dark) .bg-slate-900 {
+  background-color: #ffffff !important;
+}
+
+html:not(.dark) .bg-slate-900\/80,
+html:not(.dark) .bg-slate-900\/60 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+html:not(.dark) .bg-slate-800,
+html:not(.dark) .bg-slate-800\/60,
+html:not(.dark) .bg-slate-800\/40 {
+  background-color: #f1f5f9 !important;
+}
+
+html:not(.dark) .border-slate-800,
+html:not(.dark) .border-slate-700,
+html:not(.dark) .border-slate-700\/50 {
+  border-color: #e2e8f0 !important;
+}
+
+html:not(.dark) .text-white {
+  color: #0f172a !important;
+}
+
+html:not(.dark) .text-slate-300,
+html:not(.dark) .text-slate-400 {
+  color: #475569 !important;
+}
+
+html:not(.dark) .text-slate-500 {
+  color: #64748b !important;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: #090d16;
   font-feature-settings: "rlig" 1, "calt" 1;
 }
+

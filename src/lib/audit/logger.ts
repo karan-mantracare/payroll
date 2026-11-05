@@ -46,10 +46,9 @@ export function computeAuditHash(
   return createHash("sha256").update(content).digest("hex");
 }
 
-/**
- * Appends a tamper-evident audit record to the database with cryptographic hash chaining.
- */
-export async function logAuditEvent(input: AuditRecordInput): Promise<AuditRecord> {
+let auditQueue: Promise<any> = Promise.resolve();
+
+async function internalLogAuditEvent(input: AuditRecordInput): Promise<AuditRecord> {
   // 1. Fetch latest record to get its hash
   const latestRecords = await db
     .select()
@@ -96,6 +95,23 @@ export async function logAuditEvent(input: AuditRecordInput): Promise<AuditRecor
     ipAddress: newRecord.ipAddress || null,
     userAgent: newRecord.userAgent || null,
   };
+}
+
+/**
+ * Appends a tamper-evident audit record to the database with cryptographic hash chaining.
+ * Uses sequential queue locking to prevent race conditions during concurrent audit writes.
+ */
+export async function logAuditEvent(input: AuditRecordInput): Promise<AuditRecord> {
+  return new Promise<AuditRecord>((resolve, reject) => {
+    auditQueue = auditQueue.then(async () => {
+      try {
+        const res = await internalLogAuditEvent(input);
+        resolve(res);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  });
 }
 
 /**

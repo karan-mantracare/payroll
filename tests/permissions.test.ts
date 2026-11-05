@@ -110,4 +110,76 @@ describe("Permission Registry & Multi-Role Combination", () => {
     expect(hasPermission(dummyContext, ADMIN_MODULE_PERMISSIONS.PAYROLL_VIEW)).toBe(true); // From Admin
     expect(hasPermission(dummyContext, SENSITIVE_PERMISSIONS.SALARY_READ)).toBe(true); // From Admin
   });
+
+  it("should confirm Admin Portal access is controlled by explicit portal.admin.access permission, NOT role name", () => {
+    // Case 1: Custom role or Employee explicitly granted 'portal.admin.access'
+    const customUserWithAdminAccess = {
+      userId: "usr_custom_admin",
+      name: "Custom Delegated Admin",
+      email: "delegated@mc.com",
+      organizationId: "org_1",
+      roles: ["EMPLOYEE"], // Role name is just EMPLOYEE
+      effectivePermissions: ["portal.admin.access", "portal.employee.access"], // Explicit permission granted!
+      widestScope: "SELF" as const,
+      managedDepartmentIds: [],
+      managedTeamIds: [],
+      directReportIds: [],
+      isSuperAdmin: false,
+    };
+
+    // Must be granted entry into Admin Portal because of explicit permission
+    expect(hasPortalAccess(customUserWithAdminAccess, "admin")).toBe(true);
+
+    // Case 2: User with role name 'TEAM_MANAGER' lacking 'portal.admin.access'
+    const managerWithoutAdminAccess = {
+      userId: "usr_manager_no_admin",
+      name: "Team Lead",
+      email: "lead@mc.com",
+      organizationId: "org_1",
+      roles: ["TEAM_MANAGER"],
+      effectivePermissions: ["portal.employee.access", "dash.team.view"], // No portal.admin.access
+      widestScope: "DIRECT_REPORTS" as const,
+      managedDepartmentIds: [],
+      managedTeamIds: [],
+      directReportIds: [],
+      isSuperAdmin: false,
+    };
+
+    // Must be DENIED entry into Admin Portal despite being a Manager
+    expect(hasPortalAccess(managerWithoutAdminAccess, "admin")).toBe(false);
+  });
+
+  it("should verify default permissions and scopes for all six system roles", () => {
+    const roles: Array<{ key: any; expectedScope: string; canAdmin: boolean; canEmployee: boolean }> = [
+      { key: "SUPER_ADMIN", expectedScope: "ORGANIZATION", canAdmin: true, canEmployee: true },
+      { key: "ADMIN", expectedScope: "ORGANIZATION", canAdmin: true, canEmployee: true },
+      { key: "HR_MANAGER", expectedScope: "ORGANIZATION", canAdmin: true, canEmployee: true },
+      { key: "HR_EXECUTIVE", expectedScope: "DEPARTMENT", canAdmin: true, canEmployee: true },
+      { key: "TEAM_MANAGER", expectedScope: "DIRECT_REPORTS", canAdmin: false, canEmployee: true },
+      { key: "EMPLOYEE", expectedScope: "SELF", canAdmin: false, canEmployee: true },
+    ];
+
+    for (const r of roles) {
+      const resolved = resolveUserPermissions([r.key]);
+      expect(resolved.widestScope).toBe(r.expectedScope);
+
+      const ctx = {
+        userId: `usr_${r.key}`,
+        name: r.key,
+        email: `${r.key.toLowerCase()}@mc.com`,
+        organizationId: "org_1",
+        roles: [r.key],
+        effectivePermissions: Array.from(resolved.effectivePermissions),
+        widestScope: resolved.widestScope,
+        managedDepartmentIds: [],
+        managedTeamIds: [],
+        directReportIds: [],
+        isSuperAdmin: resolved.isSuperAdmin,
+      };
+
+      expect(hasPortalAccess(ctx, "admin")).toBe(r.canAdmin);
+      expect(hasPortalAccess(ctx, "employee")).toBe(r.canEmployee);
+    }
+  });
 });
+

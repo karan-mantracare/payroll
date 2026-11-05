@@ -25,22 +25,31 @@ export async function isTokenUsed(token: string): Promise<boolean> {
 
 /**
  * Marks a token as redeemed so it cannot be re-used.
+ * Returns true if successfully redeemed, false if already redeemed or simultaneous race condition detected.
  */
-export async function markTokenAsUsed(token: string): Promise<void> {
+export async function markTokenAsUsed(token: string): Promise<boolean> {
   const tokenHash = hashToken(token);
   const now = Date.now();
   const expiresAt = now + TOKEN_EXPIRY_MS;
 
-  await db.insert(usedTokens).values({
-    tokenHash,
-    usedAt: now,
-    expiresAt,
-  });
-
-  // Opportunistic cleanup of expired token records
   try {
-    await db.delete(usedTokens).where(lt(usedTokens.expiresAt, now - 86400000));
-  } catch (err) {
-    // Non-fatal background cleanup
+    await db.insert(usedTokens).values({
+      tokenHash,
+      usedAt: now,
+      expiresAt,
+    });
+
+    // Opportunistic cleanup of expired token records
+    try {
+      await db.delete(usedTokens).where(lt(usedTokens.expiresAt, now - 86400000));
+    } catch {
+      // Non-fatal background cleanup
+    }
+
+    return true;
+  } catch (err: any) {
+    // Unique constraint violation on tokenHash primary key indicates simultaneous redemption
+    return false;
   }
 }
+

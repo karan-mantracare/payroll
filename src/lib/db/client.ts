@@ -11,3 +11,4 @@ export const rawClient = createClient({
 });
 
 export const db = drizzle(rawClient, { schema });
+

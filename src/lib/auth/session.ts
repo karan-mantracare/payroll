@@ -142,3 +142,4 @@ export async function revokeSession(sessionId: string): Promise<void> {
     .set({ revokedAt: Date.now() })
     .where(eq(authSessions.sessionId, sessionId));
 }
+

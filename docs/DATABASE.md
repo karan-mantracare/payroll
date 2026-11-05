@@ -136,3 +136,4 @@ export async function getScopedEmployees(session: AuthenticatedSession) {
 ```
 
 Any query attempting to load data outside the caller's authorized scope returns an empty set or throws an authorization error.
+

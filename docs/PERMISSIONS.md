@@ -102,3 +102,4 @@ The API response serializer intercepts and sanitizes payloads automatically befo
 9. `dash.requests.view`, `dash.requests.submit`
 10. `dash.team.view` *(Requires Team Manager or HR)*
 11. `dash.team_approvals.manage` *(Requires Team Manager or HR)*
+

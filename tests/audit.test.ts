@@ -92,4 +92,32 @@ describe("Tamper-Evident SHA-256 Audit Log Engine", () => {
     expect(verification.valid).toBe(false);
     expect(verification.error).toContain("Broken hash chain link");
   });
+
+  it("should maintain 100% cryptographic hash chain consistency during high concurrent audit writes", async () => {
+    // 10 simultaneous concurrent audit events fired at the exact same millisecond
+    const concurrentWrites = Array.from({ length: 10 }, (_, i) =>
+      logAuditEvent({
+        actorUserId: `usr_concurrent_${i}`,
+        actorEmployeeId: `EMP-00${(i % 5) + 1}`,
+        action: `CONCURRENT_OPERATION_${i}`,
+        targetEntity: "payroll_batch",
+        targetId: `item_${i}`,
+        changes: { index: i, timestamp: Date.now() },
+      })
+    );
+
+    const loggedRecords = await Promise.all(concurrentWrites);
+    expect(loggedRecords.length).toBe(10);
+
+    // Verify that every single consecutive pair forms a continuous cryptographic chain
+    for (let i = 1; i < loggedRecords.length; i++) {
+      expect(loggedRecords[i].prevHash).toBe(loggedRecords[i - 1].currentHash);
+    }
+
+    // Verify the entire batch with the audit integrity verifier
+    const batchVerification = verifyAuditLogChain(loggedRecords);
+    expect(batchVerification.valid).toBe(true);
+    expect(batchVerification.error).toBeUndefined();
+  });
 });
+

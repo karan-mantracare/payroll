@@ -66,3 +66,4 @@ If a production issue occurs:
 2. Select the `payrol` project.
 3. Update the **Docker image** field to the previously stable image tag (e.g. `bunker.mantracare.com/lovable/payrol:1.0.0`).
 4. Click **Pause**, then **Play** to trigger the rolling container replacement.
+

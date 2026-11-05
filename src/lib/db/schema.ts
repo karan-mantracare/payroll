@@ -165,3 +165,4 @@ export const auditLogs = sqliteTable("audit_logs", {
   prevHash: text("prev_hash").notNull(), // SHA-256 of previous audit record
   currentHash: text("current_hash").notNull(), // SHA-256 of (prevHash + payload)
 });
+

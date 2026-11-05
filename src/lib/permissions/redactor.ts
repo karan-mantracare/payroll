@@ -60,3 +60,4 @@ export function redactSensitiveDetails(
     identityDocumentUrl: canReadIdentity ? details.identityDocumentUrl : "[RESTRICTED]",
   };
 }
+

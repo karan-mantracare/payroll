@@ -104,3 +104,4 @@ export function canAccessDataScope(
   const targetWeight = SCOPE_HIERARCHY[targetScope] || 0;
   return userWeight >= targetWeight;
 }
+

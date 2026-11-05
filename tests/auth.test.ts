@@ -71,4 +71,30 @@ describe("Programs Platform Handshake & Authentication Engine", () => {
     let revokedContext = await getSessionContext(sessionId);
     expect(revokedContext).toBeNull();
   });
+
+  it("should reject expired platform tokens", async () => {
+    const expiredResult = await processProgramsHandshake("test-token-expired-user", "127.0.0.1", "Browser");
+    expect(expiredResult.success).toBe(false);
+    expect(expiredResult.status).toBe(401);
+    expect(expiredResult.code).toBe("TOKEN_EXPIRED");
+  });
+
+  it("should prevent simultaneous race condition token redemption", async () => {
+    const concurrentToken = `test-token-employee-race-${Date.now()}`;
+
+    // Two simultaneous redemption requests firing concurrently
+    const [res1, res2] = await Promise.all([
+      processProgramsHandshake(concurrentToken, "127.0.0.1", "ClientA"),
+      processProgramsHandshake(concurrentToken, "127.0.0.1", "ClientB"),
+    ]);
+
+    // Exactly one must succeed and the other must be blocked with TOKEN_ALREADY_USED
+    const successes = [res1, res2].filter((r) => r.success);
+    const failures = [res1, res2].filter((r) => !r.success);
+
+    expect(successes.length).toBe(1);
+    expect(failures.length).toBe(1);
+    expect(failures[0].code).toBe("TOKEN_ALREADY_USED");
+    expect(failures[0].status).toBe(401);
+  });
 });

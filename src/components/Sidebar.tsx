@@ -75,21 +75,23 @@ const DASH_NAV_ITEMS: NavItem[] = [
 
 interface SidebarProps {
   type: "admin" | "dash";
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export function Sidebar({ type }: SidebarProps) {
+export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { hasPermission } = useAuth();
 
   const items = type === "admin" ? ADMIN_NAV_ITEMS : DASH_NAV_ITEMS;
 
-  return (
-    <aside className="w-64 border-r border-slate-800 bg-slate-900/60 min-h-[calc(100vh-4rem)] flex flex-col py-4 px-3">
+  const sidebarContent = (
+    <aside className="w-64 border-r border-slate-800 bg-slate-900/95 min-h-[calc(100vh-4rem)] flex flex-col py-4 px-3 h-full">
       <div className="px-3 pb-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
         {type === "admin" ? "Admin Modules (12)" : "Employee Modules (11)"}
       </div>
 
-      <nav className="space-y-1 flex-1">
+      <nav className="space-y-1 flex-1 overflow-y-auto">
         {items.map((item) => {
           // If the item requires a specific permission, evaluate it
           if (item.permission && !hasPermission(item.permission)) {
@@ -108,6 +110,9 @@ export function Sidebar({ type }: SidebarProps) {
               key={item.href}
               href={item.href}
               prefetch={false}
+              onClick={() => {
+                if (onClose) onClose();
+              }}
               className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition ${
                 isActive
                   ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/30"
@@ -144,4 +149,25 @@ export function Sidebar({ type }: SidebarProps) {
       </div>
     </aside>
   );
+
+  return (
+    <>
+      {/* Desktop Persistent Sidebar */}
+      <div className="hidden md:block">{sidebarContent}</div>
+
+      {/* Mobile Drawer Overlay */}
+      {isOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <div className="fixed inset-y-0 left-0 w-64 z-50 shadow-2xl">
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
+

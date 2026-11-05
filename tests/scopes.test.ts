@@ -107,4 +107,35 @@ describe("Turso Server-Side Data Scope Enforcement", () => {
     const allEmployees = await getScopedEmployees(adminSession);
     expect(allEmployees.length).toBe(7);
   });
+
+  it("should enforce DEPARTMENT scope: HR Executive (dept_hr) cannot query Engineering (dept_eng)", async () => {
+    const hrExecSession: SessionContext = {
+      userId: "usr_hrexecutive",
+      employeeId: "EMP-004",
+      name: "Kavita HR-Executive",
+      email: "hrexecutive@mantracare.com",
+      organizationId: "org_mc_global",
+      departmentId: "dept_hr",
+      roles: ["HR_EXECUTIVE"],
+      effectivePermissions: ["admin.employees.view"],
+      widestScope: "DEPARTMENT",
+      managedDepartmentIds: ["dept_hr"],
+      managedTeamIds: ["team_hr_ops"],
+      directReportIds: [],
+      isSuperAdmin: false,
+    };
+
+    // Querying employee in own department (dept_hr): ALLOWED
+    expect(await isEmployeeInScope(hrExecSession, "EMP-004")).toBe(true);
+    expect(await isEmployeeInScope(hrExecSession, "EMP-003")).toBe(true); // Meera in dept_hr
+
+    // Cross-department access: Engineering employee (EMP-006): REJECTED
+    expect(await isEmployeeInScope(hrExecSession, "EMP-006")).toBe(false);
+    expect(await isEmployeeInScope(hrExecSession, "EMP-005")).toBe(false);
+
+    // Direct getScopedEmployeeById for out-of-scope employee returns null
+    const crossDeptRecord = await getScopedEmployeeById(hrExecSession, "EMP-006");
+    expect(crossDeptRecord).toBeNull();
+  });
 });
+
