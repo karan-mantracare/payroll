@@ -69,7 +69,7 @@ export async function seedDatabase() {
   // 4b. Configurable Employee ID Generation Rule
   await rawClient.execute({
     sql: `INSERT OR REPLACE INTO employee_id_configs (id, organization_id, prefix, suffix, digit_count, next_sequence, allow_manual_override, updated_at)
-          VALUES ('cfg_id_org_mc_global', 'org_mc_global', 'EMP', '', 3, 8, 1, ?);`,
+          VALUES ('cfg_id_org_mc_global', 'org_mc_global', 'EMP', '', 3, 12, 1, ?);`,
     args: [now],
   });
 
@@ -242,6 +242,87 @@ export async function seedDatabase() {
       bankAcc: "987654321007",
       taxId: "AAAPL0007A",
     },
+    // 4 Temporary Logins (Requested for Testing)
+    {
+      id: "usr_temp_admin",
+      platformUserId: "plt_temp_admin",
+      name: "Admin Mantra",
+      email: "admin@mantra.care",
+      role: "ADMIN",
+      empId: "EMP-008",
+      title: "Operations & Payroll Administrator",
+      dept: "dept_fin",
+      team: null,
+      loc: "loc_delhi",
+      manager: "EMP-001",
+      hierarchy: '["EMP-001"]',
+      password: "Test@2026",
+      basic: 250000,
+      gross: 300000,
+      net: 240000,
+      bankAcc: "987654321008",
+      taxId: "AAAPL0008A",
+    },
+    {
+      id: "usr_temp_hrm",
+      platformUserId: "plt_temp_hrm",
+      name: "HRM Mantra",
+      email: "hrm@mantra.care",
+      role: "HR_MANAGER",
+      empId: "EMP-009",
+      title: "Human Resources Manager",
+      dept: "dept_hr",
+      team: "team_hr_ops",
+      loc: "loc_delhi",
+      manager: "EMP-001",
+      hierarchy: '["EMP-001"]',
+      password: "Test@2026",
+      basic: 180000,
+      gross: 220000,
+      net: 175000,
+      bankAcc: "987654321009",
+      taxId: "AAAPL0009H",
+    },
+    {
+      id: "usr_temp_hrt",
+      platformUserId: "plt_temp_hrt",
+      name: "HRT Mantra",
+      email: "hrt@mantra.care",
+      role: "HR_EXECUTIVE",
+      empId: "EMP-010",
+      title: "HR Executive / Talent Specialist",
+      dept: "dept_hr",
+      team: "team_hr_ops",
+      loc: "loc_delhi",
+      manager: "EMP-009",
+      hierarchy: '["EMP-009", "EMP-001"]',
+      password: "Test@2026",
+      basic: 95000,
+      gross: 115000,
+      net: 90000,
+      bankAcc: "987654321010",
+      taxId: "AAAPL0010T",
+    },
+    {
+      id: "usr_temp_emp",
+      platformUserId: "plt_temp_emp",
+      name: "Employee Mantra",
+      email: "emp@mantra.care",
+      role: "EMPLOYEE",
+      empId: "EMP-011",
+      title: "Senior Software Engineer",
+      dept: "dept_eng",
+      team: "team_fe",
+      loc: "loc_blr",
+      manager: "EMP-005",
+      hierarchy: '["EMP-005", "EMP-002", "EMP-001"]',
+      password: "Test@2026",
+      basic: 130000,
+      gross: 155000,
+      net: 122000,
+      bankAcc: "987654321011",
+      taxId: "AAAPL0011E",
+    },
   ];
 
   for (const u of seedUsers) {
@@ -252,8 +333,9 @@ export async function seedDatabase() {
       args: [u.id, u.platformUserId, u.email, u.name, now, now],
     });
 
-    // Insert User Credentials (Default dev/testing password: MantraCare@2026!)
-    const devPasswordHash = await hashPassword("MantraCare@2026!", 12);
+    // Insert User Credentials
+    const userPassword = (u as any).password || "MantraCare@2026!";
+    const devPasswordHash = await hashPassword(userPassword, 12);
     await rawClient.execute({
       sql: `INSERT OR REPLACE INTO user_credentials
             (id, user_id, password_hash, password_updated_at, failed_login_attempts, locked_until, created_at, updated_at)
