@@ -27,12 +27,13 @@ export async function POST(req: NextRequest) {
       user: result.user,
     });
 
-    // Set secure HttpOnly session cookie
+    // Set secure HttpOnly session cookie (enforce secure in production HTTPS)
+    const isHttps = req.nextUrl.protocol === "https:" || req.headers.get("x-forwarded-proto") === "https";
     response.cookies.set({
       name: SESSION_COOKIE_NAME,
       value: result.sessionId,
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isHttps,
       sameSite: "lax",
       path: "/payrol",
       maxAge: parseInt(process.env.SESSION_EXPIRY_SECONDS || "28800", 10),

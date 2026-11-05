@@ -12,14 +12,14 @@ export default function EmployeeLayout({ children }: { children: ReactNode }) {
 
   if (!canAccessEmployee) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
-        <div className="max-w-md w-full bg-slate-900 border border-red-500/30 rounded-2xl p-8 text-center space-y-4">
-          <div className="w-14 h-14 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center mx-auto">
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-rose-900/30 rounded-2xl p-8 text-center space-y-4 shadow-xl">
+          <div className="w-14 h-14 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center mx-auto">
             <ShieldAlert className="w-8 h-8" />
           </div>
-          <h2 className="text-xl font-bold text-white">Employee Portal Access Denied</h2>
-          <p className="text-sm text-slate-400">
-            Your account requires the <code className="text-indigo-400">portal.employee.access</code> permission.
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Employee Portal Access Denied</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Your account requires the <code className="text-[#293381] dark:text-[#36B4FF] font-mono font-semibold">portal.employee.access</code> permission.
           </p>
         </div>
       </div>
@@ -27,7 +27,7 @@ export default function EmployeeLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col transition-colors">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 flex flex-col transition-colors">
       <Navbar
         portal="Employee Portal"
         isMobileMenuOpen={mobileMenuOpen}
@@ -46,4 +46,3 @@ export default function EmployeeLayout({ children }: { children: ReactNode }) {
     </div>
   );
 }
-

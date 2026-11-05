@@ -51,8 +51,8 @@ export default function EmployeeProfilePage() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-          <User className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+        <h1 className="text-2xl font-bold text-[#293381] dark:text-white tracking-tight flex items-center gap-2">
+          <User className="w-6 h-6 text-[#293381] dark:text-[#36B4FF]" />
           My Profile & Employment Details
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -62,24 +62,24 @@ export default function EmployeeProfilePage() {
 
       {loading ? (
         <div className="p-16 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
-          <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
+          <Loader2 className="w-6 h-6 animate-spin text-[#293381] dark:text-[#36B4FF]" />
           <span className="text-sm">Loading your profile...</span>
         </div>
       ) : (
         <>
           {/* Hero Profile Card */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-card">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-2xl font-bold font-mono shrink-0">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#293381] to-[#36B4FF] flex items-center justify-center text-white text-2xl font-bold font-mono shrink-0 shadow-md">
                   {(profile?.name || user?.name || "E").charAt(0)}
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    <h2 className="text-2xl font-bold text-[#293381] dark:text-white">
                       {profile?.name || user?.name}
                     </h2>
-                    <span className="px-2.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    <span className="px-2.5 py-0.5 rounded-md bg-[#293381]/10 text-[#293381] dark:text-[#36B4FF] border border-[#293381]/20 font-mono text-xs font-bold">
                       {profile?.employeeCode || user?.employeeId}
                     </span>
                     <span
@@ -114,14 +114,14 @@ export default function EmployeeProfilePage() {
           {/* Details Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Employment Information */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-emerald-500" /> Employment Master Record
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-card space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#293381] dark:text-white flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" /> Employment Master Record
               </h3>
               <div className="space-y-3 text-xs">
                 <div className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800">
                   <span className="text-slate-400">Employee ID</span>
-                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="font-mono font-bold text-[#293381] dark:text-[#36B4FF]">
                     {profile?.employeeCode || user?.employeeId}
                   </span>
                 </div>
@@ -133,7 +133,7 @@ export default function EmployeeProfilePage() {
                 </div>
                 <div className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800">
                   <span className="text-slate-400">Probation Status</span>
-                  <span className="font-semibold text-blue-600 dark:text-blue-400">
+                  <span className="font-semibold text-[#36B4FF]">
                     {profile?.probationStatus || "CONFIRMED"}
                   </span>
                 </div>
@@ -153,9 +153,9 @@ export default function EmployeeProfilePage() {
             </div>
 
             {/* Reporting Line & Manager */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
-                <Shield className="w-4 h-4 text-emerald-500" /> Reporting Manager
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-card space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#293381] dark:text-white flex items-center gap-2">
+                <Shield className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" /> Reporting Manager
               </h3>
 
               {profile?.manager ? (
@@ -163,10 +163,10 @@ export default function EmployeeProfilePage() {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                     Direct Reports To
                   </span>
-                  <div className="font-bold text-slate-900 dark:text-white text-sm">
+                  <div className="font-bold text-[#293381] dark:text-white text-sm">
                     {profile.manager.name}
                   </div>
-                  <div className="text-xs text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
+                  <div className="text-xs text-[#293381] dark:text-[#36B4FF] font-mono mt-0.5">
                     {profile.manager.employeeCode}
                   </div>
                   <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -179,8 +179,8 @@ export default function EmployeeProfilePage() {
                 </div>
               )}
 
-              <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-[11px] text-slate-500 dark:text-slate-400">
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400 block mb-0.5">
+              <div className="p-3 rounded-lg bg-[#EBF7FF] dark:bg-[#293381]/20 border border-[#36B4FF]/30 text-[11px] text-slate-600 dark:text-slate-300">
+                <span className="font-semibold text-[#293381] dark:text-[#36B4FF] block mb-0.5">
                   Privacy & Data Scope:
                 </span>
                 Your profile view is restricted strictly to your authorized self-service boundary (Scope:{" "}

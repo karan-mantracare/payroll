@@ -1,42 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 248, 250, 252;
+  --brand-blue: #36b4ff;
+  --brand-navy: #293381;
+  --brand-navy-hover: #1f2664;
+  --brand-blue-hover: #1ba5f7;
+  --brand-white: #ffffff;
+  --brand-black: #000000;
+
+  --bg-main: #ffffff;
+  --bg-subtle: #f8fafc;
+  --border-light: #e2e8f0;
+  --text-heading: #293381;
+  --text-primary: #0f172a;
+  --text-muted: #64748b;
 }
 
-html.dark body {
-  color: #f8fafc;
-  background-color: #090d16;
+/* Light Mode Defaults */
+html {
+  color-scheme: light;
 }
 
+body {
+  font-family: "Roboto", Calibri, Arial, sans-serif;
+  color: var(--text-primary);
+  background-color: #ffffff;
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* Light mode overrides for layout elements */
 html:not(.dark) body {
+  background-color: #ffffff;
   color: #0f172a;
-  background-color: #f8fafc;
 }
 
 html:not(.dark) .bg-slate-950 {
-  background-color: #f8fafc !important;
+  background-color: #ffffff !important;
 }
 
 html:not(.dark) .bg-slate-900 {
   background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
 }
 
 html:not(.dark) .bg-slate-900\/80,
+html:not(.dark) .bg-slate-900\/95,
 html:not(.dark) .bg-slate-900\/60 {
-  background-color: rgba(255, 255, 255, 0.95) !important;
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
 }
 
 html:not(.dark) .bg-slate-800,
 html:not(.dark) .bg-slate-800\/60,
+html:not(.dark) .bg-slate-800\/50,
 html:not(.dark) .bg-slate-800\/40 {
-  background-color: #f1f5f9 !important;
+  background-color: #f8fafc !important;
 }
 
 html:not(.dark) .border-slate-800,
 html:not(.dark) .border-slate-700,
+html:not(.dark) .border-slate-700\/60,
 html:not(.dark) .border-slate-700\/50 {
   border-color: #e2e8f0 !important;
 }
@@ -45,16 +72,61 @@ html:not(.dark) .text-white {
   color: #0f172a !important;
 }
 
-html:not(.dark) .text-slate-300,
+html:not(.dark) h1,
+html:not(.dark) h2,
+html:not(.dark) h3,
+html:not(.dark) .heading-brand {
+  color: #293381 !important;
+}
+
+html:not(.dark) .text-slate-200,
+html:not(.dark) .text-slate-300 {
+  color: #1e293b !important;
+}
+
 html:not(.dark) .text-slate-400 {
-  color: #475569 !important;
+  color: #64748b !important;
 }
 
 html:not(.dark) .text-slate-500 {
   color: #64748b !important;
 }
 
-body {
-  font-feature-settings: "rlig" 1, "calt" 1;
+/* Dark Mode Overrides (when explicitly activated) */
+html.dark body {
+  color: #f8fafc;
+  background-color: #090d16;
 }
 
+html.dark h1,
+html.dark h2,
+html.dark h3 {
+  color: #ffffff !important;
+}
+
+/* Brand Buttons and Accents */
+.btn-brand-primary {
+  background-color: #293381;
+  color: #ffffff;
+  font-weight: 600;
+  transition: all 0.15s ease-in-out;
+}
+.btn-brand-primary:hover {
+  background-color: #1f2664;
+}
+
+.btn-brand-secondary {
+  background-color: #36b4ff;
+  color: #0f172a;
+  font-weight: 600;
+  transition: all 0.15s ease-in-out;
+}
+.btn-brand-secondary:hover {
+  background-color: #1ba5f7;
+}
+
+/* Focus and Accessibility */
+*:focus-visible {
+  outline: 2px solid #36b4ff;
+  outline-offset: 2px;
+}

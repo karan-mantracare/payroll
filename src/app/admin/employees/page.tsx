@@ -157,13 +157,13 @@ export default function AdminEmployeesPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <Users className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+          <h1 className="text-2xl font-bold text-[#293381] dark:text-white tracking-tight flex items-center gap-2">
+            <Users className="w-6 h-6 text-[#36B4FF]" />
             Employee Directory & Master Records
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Manage organization members, employment profiles, and reporting hierarchies. Active scope:{" "}
-            <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400">
+            <span className="font-mono font-semibold text-[#293381] dark:text-[#36B4FF]">
               {user?.widestScope}
             </span>
           </p>
@@ -171,7 +171,7 @@ export default function AdminEmployeesPage() {
 
         <button
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition shadow-sm self-start sm:self-auto"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#293381] hover:bg-[#1F2664] text-white font-medium text-sm transition shadow-sm self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
           Add Employee
@@ -301,8 +301,8 @@ export default function AdminEmployeesPage() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
                 {employees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                    <td className="px-4 py-3.5 font-mono font-semibold text-indigo-600 dark:text-indigo-400">
+                  <tr key={emp.id} className="hover:bg-[#EBF7FF]/40 dark:hover:bg-slate-800/40 transition">
+                    <td className="px-4 py-3.5 font-mono font-semibold text-[#293381] dark:text-[#36B4FF]">
                       {emp.employeeCode || emp.id}
                     </td>
                     <td className="px-4 py-3.5">
@@ -339,7 +339,7 @@ export default function AdminEmployeesPage() {
                     <td className="px-4 py-3.5 text-right">
                       <Link
                         href={`/admin/employees/${emp.id}`}
-                        className="inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-indigo-600 dark:text-indigo-400 transition"
+                        className="inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs font-semibold bg-[#293381]/10 hover:bg-[#293381]/20 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#293381] dark:text-[#36B4FF] transition"
                       >
                         View Profile
                       </Link>
@@ -556,7 +556,7 @@ export default function AdminEmployeesPage() {
                 <button
                   type="submit"
                   disabled={creating}
-                  className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                  className="px-5 py-2 rounded-lg bg-[#293381] hover:bg-[#1F2664] text-white text-sm font-semibold transition disabled:opacity-50 flex items-center gap-2 shadow-sm"
                 >
                   {creating && <Loader2 className="w-4 h-4 animate-spin" />}
                   <span>{creating ? "Creating Profile..." : "Save Employee"}</span>

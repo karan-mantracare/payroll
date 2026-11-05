@@ -20,9 +20,9 @@ export default function RootRedirector() {
   }, [user, canAccessAdmin, canAccessEmployee, router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-      <div className="flex items-center gap-3 text-sm text-slate-400">
-        <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
+    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-950 text-slate-900 dark:text-white">
+      <div className="flex items-center gap-3 text-sm text-slate-500">
+        <Loader2 className="w-5 h-5 animate-spin text-[#293381] dark:text-[#36B4FF]" />
         <span>Routing to authorized portal...</span>
       </div>
     </div>

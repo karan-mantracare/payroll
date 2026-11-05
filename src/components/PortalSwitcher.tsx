@@ -18,19 +18,17 @@ export function PortalSwitcher() {
   const isAdmin = pathname.startsWith("/admin");
   const targetHref = isAdmin ? "/dash" : "/admin";
   const targetLabel = isAdmin ? "Switch to Employee Portal" : "Switch to Admin Portal";
-  const TargetIcon = isAdmin ? User : Shield;
 
   return (
     <Link
       href={targetHref}
       prefetch={false}
-      className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 transition shadow-sm"
+      className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#36B4FF]/10 hover:bg-[#36B4FF]/20 text-[#293381] dark:text-[#36B4FF] border border-[#36B4FF]/30 transition shadow-sm"
       title={targetLabel}
     >
-      <ArrowLeftRight className="w-3.5 h-3.5" />
-      <span className="hidden sm:inline">{targetLabel}</span>
-      <span className="sm:hidden">{isAdmin ? "Employee" : "Admin"}</span>
+      <ArrowLeftRight className="w-3.5 h-3.5 text-[#36B4FF]" />
+      <span className="hidden sm:inline font-bold">{targetLabel}</span>
+      <span className="sm:hidden font-bold">{isAdmin ? "Employee" : "Admin"}</span>
     </Link>
   );
 }
-

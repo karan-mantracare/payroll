@@ -17,8 +17,6 @@ import {
   BarChart3,
   Sliders,
   ShieldAlert,
-  UserCheck,
-  FileText,
   User,
   Users2,
   Inbox,
@@ -86,8 +84,8 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
   const items = type === "admin" ? ADMIN_NAV_ITEMS : DASH_NAV_ITEMS;
 
   const sidebarContent = (
-    <aside className="w-64 border-r border-slate-800 bg-slate-900/95 min-h-[calc(100vh-4rem)] flex flex-col py-4 px-3 h-full">
-      <div className="px-3 pb-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+    <aside className="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/95 min-h-[calc(100vh-4rem)] flex flex-col py-4 px-3 h-full transition-colors">
+      <div className="px-3 pb-3 text-[11px] font-bold uppercase tracking-wider text-[#293381] dark:text-[#36B4FF]">
         {type === "admin" ? "Admin Modules (12)" : "Employee Modules (11)"}
       </div>
 
@@ -113,14 +111,18 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
               onClick={() => {
                 if (onClose) onClose();
               }}
-              className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition ${
+              className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
                 isActive
-                  ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/30"
-                  : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
+                  ? "bg-[#293381] text-white shadow-sm shadow-[#293381]/20"
+                  : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-[#293381] dark:hover:text-white"
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-slate-400"}`} />
+                <Icon
+                  className={`w-4 h-4 ${
+                    isActive ? "text-[#36B4FF]" : "text-slate-400 group-hover:text-[#293381]"
+                  }`}
+                />
                 <span>{item.name}</span>
               </div>
               {item.badge && (
@@ -128,7 +130,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
                   className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
                     isActive
                       ? "bg-white/20 text-white"
-                      : "bg-slate-800 text-indigo-400 border border-indigo-500/20"
+                      : "bg-[#36B4FF]/10 text-[#293381] dark:text-[#36B4FF] border border-[#36B4FF]/20"
                   }`}
                 >
                   {item.badge}
@@ -139,12 +141,12 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
         })}
       </nav>
 
-      <div className="p-3 bg-slate-800/40 border border-slate-800 rounded-xl mt-4">
-        <div className="text-[11px] text-slate-400 font-mono">
-          Programs Mount: <span className="text-indigo-400 font-semibold">/payrol</span>
+      <div className="p-3 bg-[#F8FAFC] dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl mt-4">
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+          Programs Mount: <span className="text-[#293381] dark:text-[#36B4FF] font-bold">/payrol</span>
         </div>
-        <div className="text-[10px] text-slate-500 mt-1">
-          Isolation & Scope Active
+        <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+          MantraCare Ecosystem Active
         </div>
       </div>
     </aside>
@@ -170,4 +172,3 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
     </>
   );
 }
-

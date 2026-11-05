@@ -367,9 +367,9 @@ export default function EmployeeDetailPage({
         <div
           className={`flex items-center justify-between p-3 rounded-lg border transition ${
             isCurrent
-              ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-400 dark:border-indigo-600 shadow-sm"
+              ? "bg-[#EBF7FF] dark:bg-slate-800 border-[#36B4FF] shadow-sm text-[#293381]"
               : matchesSearch
-              ? "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600"
+              ? "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/60 hover:border-[#36B4FF]"
               : "opacity-40 bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800"
           }`}
         >
@@ -377,7 +377,7 @@ export default function EmployeeDetailPage({
             {hasChildren ? (
               <button
                 onClick={() => toggleNode(node.id)}
-                className="w-5 h-5 rounded flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+                className="w-5 h-5 rounded flex items-center justify-center text-slate-400 hover:text-[#293381] dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
               >
                 {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               </button>
@@ -385,18 +385,18 @@ export default function EmployeeDetailPage({
               <div className="w-5" />
             )}
 
-            <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-xs text-slate-600 dark:text-slate-300 shrink-0">
+            <div className="w-8 h-8 rounded-full bg-[#293381]/10 text-[#293381] dark:bg-slate-700 dark:text-slate-300 flex items-center justify-center font-bold text-xs shrink-0">
               {node.name.charAt(0)}
             </div>
 
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-xs text-slate-900 dark:text-white truncate">{node.name}</span>
-                <span className="font-mono text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                <span className="font-bold text-xs text-[#293381] dark:text-white truncate">{node.name}</span>
+                <span className="font-mono text-[10px] text-[#36B4FF] font-bold">
                   {node.employeeCode}
                 </span>
                 {isCurrent && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-[#36B4FF]/20 text-[#293381] dark:text-[#36B4FF] border border-[#36B4FF]/40">
                     Viewing
                   </span>
                 )}
@@ -408,7 +408,7 @@ export default function EmployeeDetailPage({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
               {node.directReportsCount} Direct Reports
             </span>
             <span className={`text-[10px] px-2 py-0.5 rounded-full border ${getStatusBadge(node.status)}`}>
@@ -418,7 +418,7 @@ export default function EmployeeDetailPage({
         </div>
 
         {hasChildren && isExpanded && (
-          <div className="pl-6 border-l-2 border-slate-200 dark:border-slate-800 ml-4 space-y-2">
+          <div className="pl-6 border-l-2 border-[#293381]/20 dark:border-slate-800 ml-4 space-y-2">
             {node.children!.map((child) => renderTreeNode(child))}
           </div>
         )}
@@ -429,7 +429,7 @@ export default function EmployeeDetailPage({
   if (loading) {
     return (
       <div className="min-h-[400px] flex items-center justify-center flex-col gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#293381] dark:text-[#36B4FF]" />
         <p className="text-xs text-slate-400">Loading employee master record...</p>
       </div>
     );
@@ -457,27 +457,27 @@ export default function EmployeeDetailPage({
       <div className="flex items-center justify-between">
         <Link
           href="/admin/employees"
-          className="inline-flex items-center gap-2 text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-[#293381] dark:hover:text-slate-200 transition"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Employee Directory
         </Link>
         <div className="text-xs text-slate-400 font-mono">
-          Concurrency Version: <span className="text-indigo-400 font-bold">{employee.concurrencyVersion}</span>
+          Concurrency Version: <span className="text-[#293381] dark:text-[#36B4FF] font-bold">{employee.concurrencyVersion}</span>
         </div>
       </div>
 
       {/* Main Profile Header Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-card">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-md">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#293381] to-[#36B4FF] flex items-center justify-center text-white text-xl font-bold shadow-md">
               {employee.name.charAt(0)}
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h1 className="text-xl font-bold text-slate-900 dark:text-white">{employee.name}</h1>
-                <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                <h1 className="text-xl font-bold text-[#293381] dark:text-white">{employee.name}</h1>
+                <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded bg-[#293381]/10 text-[#293381] dark:text-[#36B4FF] border border-[#293381]/20">
                   {employee.employeeCode}
                 </span>
                 <span
@@ -511,7 +511,7 @@ export default function EmployeeDetailPage({
                 fetchManagerCandidates();
                 setShowManagerModal(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 text-xs font-semibold transition"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[#36B4FF]/30 bg-[#36B4FF]/10 hover:bg-[#36B4FF]/20 text-[#293381] dark:text-[#36B4FF] text-xs font-semibold transition"
             >
               <Network className="w-3.5 h-3.5" /> Change Manager
             </button>
@@ -523,7 +523,7 @@ export default function EmployeeDetailPage({
             </button>
             <button
               onClick={() => setShowStatusModal(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow-sm"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#293381] hover:bg-[#1F2664] text-white text-xs font-semibold transition shadow-sm"
             >
               <ArrowRightCircle className="w-3.5 h-3.5" /> Change Status
             </button>
@@ -536,7 +536,7 @@ export default function EmployeeDetailPage({
             onClick={() => setActiveTab("details")}
             className={`pb-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5 ${
               activeTab === "details"
-                ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
+                ? "border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF]"
                 : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
             }`}
           >
@@ -546,7 +546,7 @@ export default function EmployeeDetailPage({
             onClick={() => setActiveTab("hierarchy")}
             className={`pb-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5 ${
               activeTab === "hierarchy"
-                ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
+                ? "border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF]"
                 : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
             }`}
           >
@@ -562,12 +562,12 @@ export default function EmployeeDetailPage({
             {/* Employment Details Card */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
               <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-indigo-500" /> Employment Master Details
+                <Briefcase className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" /> Employment Master Details
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
                   <span className="text-slate-400 block mb-0.5">Immutable Employee ID</span>
-                  <span className="font-mono font-bold text-sm text-indigo-600 dark:text-indigo-400">
+                  <span className="font-mono font-bold text-sm text-[#293381] dark:text-[#36B4FF]">
                     {employee.employeeCode}
                   </span>
                 </div>
@@ -608,7 +608,7 @@ export default function EmployeeDetailPage({
             {/* Personal Contacts */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
               <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-                <User className="w-4 h-4 text-indigo-500" /> Personal & Emergency Contacts
+                <User className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" /> Personal & Emergency Contacts
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div>
@@ -636,14 +636,14 @@ export default function EmployeeDetailPage({
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-indigo-500" /> Reporting Line
+                  <Shield className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" /> Reporting Line
                 </h2>
                 <button
                   onClick={() => {
                     fetchManagerCandidates();
                     setShowManagerModal(true);
                   }}
-                  className="text-xs text-indigo-500 hover:underline font-semibold"
+                  className="text-xs text-[#293381] dark:text-[#36B4FF] hover:underline font-semibold"
                 >
                   Change
                 </button>
@@ -655,7 +655,7 @@ export default function EmployeeDetailPage({
                     Direct Reporting Manager
                   </span>
                   <div className="font-bold text-slate-900 dark:text-white text-sm">{employee.manager.name}</div>
-                  <div className="text-xs text-indigo-600 dark:text-indigo-400 font-mono mt-0.5">
+                  <div className="text-xs text-[#293381] dark:text-[#36B4FF] font-mono mt-0.5">
                     {employee.manager.employeeCode}
                   </div>
                   <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{employee.manager.jobTitle}</div>
@@ -670,7 +670,7 @@ export default function EmployeeDetailPage({
             {/* Status History Timeline */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
               <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-3 flex items-center gap-2">
-                <History className="w-4 h-4 text-indigo-500" /> Status Transitions
+                <History className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" /> Status Transitions
               </h2>
               {employee.statusHistory && employee.statusHistory.length > 0 ? (
                 <div className="space-y-3">
@@ -678,7 +678,7 @@ export default function EmployeeDetailPage({
                     <div key={h.id} className="p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 text-xs">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-bold text-slate-800 dark:text-slate-200">
-                          {h.previousStatus} → <span className="text-indigo-500">{h.newStatus}</span>
+                          {h.previousStatus} → <span className="text-[#293381] dark:text-[#36B4FF] font-semibold">{h.newStatus}</span>
                         </span>
                         <span className="text-[10px] text-slate-400 font-mono">{h.effectiveDate}</span>
                       </div>
@@ -703,14 +703,14 @@ export default function EmployeeDetailPage({
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <UserCheck className="w-4 h-4 text-indigo-500" /> Direct Reporting Manager
+                  <UserCheck className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" /> Direct Reporting Manager
                 </h3>
                 <button
                   onClick={() => {
                     fetchManagerCandidates();
                     setShowManagerModal(true);
                   }}
-                  className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
+                  className="text-xs text-[#293381] dark:text-[#36B4FF] font-semibold hover:underline"
                 >
                   Edit Manager
                 </button>
@@ -719,7 +719,7 @@ export default function EmployeeDetailPage({
               {employee.manager ? (
                 <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-1">
                   <div className="text-sm font-bold text-slate-900 dark:text-white">{employee.manager.name}</div>
-                  <div className="text-xs font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
+                  <div className="text-xs font-mono text-[#293381] dark:text-[#36B4FF] font-semibold">
                     {employee.manager.employeeCode}
                   </div>
                   <div className="text-xs text-slate-500 dark:text-slate-400">{employee.manager.jobTitle}</div>
@@ -734,18 +734,18 @@ export default function EmployeeDetailPage({
             {/* Upward Leadership Chain */}
             <div className="md:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <GitCommit className="w-4 h-4 text-indigo-500" /> Upward Leadership Chain
+                <GitCommit className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" /> Upward Leadership Chain
               </h3>
 
               {hierarchyLoading ? (
                 <div className="p-4 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                  <Loader2 className="w-4 h-4 animate-spin text-[#293381] dark:text-[#36B4FF]" />
                   <span>Tracing manager chain...</span>
                 </div>
               ) : hierarchyData?.managerChain && hierarchyData.managerChain.length > 0 ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs">
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{employee.name}</span>
+                  <div className="px-3 py-2 rounded-lg bg-[#EBF7FF] dark:bg-[#293381]/20 border border-[#36B4FF]/30 text-xs">
+                    <span className="font-bold text-[#293381] dark:text-[#36B4FF]">{employee.name}</span>
                     <span className="text-[10px] text-slate-400 block font-mono">Self</span>
                   </div>
 
@@ -772,7 +772,7 @@ export default function EmployeeDetailPage({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                  <Network className="w-4 h-4 text-indigo-500" /> Organizational Subtree & Direct Reports
+                  <Network className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" /> Organizational Subtree & Direct Reports
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Expand and collapse subordinate reporting lines beneath {employee.name}.
@@ -787,14 +787,14 @@ export default function EmployeeDetailPage({
                   placeholder="Filter hierarchy tree..."
                   value={hierarchySearch}
                   onChange={(e) => setHierarchySearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#36B4FF]"
                 />
               </div>
             </div>
 
             {hierarchyLoading ? (
               <div className="p-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                <Loader2 className="w-4 h-4 animate-spin text-[#293381] dark:text-[#36B4FF]" />
                 <span>Loading hierarchical tree...</span>
               </div>
             ) : hierarchyData?.tree ? (
@@ -807,7 +807,7 @@ export default function EmployeeDetailPage({
           {/* Reporting Manager Change History Table */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-3">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-              <History className="w-4 h-4 text-indigo-500" /> Reporting Manager Change History
+              <History className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" /> Reporting Manager Change History
             </h3>
 
             {hierarchyData?.history && hierarchyData.history.length > 0 ? (
@@ -824,7 +824,7 @@ export default function EmployeeDetailPage({
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
                     {hierarchyData.history.map((h: any) => (
-                      <tr key={h.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                      <tr key={h.id} className="hover:bg-[#EBF7FF]/40 dark:hover:bg-slate-800/40">
                         <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">{h.effectiveDate}</td>
                         <td className="py-2.5 px-3">
                           {h.previousManagerName ? (
@@ -838,9 +838,9 @@ export default function EmployeeDetailPage({
                         </td>
                         <td className="py-2.5 px-3">
                           {h.newManagerName ? (
-                            <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
+                            <span className="text-[#293381] dark:text-[#36B4FF] font-semibold">
                               {h.newManagerName}{" "}
-                              <span className="font-mono text-[10px] text-indigo-400">({h.newManagerCode})</span>
+                              <span className="font-mono text-[10px] text-[#36B4FF]">({h.newManagerCode})</span>
                             </span>
                           ) : (
                             <span className="text-slate-400 italic">None (Top Level)</span>
@@ -868,7 +868,7 @@ export default function EmployeeDetailPage({
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Network className="w-5 h-5 text-indigo-500" />
+                <Network className="w-5 h-5 text-[#293381] dark:text-[#36B4FF]" />
                 Change Reporting Manager
               </h2>
               <button
@@ -894,7 +894,7 @@ export default function EmployeeDetailPage({
                 <select
                   value={selectedManagerId}
                   onChange={(e) => validateCandidate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
                 >
                   <option value="">-- No Manager (Top-Level Executive) --</option>
                   {managerCandidates.map((c) => (
@@ -908,7 +908,7 @@ export default function EmployeeDetailPage({
               {/* Pre-flight validation status */}
               {validatingManager && (
                 <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 flex items-center gap-2 text-[11px] text-slate-400">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#293381] dark:text-[#36B4FF]" />
                   <span>Validating hierarchy cycle detection & rules...</span>
                 </div>
               )}
@@ -936,7 +936,7 @@ export default function EmployeeDetailPage({
                   required
                   value={managerEffectiveDate}
                   onChange={(e) => setManagerEffectiveDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
                 />
               </div>
 
@@ -950,7 +950,7 @@ export default function EmployeeDetailPage({
                   placeholder="e.g. Promotion, department reorganization, manager transition..."
                   value={managerReason}
                   onChange={(e) => setManagerReason(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
                 />
               </div>
 
@@ -965,7 +965,7 @@ export default function EmployeeDetailPage({
                 <button
                   type="submit"
                   disabled={submittingManager || (managerValidation !== null && !managerValidation.valid)}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-lg bg-[#293381] hover:bg-[#1F2664] text-white font-semibold transition disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
                 >
                   {submittingManager && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Confirm Manager Reassignment
@@ -982,7 +982,7 @@ export default function EmployeeDetailPage({
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-lg w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Edit className="w-5 h-5 text-indigo-500" />
+                <Edit className="w-5 h-5 text-[#293381] dark:text-[#36B4FF]" />
                 Edit Employee Details
               </h2>
               <button
@@ -1008,7 +1008,7 @@ export default function EmployeeDetailPage({
                   required
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
                 />
               </div>
 
@@ -1019,7 +1019,7 @@ export default function EmployeeDetailPage({
                   required
                   value={editForm.jobTitle}
                   onChange={(e) => setEditForm({ ...editForm, jobTitle: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
                 />
               </div>
 
@@ -1029,7 +1029,7 @@ export default function EmployeeDetailPage({
                   <select
                     value={editForm.employmentType}
                     onChange={(e) => setEditForm({ ...editForm, employmentType: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
                   >
                     <option value="FULL_TIME">Full Time</option>
                     <option value="PART_TIME">Part Time</option>
@@ -1043,7 +1043,7 @@ export default function EmployeeDetailPage({
                   <select
                     value={editForm.probationStatus}
                     onChange={(e) => setEditForm({ ...editForm, probationStatus: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
                   >
                     <option value="CONFIRMED">Confirmed</option>
                     <option value="IN_PROBATION">In Probation</option>
@@ -1060,7 +1060,7 @@ export default function EmployeeDetailPage({
                     type="text"
                     value={editForm.phone}
                     onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
                   />
                 </div>
                 <div>
@@ -1069,7 +1069,7 @@ export default function EmployeeDetailPage({
                     type="email"
                     value={editForm.personalEmail}
                     onChange={(e) => setEditForm({ ...editForm, personalEmail: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
                   />
                 </div>
               </div>
@@ -1085,7 +1085,7 @@ export default function EmployeeDetailPage({
                 <button
                   type="submit"
                   disabled={updating}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-lg bg-[#293381] hover:bg-[#1F2664] text-white font-semibold transition disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
                 >
                   {updating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Save Changes
@@ -1102,7 +1102,7 @@ export default function EmployeeDetailPage({
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <ArrowRightCircle className="w-5 h-5 text-indigo-500" />
+                <ArrowRightCircle className="w-5 h-5 text-[#293381] dark:text-[#36B4FF]" />
                 Transition Employment Status
               </h2>
               <button
@@ -1126,7 +1126,7 @@ export default function EmployeeDetailPage({
                 <select
                   value={statusForm.newStatus}
                   onChange={(e) => setStatusForm({ ...statusForm, newStatus: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
                 >
                   <option value="ACTIVE">ACTIVE</option>
                   <option value="ON_LEAVE">ON_LEAVE</option>
@@ -1143,7 +1143,7 @@ export default function EmployeeDetailPage({
                   required
                   value={statusForm.effectiveDate}
                   onChange={(e) => setStatusForm({ ...statusForm, effectiveDate: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
                 />
               </div>
 
@@ -1157,7 +1157,7 @@ export default function EmployeeDetailPage({
                   placeholder="e.g. Approved medical leave, completion of probation period..."
                   value={statusForm.reason}
                   onChange={(e) => setStatusForm({ ...statusForm, reason: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
                 />
               </div>
 
@@ -1172,7 +1172,7 @@ export default function EmployeeDetailPage({
                 <button
                   type="submit"
                   disabled={transitioning}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-lg bg-[#293381] hover:bg-[#1F2664] text-white font-semibold transition disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
                 >
                   {transitioning && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Confirm Status Transition
