@@ -9,6 +9,18 @@ export async function seedDatabase() {
 
   const now = Date.now();
 
+  // Clear transactional/variable tables for test reproducibility
+  await rawClient.execute("DELETE FROM audit_logs;");
+  await rawClient.execute("DELETE FROM auth_sessions;");
+  await rawClient.execute("DELETE FROM used_tokens;");
+  await rawClient.execute("DELETE FROM employee_documents;");
+  await rawClient.execute("DELETE FROM employee_status_history;");
+  await rawClient.execute("DELETE FROM sensitive_employee_details;");
+  await rawClient.execute("DELETE FROM user_roles;");
+  await rawClient.execute("DELETE FROM employees;");
+  await rawClient.execute("DELETE FROM users;");
+  await rawClient.execute("DELETE FROM employee_id_configs;");
+
   // 1. Organizations
   await rawClient.execute({
     sql: `INSERT OR REPLACE INTO organizations (id, name, slug, created_at)
@@ -41,6 +53,13 @@ export async function seedDatabase() {
           ('team_be', 'dept_eng', 'Backend & Security', ?),
           ('team_hr_ops', 'dept_hr', 'People Operations', ?);`,
     args: [now, now, now],
+  });
+
+  // 4b. Configurable Employee ID Generation Rule
+  await rawClient.execute({
+    sql: `INSERT OR REPLACE INTO employee_id_configs (id, organization_id, prefix, suffix, digit_count, next_sequence, allow_manual_override, updated_at)
+          VALUES ('cfg_id_org_mc_global', 'org_mc_global', 'EMP', '', 3, 8, 1, ?);`,
+    args: [now],
   });
 
   // 5. Default Roles & Permissions
@@ -209,9 +228,10 @@ export async function seedDatabase() {
     // Insert Employee Profile
     await rawClient.execute({
       sql: `INSERT OR REPLACE INTO employees
-            (id, user_id, organization_id, department_id, location_id, team_id, manager_id, reporting_hierarchy, job_title, employment_type, joined_date, status, created_at, updated_at)
-            VALUES (?, ?, 'org_mc_global', ?, ?, ?, ?, ?, ?, 'FULL_TIME', '2024-01-15', 'ACTIVE', ?, ?);`,
+            (id, employee_code, user_id, organization_id, department_id, location_id, team_id, manager_id, reporting_hierarchy, job_title, employment_type, probation_status, joined_date, status, phone, personal_email, concurrency_version, created_at, updated_at)
+            VALUES (?, ?, ?, 'org_mc_global', ?, ?, ?, ?, ?, ?, 'FULL_TIME', 'CONFIRMED', '2024-01-15', 'ACTIVE', '+91 98765 43210', ?, 1, ?, ?);`,
       args: [
+        u.empId,
         u.empId,
         u.id,
         u.dept,
@@ -220,6 +240,7 @@ export async function seedDatabase() {
         u.manager,
         u.hierarchy,
         u.title,
+        u.email,
         now,
         now,
       ],
@@ -228,8 +249,8 @@ export async function seedDatabase() {
     // Insert Sensitive Financial Details (AES-256-GCM Encrypted at rest)
     await rawClient.execute({
       sql: `INSERT OR REPLACE INTO sensitive_employee_details
-            (id, employee_id, basic_salary_encrypted, gross_salary_encrypted, net_salary_encrypted, bank_name, bank_account_number_encrypted, bank_ifsc_encrypted, tax_identifier_encrypted, identity_document_number_encrypted, identity_document_url_encrypted, key_version, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'HDFC Bank', ?, ?, ?, ?, ?, 'v1', ?);`,
+            (id, employee_id, basic_salary_encrypted, gross_salary_encrypted, net_salary_encrypted, bank_name, bank_account_number_encrypted, bank_ifsc_encrypted, tax_identifier_encrypted, identity_document_number_encrypted, identity_document_url_encrypted, key_version, version, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'HDFC Bank', ?, ?, ?, ?, ?, 'v1', 1, ?);`,
       args: [
         `sens_${u.empId}`,
         u.empId,

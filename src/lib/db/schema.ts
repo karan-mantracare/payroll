@@ -54,7 +54,8 @@ export const users = sqliteTable("users", {
 
 // 6. Employees (Core HR profile)
 export const employees = sqliteTable("employees", {
-  id: text("id").primaryKey(), // e.g. "EMP-001"
+  id: text("id").primaryKey(), // Internal UUID
+  employeeCode: text("employee_code").notNull().unique(), // Unique, immutable business employee ID (e.g. EMP-001, MC-042)
   userId: text("user_id")
     .notNull()
     .unique()
@@ -69,12 +70,71 @@ export const employees = sqliteTable("employees", {
     .notNull()
     .references(() => locations.id),
   teamId: text("team_id").references(() => teams.id),
-  managerId: text("manager_id"), // Self-referencing manager employee ID
+  managerId: text("manager_id"), // Self-referencing manager employee UUID
   reportingHierarchy: text("reporting_hierarchy").notNull().default("[]"), // JSON stringified array of ancestor employee IDs
-  jobTitle: text("job_title").notNull(),
-  employmentType: text("employment_type").notNull().default("FULL_TIME"), // FULL_TIME, PART_TIME, CONTRACT
+  jobTitle: text("job_title").notNull(), // Designation
+  employmentType: text("employment_type").notNull().default("FULL_TIME"), // FULL_TIME, PART_TIME, CONTRACT, INTERN
+  probationStatus: text("probation_status").notNull().default("CONFIRMED"), // IN_PROBATION, CONFIRMED, EXTENDED, WAIVED
+  probationEndDate: text("probation_end_date"),
   joinedDate: text("joined_date").notNull(),
-  status: text("status").notNull().default("ACTIVE"), // ACTIVE, ON_LEAVE, TERMINATED
+  status: text("status").notNull().default("ACTIVE"), // ACTIVE, ON_LEAVE, PROBATION, SUSPENDED, TERMINATED
+  phone: text("phone"),
+  personalEmail: text("personal_email"),
+  dateOfBirth: text("date_of_birth"),
+  gender: text("gender"),
+  emergencyContactName: text("emergency_contact_name"),
+  emergencyContactPhone: text("emergency_contact_phone"),
+  concurrencyVersion: integer("concurrency_version").notNull().default(1),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// 6b. Configurable Employee ID Generation Settings
+export const employeeIdConfigs = sqliteTable("employee_id_configs", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organizations.id),
+  prefix: text("prefix").notNull().default("EMP"),
+  suffix: text("suffix"),
+  digitCount: integer("digit_count").notNull().default(3),
+  nextSequence: integer("next_sequence").notNull().default(1),
+  allowManualOverride: integer("allow_manual_override", { mode: "boolean" }).notNull().default(true),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// 6c. Employment Status Transitions History
+export const employeeStatusHistory = sqliteTable("employee_status_history", {
+  id: text("id").primaryKey(),
+  employeeId: text("employee_id")
+    .notNull()
+    .references(() => employees.id),
+  previousStatus: text("previous_status").notNull(),
+  newStatus: text("new_status").notNull(),
+  reason: text("reason").notNull(),
+  effectiveDate: text("effective_date").notNull(),
+  changedByUserId: text("changed_by_user_id")
+    .notNull()
+    .references(() => users.id),
+  createdAt: integer("created_at").notNull(),
+});
+
+// 6d. Employee Documents Vault
+export const employeeDocuments = sqliteTable("employee_documents", {
+  id: text("id").primaryKey(),
+  employeeId: text("employee_id")
+    .notNull()
+    .references(() => employees.id),
+  documentType: text("document_type").notNull(), // ID_PROOF, OFFER_LETTER, TAX_EXEMPTION, RESUME, CONTRACT, OTHER
+  documentName: text("document_name").notNull(),
+  fileSize: integer("file_size").notNull(),
+  mimeType: text("mime_type").notNull(),
+  storagePathEncrypted: text("storage_path_encrypted").notNull(),
+  status: text("status").notNull().default("ACTIVE"), // ACTIVE, ARCHIVED, EXPIRED
+  uploadedByUserId: text("uploaded_by_user_id")
+    .notNull()
+    .references(() => users.id),
+  expiresAt: integer("expires_at"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -96,6 +156,7 @@ export const sensitiveEmployeeDetails = sqliteTable("sensitive_employee_details"
   identityDocumentNumberEncrypted: text("identity_document_number_encrypted").notNull(),
   identityDocumentUrlEncrypted: text("identity_document_url_encrypted").notNull(),
   keyVersion: text("key_version").notNull().default("v1"),
+  version: integer("version").notNull().default(1), // Monotonic concurrency marker
   updatedAt: integer("updated_at").notNull(),
 });
 

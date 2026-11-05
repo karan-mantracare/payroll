@@ -15,7 +15,7 @@ import {
 import { seedDatabase } from "../src/lib/db/seed";
 import { db, rawClient } from "../src/lib/db/client";
 import { sensitiveEmployeeDetails } from "../src/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 describe("Cryptographic Key Management, Validation & Safe Rotation", () => {
   const originalEnv = { ...process.env };
@@ -127,22 +127,105 @@ describe("Cryptographic Key Management, Validation & Safe Rotation", () => {
       expect(() => verifyRotationReadiness("v1", "v2")).toThrow(/Source key version "v1" is missing from environment/);
     });
 
-    it("should perform dry-run rotation without modifying database records", async () => {
+    it("should accurately inspect all records in dry-run mode when more than one batch exists", async () => {
       const dryResult = await rotateSensitiveEmployeeDetails({
         targetVersion: "v2",
+        batchSize: 2, // 7 records across 4 batches of sizes [2, 2, 2, 1]
         dryRun: true,
       });
 
       expect(dryResult.success).toBe(true);
       expect(dryResult.dryRun).toBe(true);
-      expect(dryResult.totalRecordsFound).toBeGreaterThan(0);
-      expect(dryResult.totalRotated).toBe(dryResult.totalRecordsFound);
+      expect(dryResult.totalRecordsFound).toBe(7);
+      expect(dryResult.totalRotated).toBe(7);
+      expect(dryResult.batchesCount).toBe(4);
+      expect(dryResult.completed).toBe(true);
 
-      // Verify DB records are still on v1
+      // Verify DB records are completely untouched on v1
       const rawRows = await rawClient.execute("SELECT key_version FROM sensitive_employee_details;");
       for (const row of rawRows.rows) {
         expect(row[0]).toBe("v1");
       }
+    });
+
+    it("should distinguish partial rotation success from full completion when maxBatches stops processing", async () => {
+      const partialResult = await rotateSensitiveEmployeeDetails({
+        targetVersion: "v2",
+        batchSize: 2,
+        maxBatches: 1, // Stop after 1 batch (2 records processed)
+        dryRun: false,
+      });
+
+      expect(partialResult.success).toBe(true);
+      expect(partialResult.totalRotated).toBe(2);
+      expect(partialResult.totalRecordsFound).toBe(7);
+      expect(partialResult.completed).toBe(false); // Partial success, not completed
+      expect(partialResult.resumable).toBe(true);
+    });
+
+    it("should reliably update the concurrency marker during rapid consecutive writes", async () => {
+      await seedDatabase();
+
+      const recordId = "sens_EMP-001";
+
+      // Perform 5 rapid consecutive mutations on the same record
+      for (let i = 1; i <= 5; i++) {
+        const current = (
+          await db
+            .select()
+            .from(sensitiveEmployeeDetails)
+            .where(eq(sensitiveEmployeeDetails.id, recordId))
+        )[0];
+
+        expect(current).toBeDefined();
+        const expectedVersion = current.version ?? 1;
+
+        // Perform mutation with optimistic lock check
+        const nextVersion = expectedVersion + 1;
+        const nextUpdatedAt = Math.max(Date.now(), current.updatedAt + 1);
+
+        const res: any = await db
+          .update(sensitiveEmployeeDetails)
+          .set({
+            basicSalaryEncrypted: encryptField("355000", current.keyVersion),
+            version: nextVersion,
+            updatedAt: nextUpdatedAt,
+          })
+          .where(
+            and(
+              eq(sensitiveEmployeeDetails.id, recordId),
+              eq(sensitiveEmployeeDetails.version, expectedVersion)
+            )
+          );
+
+        expect(res.rowsAffected).toBe(1);
+      }
+
+      // Check final record has version incremented 5 times (1 + 5 = 6)
+      const finalRecord = (
+        await db
+          .select()
+          .from(sensitiveEmployeeDetails)
+          .where(eq(sensitiveEmployeeDetails.id, recordId))
+      )[0];
+      expect(finalRecord.version).toBe(6);
+
+      // A stale write with version 3 should fail
+      const staleRes: any = await db
+        .update(sensitiveEmployeeDetails)
+        .set({
+          basicSalaryEncrypted: encryptField("999999", finalRecord.keyVersion),
+          version: 99,
+          updatedAt: Date.now(),
+        })
+        .where(
+          and(
+            eq(sensitiveEmployeeDetails.id, recordId),
+            eq(sensitiveEmployeeDetails.version, 3) // Stale version
+          )
+        );
+
+      expect(staleRes.rowsAffected).toBe(0);
     });
 
     it("should rollback the entire batch via database transaction when an injected failure occurs mid-batch", async () => {

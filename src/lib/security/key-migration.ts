@@ -1,4 +1,4 @@
-import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gt, ne, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { sensitiveEmployeeDetails } from "../db/schema";
 import { decryptField, encryptField, getKey, rotateField } from "./crypto";
@@ -25,6 +25,7 @@ export interface KeyMigrationResult {
   batchesCount: number;
   durationMs: number;
   resumable: boolean;
+  completed: boolean;
   errors: Array<{ recordId: string; error: string }>;
 }
 
@@ -91,6 +92,7 @@ export async function rotateSensitiveEmployeeDetails(
   if (totalRecordsFound === 0) {
     return {
       success: true,
+      completed: true,
       dryRun,
       targetVersion,
       totalRecordsFound: 0,
@@ -116,6 +118,7 @@ export async function rotateSensitiveEmployeeDetails(
 
   let totalRotated = 0;
   let batchIndex = 0;
+  let lastDryRunProcessedId: string | null = null;
 
   // Resumable processing loop: always query the next batch of unmigrated records
   while (true) {
@@ -130,16 +133,25 @@ export async function rotateSensitiveEmployeeDetails(
     }
 
     // Query next batch of unmigrated records, ordered by id
+    const conditions = [ne(sensitiveEmployeeDetails.keyVersion, targetVersion)];
+    if (dryRun && lastDryRunProcessedId) {
+      conditions.push(gt(sensitiveEmployeeDetails.id, lastDryRunProcessedId));
+    }
+
     const batch = await db
       .select()
       .from(sensitiveEmployeeDetails)
-      .where(ne(sensitiveEmployeeDetails.keyVersion, targetVersion))
+      .where(and(...conditions))
       .orderBy(asc(sensitiveEmployeeDetails.id))
       .limit(batchSize);
 
     if (batch.length === 0) {
       // All unmigrated records processed
       break;
+    }
+
+    if (dryRun) {
+      lastDryRunProcessedId = batch[batch.length - 1].id;
     }
 
     batchIndex++;
@@ -159,6 +171,7 @@ export async function rotateSensitiveEmployeeDetails(
         identityDocumentNumberEncrypted: string;
         identityDocumentUrlEncrypted: string;
         keyVersion: string;
+        version: number;
         updatedAt: number;
       };
     }> = [];
@@ -212,7 +225,8 @@ export async function rotateSensitiveEmployeeDetails(
             identityDocumentNumberEncrypted: identityDocNumNew,
             identityDocumentUrlEncrypted: identityDocUrlNew,
             keyVersion: targetVersion,
-            updatedAt: Date.now(),
+            version: (record.version ?? 1) + 1,
+            updatedAt: Math.max(Date.now(), record.updatedAt + 1),
           },
         });
       } catch (err: any) {
@@ -291,15 +305,10 @@ export async function rotateSensitiveEmployeeDetails(
         totalFound: totalRecordsFound,
       });
     }
-
-    // In dry-run mode, break after one pass to avoid infinite loop (since dry-run doesn't write keyVersion)
-    if (dryRun) {
-      totalRotated = stagedUpdates.length;
-      break;
-    }
   }
 
   const success = errors.length === 0;
+  const completed = success && totalRotated >= totalRecordsFound;
 
   return {
     success,
@@ -311,6 +320,7 @@ export async function rotateSensitiveEmployeeDetails(
     batchesCount: batchIndex,
     durationMs: Date.now() - startTime,
     resumable: true,
+    completed,
     errors,
   };
 }

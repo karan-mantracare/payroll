@@ -1,6 +1,6 @@
 import { db } from "../db/client";
 import { employees, users, sensitiveEmployeeDetails, departments, locations, teams } from "../db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { SessionContext } from "../permissions/types";
 import { buildScopeCondition } from "./filter";
 import { redactSensitiveDetails, RedactedSensitiveEmployee, RawSensitiveEmployee } from "../permissions/redactor";
@@ -8,6 +8,7 @@ import { decryptField } from "../security/crypto";
 
 export interface ScopedEmployeeRecord {
   id: string;
+  employeeCode?: string;
   name: string;
   email: string;
   jobTitle: string;
@@ -31,6 +32,7 @@ export async function getScopedEmployees(
   const query = db
     .select({
       id: employees.id,
+      employeeCode: employees.employeeCode,
       name: users.name,
       email: users.email,
       jobTitle: employees.jobTitle,
@@ -66,10 +68,13 @@ export async function isEmployeeInScope(
   }
 
   const scopeCondition = buildScopeCondition(session);
+  const identifierCondition = or(eq(employees.id, targetEmployeeId), eq(employees.employeeCode, targetEmployeeId));
+  const whereClause = scopeCondition ? and(identifierCondition, scopeCondition) : identifierCondition;
+
   const matched = await db
     .select({ id: employees.id })
     .from(employees)
-    .where(and(eq(employees.id, targetEmployeeId), scopeCondition))
+    .where(whereClause)
     .limit(1);
 
   return matched.length > 0;
@@ -90,6 +95,7 @@ export async function getScopedEmployeeById(
   const records = await db
     .select({
       id: employees.id,
+      employeeCode: employees.employeeCode,
       name: users.name,
       email: users.email,
       jobTitle: employees.jobTitle,
@@ -105,7 +111,7 @@ export async function getScopedEmployeeById(
     .leftJoin(departments, eq(employees.departmentId, departments.id))
     .leftJoin(locations, eq(employees.locationId, locations.id))
     .leftJoin(teams, eq(employees.teamId, teams.id))
-    .where(eq(employees.id, targetEmployeeId))
+    .where(or(eq(employees.id, targetEmployeeId), eq(employees.employeeCode, targetEmployeeId)))
     .limit(1);
 
   if (records.length === 0) return null;
@@ -115,7 +121,12 @@ export async function getScopedEmployeeById(
   const sensitiveRows = await db
     .select()
     .from(sensitiveEmployeeDetails)
-    .where(eq(sensitiveEmployeeDetails.employeeId, targetEmployeeId))
+    .where(
+      or(
+        eq(sensitiveEmployeeDetails.employeeId, employeeRecord.id),
+        eq(sensitiveEmployeeDetails.employeeId, targetEmployeeId)
+      )
+    )
     .limit(1);
 
   let sensitiveData: RedactedSensitiveEmployee | undefined;
