@@ -104,7 +104,8 @@ All sensitive financial and identity fields are encrypted at the application lay
 * `created_at` (INTEGER)
 * `updated_at` (INTEGER)
 
-> **Key Storage & Versioning:** Master encryption keys (`HRMS_ENCRYPTION_KEY_V1`, `HRMS_ENCRYPTION_KEY_V2`) are kept in server-side environment secrets completely separate from Turso credentials. The encryption envelope supports on-the-fly zero-downtime key rotation via `rotateField()`.
+> **Key Storage & Versioning:** Master encryption keys (`PAYROLL_ENCRYPTION_KEY_V1`, `PAYROLL_ENCRYPTION_KEY_V2`, and `PAYROLL_ACTIVE_KEY_VERSION`) are kept in server-side environment secrets completely separate from Turso credentials. The encryption envelope supports on-the-fly zero-downtime key rotation via `rotateField()` or the batch migration utility `npm run db:rotate-keys`.
+
 
 * `tax_identifier` (TEXT) (e.g. PAN / SSN)
 * `identity_document_url` (TEXT)

@@ -61,3 +61,4 @@ export async function benchmarkBcrypt(rounds = DEFAULT_SALT_ROUNDS): Promise<{
     totalTimeMs: Math.round((hashTimeMs + verifyTimeMs) * 100) / 100,
   };
 }
+

@@ -7,6 +7,9 @@ import { seedDatabase } from "../src/lib/db/seed";
 
 describe("Application-Level AES-256-GCM Sensitive Data Encryption", () => {
   beforeAll(async () => {
+    process.env.PAYROLL_ACTIVE_KEY_VERSION = "v1";
+    process.env.PAYROLL_ENCRYPTION_KEY_V1 = "16653300a8f4b5fd31651ab5e712f66368283ea90db280042d10f382ec4af16a";
+    process.env.PAYROLL_ENCRYPTION_KEY_V2 = "54abd47926e62762db1c45bac2259cd138430a1214b9d6bc2bc370512e0956e8";
     await seedDatabase();
   });
 
@@ -100,3 +103,4 @@ describe("Application-Level AES-256-GCM Sensitive Data Encryption", () => {
     expect(empRecord?.sensitive?.taxIdentifier).toBe("••••••••");
   });
 });
+

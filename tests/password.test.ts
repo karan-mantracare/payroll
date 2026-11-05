@@ -31,3 +31,4 @@ describe("Bcrypt Password Hashing & Performance Benchmarks", () => {
     expect(bench12.verifyTimeMs).toBeGreaterThan(0);
   });
 });
+

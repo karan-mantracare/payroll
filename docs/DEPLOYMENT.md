@@ -57,6 +57,10 @@ On [minis.mantracare.com](https://minis.mantracare.com):
    * `PROGRAMS_USER_INFO_ENDPOINT`: `https://api.mantracare.com/user/user-info`
    * `MOCK_PROGRAMS_API`: `false`
    * `SESSION_SECRET`: `[32-char-random-secret]`
+   * `PAYROLL_ACTIVE_KEY_VERSION`: `v1`
+   * `PAYROLL_ENCRYPTION_KEY_V1`: `[64-hex-char-key-generate-via-openssl-rand-hex-32]`
+   * `PAYROLL_ENCRYPTION_KEY_V2`: `[optional-secondary-key-for-rotation]`
+
 
 ---
 

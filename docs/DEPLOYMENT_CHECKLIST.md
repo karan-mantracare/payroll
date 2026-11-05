@@ -42,8 +42,13 @@
   - Cross-employee unauthorized reads return empty or forbidden.
   - Department and team boundaries strictly enforced server-side.
   - Turso credentials are not present in client-side JavaScript bundles.
-- [ ] **Sensitive Field Redaction**:
+- [ ] **Sensitive Field Application-Level Encryption**:
+  - `PAYROLL_ENCRYPTION_KEY_V1` and `PAYROLL_ACTIVE_KEY_VERSION` are configured with 64-character hexadecimal keys (32 bytes).
+  - Hardcoded fallback keys are removed; production server halts startup via `assertEncryptionReady()` if keys are missing or invalid.
+  - Salary, bank accounts, and tax IDs are encrypted at rest with AES-256-GCM authenticated envelopes (`version:iv:tag:ciphertext`).
+  - Zero-downtime batch key rotation utility `npm run db:rotate-keys` verified with pre-flight checks and rollback.
   - Salary, bank account, and tax IDs are masked (`••••••••`) for users lacking `sensitive.*.read` permissions.
+
 - [ ] **Tamper-Evident Audit Logging**:
   - Sensitive operations append to `audit_logs` with SHA-256 hash chaining.
   - Verification test `verifyAuditLogIntegrity()` passes without error.
