@@ -131,7 +131,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
 
       {/* Module Section Label */}
       {!isCollapsed && (
-        <div className="px-2 pt-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+        <div className="px-2 pt-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-[#293381] dark:text-[#36B4FF]">
           {type === "admin" ? "Admin Modules (12)" : "Employee Modules (11)"}
         </div>
       )}
@@ -271,14 +271,14 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
           <BrandLogo size="md" />
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            className="p-1.5 rounded-lg text-[#293381] hover:bg-[#EBF7FF] dark:text-slate-300 dark:hover:bg-slate-800 transition"
             aria-label="Close navigation menu"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="px-2 pt-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+        <div className="px-2 pt-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-[#293381] dark:text-[#36B4FF]">
           {type === "admin" ? "Admin Modules (12)" : "Employee Modules (11)"}
         </div>
 
