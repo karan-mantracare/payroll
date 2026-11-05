@@ -39,8 +39,19 @@ export const SENSITIVE_PERMISSIONS = {
   SALARY_READ: "sensitive.salary.read",
   SALARY_WRITE: "sensitive.salary.write",
   BANK_READ: "sensitive.bank.read",
+  BANK_WRITE: "sensitive.bank.write",
   TAX_READ: "sensitive.tax.read",
+  TAX_WRITE: "sensitive.tax.write",
   IDENTITY_READ: "sensitive.identity.read",
+  IDENTITY_WRITE: "sensitive.identity.write",
+} as const;
+
+// Document Vault Permissions
+export const DOCUMENT_PERMISSIONS = {
+  DOCUMENTS_VIEW: "documents.view",
+  DOCUMENTS_UPLOAD: "documents.upload",
+  DOCUMENTS_MANAGE: "documents.manage",
+  DOCUMENTS_VERIFY: "documents.verify",
 } as const;
 
 // Admin Module Permissions (12 Modules)

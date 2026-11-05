@@ -18,6 +18,7 @@ import {
   Briefcase,
   AlertCircle,
   X,
+  Download,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthGate";
 
@@ -169,13 +170,23 @@ export default function AdminEmployeesPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#293381] hover:bg-[#1F2664] text-white font-medium text-sm transition shadow-sm self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          Add Employee
-        </button>
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          <a
+            href={`/payrol/api/employees/export${selectedDept ? `?departmentId=${selectedDept}` : ""}`}
+            download
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 font-medium text-sm transition shadow-sm"
+          >
+            <Download className="w-4 h-4 text-[#36B4FF]" />
+            Export CSV
+          </a>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#293381] hover:bg-[#1F2664] text-white font-medium text-sm transition shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Add Employee
+          </button>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}

@@ -15,6 +15,8 @@ import {
   Loader2,
   CheckCircle2,
 } from "lucide-react";
+import DocumentVault from "@/components/DocumentVault";
+import SensitiveFinancialCard from "@/components/SensitiveFinancialCard";
 
 export default function EmployeeProfilePage() {
   const { user } = useAuth();
@@ -188,6 +190,16 @@ export default function EmployeeProfilePage() {
               </div>
             </div>
           </div>
+
+          {/* Sensitive Compensation & Banking Details */}
+          {(profile?.id || user?.employeeId) && (
+            <SensitiveFinancialCard employeeId={profile?.id || user?.employeeId} canManage={false} />
+          )}
+
+          {/* Employee Document Vault */}
+          {(profile?.id || user?.employeeId) && (
+            <DocumentVault employeeId={profile?.id || user?.employeeId} canUpload={true} canVerify={false} />
+          )}
         </>
       )}
     </div>

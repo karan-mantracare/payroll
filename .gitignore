@@ -29,7 +29,12 @@ yarn-error.log*
 # SQLite / Turso local databases
 *.db
 *.db-journal
-local.db
+*.db-shm
+*.db-wal
+local.db*
+
+# Local private file storage vault
+.storage/
 
 # typescript
 *.tsbuildinfo

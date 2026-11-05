@@ -13,6 +13,13 @@ export async function seedDatabase() {
   await rawClient.execute("DELETE FROM audit_logs;");
   await rawClient.execute("DELETE FROM auth_sessions;");
   await rawClient.execute("DELETE FROM used_tokens;");
+  await rawClient.execute("DELETE FROM attendance_events;");
+  await rawClient.execute("DELETE FROM attendance_correction_requests;");
+  await rawClient.execute("DELETE FROM attendance_records;");
+  await rawClient.execute("DELETE FROM shift_history;");
+  await rawClient.execute("DELETE FROM shift_assignments;");
+  await rawClient.execute("DELETE FROM shifts;");
+  await rawClient.execute("DELETE FROM attendance_policies;");
   await rawClient.execute("DELETE FROM employee_documents;");
   await rawClient.execute("DELETE FROM employee_status_history;");
   await rawClient.execute("DELETE FROM employee_manager_history;");
@@ -61,6 +68,22 @@ export async function seedDatabase() {
     sql: `INSERT OR REPLACE INTO employee_id_configs (id, organization_id, prefix, suffix, digit_count, next_sequence, allow_manual_override, updated_at)
           VALUES ('cfg_id_org_mc_global', 'org_mc_global', 'EMP', '', 3, 8, 1, ?);`,
     args: [now],
+  });
+
+  // 4c. Attendance Policy
+  await rawClient.execute({
+    sql: `INSERT OR REPLACE INTO attendance_policies (id, organization_id, name, grace_period_minutes, half_day_threshold_minutes, full_day_threshold_minutes, allow_flexible_hours, created_at, updated_at)
+          VALUES ('policy_default', 'org_mc_global', 'Standard Corporate Attendance Policy', 15, 240, 480, 0, ?, ?);`,
+    args: [now, now],
+  });
+
+  // 4d. Standard Shifts
+  await rawClient.execute({
+    sql: `INSERT OR REPLACE INTO shifts (id, organization_id, name, code, start_time, end_time, break_duration_minutes, is_overnight, color_code, is_active, created_at, updated_at) VALUES
+          ('shift_gen', 'org_mc_global', 'General Day Shift', 'GENERAL', '09:00', '18:00', 60, 0, '#36B4FF', 1, ?, ?),
+          ('shift_morn', 'org_mc_global', 'Early Morning Shift', 'MORNING', '06:00', '15:00', 60, 0, '#293381', 1, ?, ?),
+          ('shift_night', 'org_mc_global', 'Overnight Shift', 'NIGHT', '21:00', '06:00', 60, 1, '#6366F1', 1, ?, ?);`,
+    args: [now, now, now, now, now, now],
   });
 
   // 5. Default Roles & Permissions
@@ -286,6 +309,15 @@ export async function seedDatabase() {
           VALUES ('ur_multirole_admin', 'usr_multirole', 'ADMIN', NULL, ?);`,
     args: [now],
   });
+
+  // Assign shifts to all seed employees
+  for (const u of seedUsers) {
+    await rawClient.execute({
+      sql: `INSERT OR REPLACE INTO shift_assignments (id, employee_id, shift_id, start_date, end_date, pattern_days, assigned_by_user_id, created_at, updated_at)
+            VALUES (?, ?, 'shift_gen', '2026-01-01', NULL, '["MON","TUE","WED","THU","FRI"]', 'usr_admin', ?, ?);`,
+      args: [`sa_${u.empId}`, u.empId, now, now],
+    });
+  }
 
   console.log("Database seeded successfully with default roles and test users!");
 }

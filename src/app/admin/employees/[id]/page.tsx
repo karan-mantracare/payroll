@@ -28,8 +28,12 @@ import {
   Search,
   RefreshCw,
   GitCommit,
+  FileText,
+  CreditCard,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthGate";
+import DocumentVault from "@/components/DocumentVault";
+import SensitiveFinancialCard from "@/components/SensitiveFinancialCard";
 
 interface HierarchyNode {
   id: string;
@@ -56,7 +60,7 @@ export default function EmployeeDetailPage({
   const [employee, setEmployee] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"details" | "hierarchy">("details");
+  const [activeTab, setActiveTab] = useState<"details" | "hierarchy" | "documents" | "financials">("details");
 
   // Hierarchy Data State
   const [hierarchyData, setHierarchyData] = useState<{
@@ -551,6 +555,26 @@ export default function EmployeeDetailPage({
             }`}
           >
             <Network className="w-3.5 h-3.5" /> Reporting Hierarchy & Tree
+          </button>
+          <button
+            onClick={() => setActiveTab("documents")}
+            className={`pb-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5 ${
+              activeTab === "documents"
+                ? "border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF]"
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" /> Document Vault
+          </button>
+          <button
+            onClick={() => setActiveTab("financials")}
+            className={`pb-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5 ${
+              activeTab === "financials"
+                ? "border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF]"
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+            }`}
+          >
+            <CreditCard className="w-3.5 h-3.5" /> Sensitive Financials
           </button>
         </div>
       </div>
@@ -1181,6 +1205,24 @@ export default function EmployeeDetailPage({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Tab 3: Document Vault */}
+      {activeTab === "documents" && (
+        <DocumentVault employeeId={employee.id} canUpload={true} canVerify={true} />
+      )}
+
+      {/* Tab 4: Sensitive Financials */}
+      {activeTab === "financials" && (
+        <SensitiveFinancialCard
+          employeeId={employee.id}
+          canManage={
+            user?.roles.includes("SUPER_ADMIN") ||
+            user?.roles.includes("ADMIN") ||
+            user?.roles.includes("FINANCE_ADMIN") ||
+            user?.permissions?.includes("sensitive.salary.manage")
+          }
+        />
       )}
     </div>
   );

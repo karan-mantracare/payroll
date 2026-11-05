@@ -3,6 +3,11 @@ import { rawClient } from "./client";
 export async function runMigrations() {
   console.log("Running Turso / SQLite table initializations...");
 
+  try {
+    await rawClient.execute("PRAGMA journal_mode = WAL;");
+    await rawClient.execute("PRAGMA busy_timeout = 5000;");
+  } catch {}
+
   // Organizations
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS organizations (
@@ -166,6 +171,14 @@ export async function runMigrations() {
       file_size INTEGER NOT NULL,
       mime_type TEXT NOT NULL,
       storage_path_encrypted TEXT NOT NULL,
+      file_hash TEXT,
+      version INTEGER NOT NULL DEFAULT 1,
+      replaced_document_id TEXT,
+      verification_status TEXT NOT NULL DEFAULT 'PENDING',
+      verified_by_user_id TEXT REFERENCES users(id),
+      verified_at INTEGER,
+      rejection_reason TEXT,
+      retention_until INTEGER,
       status TEXT NOT NULL DEFAULT 'ACTIVE',
       uploaded_by_user_id TEXT NOT NULL REFERENCES users(id),
       expires_at INTEGER,
@@ -174,11 +187,29 @@ export async function runMigrations() {
     );
   `);
 
+  // Document table column migrations
+  const docCols = [
+    "ALTER TABLE employee_documents ADD COLUMN file_hash TEXT;",
+    "ALTER TABLE employee_documents ADD COLUMN version INTEGER NOT NULL DEFAULT 1;",
+    "ALTER TABLE employee_documents ADD COLUMN replaced_document_id TEXT;",
+    "ALTER TABLE employee_documents ADD COLUMN verification_status TEXT NOT NULL DEFAULT 'PENDING';",
+    "ALTER TABLE employee_documents ADD COLUMN verified_by_user_id TEXT;",
+    "ALTER TABLE employee_documents ADD COLUMN verified_at INTEGER;",
+    "ALTER TABLE employee_documents ADD COLUMN rejection_reason TEXT;",
+    "ALTER TABLE employee_documents ADD COLUMN retention_until INTEGER;",
+  ];
+  for (const c of docCols) {
+    try {
+      await rawClient.execute(c);
+    } catch {}
+  }
+
   // Sensitive Details (AES-256-GCM Encrypted at rest)
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS sensitive_employee_details (
       id TEXT PRIMARY KEY,
       employee_id TEXT NOT NULL UNIQUE REFERENCES employees(id),
+      account_holder_name_encrypted TEXT,
       basic_salary_encrypted TEXT NOT NULL,
       gross_salary_encrypted TEXT NOT NULL,
       net_salary_encrypted TEXT NOT NULL,
@@ -188,17 +219,139 @@ export async function runMigrations() {
       tax_identifier_encrypted TEXT NOT NULL,
       identity_document_number_encrypted TEXT NOT NULL,
       identity_document_url_encrypted TEXT NOT NULL,
+      compensation_effective_date TEXT,
       key_version TEXT NOT NULL DEFAULT 'v1',
       version INTEGER NOT NULL DEFAULT 1,
       updated_at INTEGER NOT NULL
     );
   `);
 
-  try {
-    await rawClient.execute(`ALTER TABLE sensitive_employee_details ADD COLUMN version INTEGER NOT NULL DEFAULT 1;`);
-  } catch {
-    // Column already exists
+  const sensitiveCols = [
+    "ALTER TABLE sensitive_employee_details ADD COLUMN account_holder_name_encrypted TEXT;",
+    "ALTER TABLE sensitive_employee_details ADD COLUMN compensation_effective_date TEXT;",
+    "ALTER TABLE sensitive_employee_details ADD COLUMN version INTEGER NOT NULL DEFAULT 1;",
+  ];
+  for (const c of sensitiveCols) {
+    try {
+      await rawClient.execute(c);
+    } catch {}
   }
+
+  // Phase 3: Attendance Policies
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS attendance_policies (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES organizations(id),
+      name TEXT NOT NULL,
+      grace_period_minutes INTEGER NOT NULL DEFAULT 15,
+      half_day_threshold_minutes INTEGER NOT NULL DEFAULT 240,
+      full_day_threshold_minutes INTEGER NOT NULL DEFAULT 480,
+      allow_flexible_hours INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
+
+  // Phase 3: Shifts
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS shifts (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES organizations(id),
+      name TEXT NOT NULL,
+      code TEXT NOT NULL UNIQUE,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      break_duration_minutes INTEGER NOT NULL DEFAULT 60,
+      is_overnight INTEGER NOT NULL DEFAULT 0,
+      color_code TEXT NOT NULL DEFAULT '#36B4FF',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
+
+  // Phase 3: Shift Assignments
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS shift_assignments (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL REFERENCES employees(id),
+      shift_id TEXT NOT NULL REFERENCES shifts(id),
+      start_date TEXT NOT NULL,
+      end_date TEXT,
+      pattern_days TEXT NOT NULL DEFAULT '["MON","TUE","WED","THU","FRI"]',
+      assigned_by_user_id TEXT NOT NULL REFERENCES users(id),
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
+
+  // Phase 3: Shift History
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS shift_history (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL REFERENCES employees(id),
+      previous_shift_id TEXT,
+      new_shift_id TEXT NOT NULL,
+      effective_date TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      changed_by_user_id TEXT NOT NULL REFERENCES users(id),
+      created_at INTEGER NOT NULL
+    );
+  `);
+
+  // Phase 3: Attendance Records
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS attendance_records (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL REFERENCES employees(id),
+      date TEXT NOT NULL,
+      shift_id TEXT REFERENCES shifts(id),
+      check_in_time_utc TEXT,
+      check_out_time_utc TEXT,
+      total_work_minutes INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'PRESENT',
+      late_minutes INTEGER NOT NULL DEFAULT 0,
+      early_exit_minutes INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      source TEXT NOT NULL DEFAULT 'WEB',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
+
+  // Phase 3: Attendance Events Log
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS attendance_events (
+      id TEXT PRIMARY KEY,
+      attendance_record_id TEXT NOT NULL REFERENCES attendance_records(id),
+      employee_id TEXT NOT NULL REFERENCES employees(id),
+      event_type TEXT NOT NULL,
+      timestamp_utc TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'WEB',
+      ip_address TEXT,
+      device_info TEXT,
+      created_at INTEGER NOT NULL
+    );
+  `);
+
+  // Phase 3: Attendance Correction Requests
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS attendance_correction_requests (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL REFERENCES employees(id),
+      attendance_record_id TEXT REFERENCES attendance_records(id),
+      requested_date TEXT NOT NULL,
+      requested_check_in_utc TEXT NOT NULL,
+      requested_check_out_utc TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      reviewed_by_user_id TEXT REFERENCES users(id),
+      reviewed_at INTEGER,
+      rejection_reason TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
 
 
   // Roles

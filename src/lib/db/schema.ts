@@ -141,11 +141,19 @@ export const employeeDocuments = sqliteTable("employee_documents", {
   employeeId: text("employee_id")
     .notNull()
     .references(() => employees.id),
-  documentType: text("document_type").notNull(), // ID_PROOF, OFFER_LETTER, TAX_EXEMPTION, RESUME, CONTRACT, OTHER
+  documentType: text("document_type").notNull(), // AADHAAR_ID, PAN_TAX_ID, ADDRESS_PROOF, APPOINTMENT_LETTER, EMPLOYMENT_AGREEMENT, EDUCATIONAL_CERTIFICATE, EXPERIENCE_LETTER, RELIEVING_LETTER, SALARY_REVISION_LETTER, OTHER_HR_DOCUMENT
   documentName: text("document_name").notNull(),
   fileSize: integer("file_size").notNull(),
   mimeType: text("mime_type").notNull(),
   storagePathEncrypted: text("storage_path_encrypted").notNull(),
+  fileHash: text("file_hash"), // SHA-256 integrity hash
+  version: integer("version").notNull().default(1),
+  replacedDocumentId: text("replaced_document_id"),
+  verificationStatus: text("verification_status").notNull().default("PENDING"), // PENDING, VERIFIED, REJECTED
+  verifiedByUserId: text("verified_by_user_id").references(() => users.id),
+  verifiedAt: integer("verified_at"),
+  rejectionReason: text("rejection_reason"),
+  retentionUntil: integer("retention_until"),
   status: text("status").notNull().default("ACTIVE"), // ACTIVE, ARCHIVED, EXPIRED
   uploadedByUserId: text("uploaded_by_user_id")
     .notNull()
@@ -162,6 +170,7 @@ export const sensitiveEmployeeDetails = sqliteTable("sensitive_employee_details"
     .notNull()
     .unique()
     .references(() => employees.id),
+  accountHolderNameEncrypted: text("account_holder_name_encrypted"),
   basicSalaryEncrypted: text("basic_salary_encrypted").notNull(),
   grossSalaryEncrypted: text("gross_salary_encrypted").notNull(),
   netSalaryEncrypted: text("net_salary_encrypted").notNull(),
@@ -171,8 +180,133 @@ export const sensitiveEmployeeDetails = sqliteTable("sensitive_employee_details"
   taxIdentifierEncrypted: text("tax_identifier_encrypted").notNull(), // PAN, SSN, Tax ID
   identityDocumentNumberEncrypted: text("identity_document_number_encrypted").notNull(),
   identityDocumentUrlEncrypted: text("identity_document_url_encrypted").notNull(),
+  compensationEffectiveDate: text("compensation_effective_date"),
   keyVersion: text("key_version").notNull().default("v1"),
   version: integer("version").notNull().default(1), // Monotonic concurrency marker
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// 7b. Attendance Policies
+export const attendancePolicies = sqliteTable("attendance_policies", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organizations.id),
+  name: text("name").notNull(),
+  gracePeriodMinutes: integer("grace_period_minutes").notNull().default(15),
+  halfDayThresholdMinutes: integer("half_day_threshold_minutes").notNull().default(240),
+  fullDayThresholdMinutes: integer("full_day_threshold_minutes").notNull().default(480),
+  allowFlexibleHours: integer("allow_flexible_hours", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// 7c. Shifts Definition
+export const shifts = sqliteTable("shifts", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organizations.id),
+  name: text("name").notNull(),
+  code: text("code").notNull().unique(), // e.g. "GENERAL", "MORNING", "NIGHT"
+  startTime: text("start_time").notNull(), // "HH:mm" e.g. "09:00"
+  endTime: text("end_time").notNull(), // "HH:mm" e.g. "18:00"
+  breakDurationMinutes: integer("break_duration_minutes").notNull().default(60),
+  isOvernight: integer("is_overnight", { mode: "boolean" }).notNull().default(false),
+  colorCode: text("color_code").notNull().default("#36B4FF"),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// 7d. Employee Shift Assignments
+export const shiftAssignments = sqliteTable("shift_assignments", {
+  id: text("id").primaryKey(),
+  employeeId: text("employee_id")
+    .notNull()
+    .references(() => employees.id),
+  shiftId: text("shift_id")
+    .notNull()
+    .references(() => shifts.id),
+  startDate: text("start_date").notNull(), // YYYY-MM-DD
+  endDate: text("end_date"), // YYYY-MM-DD (null for ongoing)
+  patternDays: text("pattern_days").notNull().default('["MON","TUE","WED","THU","FRI"]'),
+  assignedByUserId: text("assigned_by_user_id")
+    .notNull()
+    .references(() => users.id),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// 7e. Shift Change History
+export const shiftHistory = sqliteTable("shift_history", {
+  id: text("id").primaryKey(),
+  employeeId: text("employee_id")
+    .notNull()
+    .references(() => employees.id),
+  previousShiftId: text("previous_shift_id"),
+  newShiftId: text("new_shift_id").notNull(),
+  effectiveDate: text("effective_date").notNull(),
+  reason: text("reason").notNull(),
+  changedByUserId: text("changed_by_user_id")
+    .notNull()
+    .references(() => users.id),
+  createdAt: integer("created_at").notNull(),
+});
+
+// 7f. Daily Attendance Records
+export const attendanceRecords = sqliteTable("attendance_records", {
+  id: text("id").primaryKey(),
+  employeeId: text("employee_id")
+    .notNull()
+    .references(() => employees.id),
+  date: text("date").notNull(), // YYYY-MM-DD
+  shiftId: text("shift_id").references(() => shifts.id),
+  checkInTimeUtc: text("check_in_time_utc"), // ISO 8601 UTC
+  checkOutTimeUtc: text("check_out_time_utc"), // ISO 8601 UTC
+  totalWorkMinutes: integer("total_work_minutes").notNull().default(0),
+  status: text("status").notNull().default("PRESENT"), // PRESENT, ABSENT, LATE, HALF_DAY, ON_LEAVE
+  lateMinutes: integer("late_minutes").notNull().default(0),
+  earlyExitMinutes: integer("early_exit_minutes").notNull().default(0),
+  notes: text("notes"),
+  source: text("source").notNull().default("WEB"), // WEB, BIOMETRIC, MANUAL_ADJUSTMENT
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+// 7g. Attendance Events Log (Chronological check-in/out raw events)
+export const attendanceEvents = sqliteTable("attendance_events", {
+  id: text("id").primaryKey(),
+  attendanceRecordId: text("attendance_record_id")
+    .notNull()
+    .references(() => attendanceRecords.id),
+  employeeId: text("employee_id")
+    .notNull()
+    .references(() => employees.id),
+  eventType: text("event_type").notNull(), // CHECK_IN, CHECK_OUT
+  timestampUtc: text("timestamp_utc").notNull(),
+  source: text("source").notNull().default("WEB"),
+  ipAddress: text("ip_address"),
+  deviceInfo: text("device_info"),
+  createdAt: integer("created_at").notNull(),
+});
+
+// 7h. Attendance Correction Requests
+export const attendanceCorrectionRequests = sqliteTable("attendance_correction_requests", {
+  id: text("id").primaryKey(),
+  employeeId: text("employee_id")
+    .notNull()
+    .references(() => employees.id),
+  attendanceRecordId: text("attendance_record_id").references(() => attendanceRecords.id),
+  requestedDate: text("requested_date").notNull(), // YYYY-MM-DD
+  requestedCheckInUtc: text("requested_check_in_utc").notNull(),
+  requestedCheckOutUtc: text("requested_check_out_utc").notNull(),
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("PENDING"), // PENDING, APPROVED, REJECTED
+  reviewedByUserId: text("reviewed_by_user_id").references(() => users.id),
+  reviewedAt: integer("reviewed_at"),
+  rejectionReason: text("rejection_reason"),
+  createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
 

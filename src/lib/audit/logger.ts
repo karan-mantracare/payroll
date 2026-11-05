@@ -47,10 +47,13 @@ export function computeAuditHash(
 }
 
 let auditQueue: Promise<any> = Promise.resolve();
+let auditSeq = 0;
 
-async function internalLogAuditEvent(input: AuditRecordInput): Promise<AuditRecord> {
+async function internalLogAuditEvent(input: AuditRecordInput, tx?: any): Promise<AuditRecord> {
+  const client = tx || db;
+
   // 1. Fetch latest record to get its hash
-  const latestRecords = await db
+  const latestRecords = await client
     .select()
     .from(auditLogs)
     .orderBy(desc(auditLogs.timestamp), desc(auditLogs.id))
@@ -58,7 +61,8 @@ async function internalLogAuditEvent(input: AuditRecordInput): Promise<AuditReco
 
   const prevHash = latestRecords.length > 0 ? latestRecords[0].currentHash : GENESIS_HASH;
   const timestamp = Date.now();
-  const id = `audit_${timestamp}_${Math.random().toString(36).substring(2, 9)}`;
+  const seq = (++auditSeq).toString().padStart(8, "0");
+  const id = `audit_${timestamp}_${seq}_${Math.random().toString(36).substring(2, 6)}`;
   const changesJson = JSON.stringify(input.changes);
 
   // 2. Compute cryptographic hash chain entry
@@ -87,7 +91,7 @@ async function internalLogAuditEvent(input: AuditRecordInput): Promise<AuditReco
     currentHash,
   };
 
-  await db.insert(auditLogs).values(newRecord);
+  await client.insert(auditLogs).values(newRecord);
 
   return {
     ...newRecord,
@@ -100,8 +104,13 @@ async function internalLogAuditEvent(input: AuditRecordInput): Promise<AuditReco
 /**
  * Appends a tamper-evident audit record to the database with cryptographic hash chaining.
  * Uses sequential queue locking to prevent race conditions during concurrent audit writes.
+ * Supports coordinating directly within a database transaction (tx).
  */
-export async function logAuditEvent(input: AuditRecordInput): Promise<AuditRecord> {
+export async function logAuditEvent(input: AuditRecordInput, tx?: any): Promise<AuditRecord> {
+  if (tx) {
+    return await internalLogAuditEvent(input, tx);
+  }
+
   return new Promise<AuditRecord>((resolve, reject) => {
     auditQueue = auditQueue.then(async () => {
       try {
@@ -172,3 +181,10 @@ export function verifyAuditLogChain(
 
   return { valid: true };
 }
+
+export const auditLogger = {
+  logAuditEvent,
+  verifyAuditLogChain,
+  computeAuditHash,
+};
+

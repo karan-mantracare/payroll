@@ -70,7 +70,7 @@ export const StatusTransitionSchema = z.object({
   concurrencyVersion: z.number().int().min(1, "Concurrency version is required"),
 });
 
-export type CreateEmployeeInput = z.infer<typeof CreateEmployeeSchema>;
+export type CreateEmployeeInput = z.input<typeof CreateEmployeeSchema>;
 export type UpdateEmployeeInput = z.infer<typeof UpdateEmployeeSchema>;
 export type StatusTransitionInput = z.infer<typeof StatusTransitionSchema>;
 
