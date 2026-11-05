@@ -264,7 +264,7 @@ export default function LoginPage() {
               </button>
 
               <div className="pt-2 text-center text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800">
-                Protected by MantraCare Security Engine • AES-256-GCM & Bcrypt
+                Protected by MantraCare Encryption
               </div>
             </form>
           ) : (
@@ -361,6 +361,10 @@ export default function LoginPage() {
                   <span style={{ color: "#ffffff" }} className="!text-white font-semibold">Verify OTP</span>
                 )}
               </button>
+
+              <div className="pt-2 text-center text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800">
+                Protected by MantraCare Encryption
+              </div>
             </form>
           )}
         </div>
