@@ -4,6 +4,8 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "./AuthGate";
+import { useSidebar } from "./SidebarContext";
+import { BrandLogo } from "./BrandLogo";
 import {
   LayoutDashboard,
   Users,
@@ -20,6 +22,10 @@ import {
   User,
   Users2,
   Inbox,
+  PanelLeftClose,
+  PanelLeftOpen,
+  X,
+  Server,
 } from "lucide-react";
 
 interface NavItem {
@@ -31,39 +37,39 @@ interface NavItem {
 }
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
-  { name: "1. Dashboard", href: "/admin", icon: LayoutDashboard },
-  { name: "2. Employee Management", href: "/admin/employees", icon: Users },
-  { name: "3. Employee Lifecycle", href: "/admin/lifecycle", icon: GitFork },
-  { name: "4. Attendance Management", href: "/admin/attendance", icon: CalendarCheck2 },
-  { name: "5. Shift Management", href: "/admin/shifts", icon: Clock },
-  { name: "6. Leave & Holidays", href: "/admin/leaves", icon: CalendarDays },
-  { name: "7. Training Management", href: "/admin/training", icon: GraduationCap },
-  { name: "8. Payroll Management", href: "/admin/payroll", icon: CreditCard, badge: "Confidential" },
-  { name: "9. Approvals & Requests", href: "/admin/approvals", icon: CheckSquare },
-  { name: "10. Reports & Analytics", href: "/admin/reports", icon: BarChart3 },
-  { name: "11. Org Settings", href: "/admin/settings", icon: Sliders },
-  { name: "12. Access & Admin", href: "/admin/access", icon: ShieldAlert },
+  { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { name: "Employee Management", href: "/admin/employees", icon: Users },
+  { name: "Employee Lifecycle", href: "/admin/lifecycle", icon: GitFork },
+  { name: "Attendance Management", href: "/admin/attendance", icon: CalendarCheck2 },
+  { name: "Shift Management", href: "/admin/shifts", icon: Clock },
+  { name: "Leave & Holidays", href: "/admin/leaves", icon: CalendarDays },
+  { name: "Training Management", href: "/admin/training", icon: GraduationCap },
+  { name: "Payroll Management", href: "/admin/payroll", icon: CreditCard, badge: "Confidential" },
+  { name: "Approvals & Requests", href: "/admin/approvals", icon: CheckSquare },
+  { name: "Reports & Analytics", href: "/admin/reports", icon: BarChart3 },
+  { name: "Org Settings", href: "/admin/settings", icon: Sliders },
+  { name: "Access & Admin", href: "/admin/access", icon: ShieldAlert },
 ];
 
 const DASH_NAV_ITEMS: NavItem[] = [
-  { name: "1. My Dashboard", href: "/dash", icon: LayoutDashboard },
-  { name: "2. My Profile", href: "/dash/profile", icon: User },
-  { name: "3. My Attendance", href: "/dash/attendance", icon: CalendarCheck2 },
-  { name: "4. My Shifts", href: "/dash/shifts", icon: Clock },
-  { name: "5. My Leaves", href: "/dash/leaves", icon: CalendarDays },
-  { name: "6. My Payroll", href: "/dash/payroll", icon: CreditCard },
-  { name: "7. Onboarding & JML", href: "/dash/onboarding", icon: GitFork },
-  { name: "8. My Training", href: "/dash/training", icon: GraduationCap },
-  { name: "9. My Requests", href: "/dash/requests", icon: Inbox },
+  { name: "My Dashboard", href: "/dash", icon: LayoutDashboard },
+  { name: "My Profile", href: "/dash/profile", icon: User },
+  { name: "My Attendance", href: "/dash/attendance", icon: CalendarCheck2 },
+  { name: "My Shifts", href: "/dash/shifts", icon: Clock },
+  { name: "My Leaves", href: "/dash/leaves", icon: CalendarDays },
+  { name: "My Payroll", href: "/dash/payroll", icon: CreditCard },
+  { name: "Onboarding & JML", href: "/dash/onboarding", icon: GitFork },
+  { name: "My Training", href: "/dash/training", icon: GraduationCap },
+  { name: "My Requests", href: "/dash/requests", icon: Inbox },
   {
-    name: "10. My Team",
+    name: "My Team",
     href: "/dash/team",
     icon: Users2,
     permission: "dash.team.view",
     badge: "Manager",
   },
   {
-    name: "11. Team Approvals",
+    name: "Team Approvals",
     href: "/dash/approvals",
     icon: CheckSquare,
     permission: "dash.team_approvals.manage",
@@ -80,22 +86,63 @@ interface SidebarProps {
 export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { hasPermission } = useAuth();
+  const { isCollapsed, toggleCollapsed } = useSidebar();
 
   const items = type === "admin" ? ADMIN_NAV_ITEMS : DASH_NAV_ITEMS;
 
-  const sidebarContent = (
-    <aside className="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/95 min-h-[calc(100vh-4rem)] flex flex-col py-4 px-3 h-full transition-colors">
-      <div className="px-3 pb-3 text-[11px] font-bold uppercase tracking-wider text-[#293381] dark:text-[#36B4FF]">
-        {type === "admin" ? "Admin Modules (12)" : "Employee Modules (11)"}
+  // Filter items by permission
+  const visibleItems = items.filter((item) => {
+    if (item.permission && !hasPermission(item.permission)) {
+      return false;
+    }
+    return true;
+  });
+
+  // Desktop sidebar content
+  const desktopSidebar = (
+    <aside
+      className={`border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 min-h-screen flex flex-col transition-all duration-200 ease-in-out select-none shrink-0 ${
+        isCollapsed ? "w-[70px] px-2 py-3" : "w-64 px-3 py-3"
+      }`}
+    >
+      {/* Sidebar Header */}
+      <div
+        className={`flex items-center pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0 ${
+          isCollapsed ? "flex-col gap-2 justify-center" : "justify-between px-1"
+        }`}
+      >
+        <Link href={type === "admin" ? "/admin" : "/dash"} className="flex items-center">
+          <BrandLogo size="md" compact={isCollapsed} />
+        </Link>
+
+        <button
+          onClick={toggleCollapsed}
+          className="p-1.5 rounded-lg text-[#293381] dark:text-slate-300 hover:bg-[#EBF7FF] dark:hover:bg-slate-800 transition focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isCollapsed ? (
+            <PanelLeftOpen className="w-4 h-4" />
+          ) : (
+            <PanelLeftClose className="w-4 h-4" />
+          )}
+        </button>
       </div>
 
-      <nav className="space-y-1 flex-1 overflow-y-auto">
-        {items.map((item) => {
-          // If the item requires a specific permission, evaluate it
-          if (item.permission && !hasPermission(item.permission)) {
-            return null;
-          }
+      {/* Module Section Label */}
+      {!isCollapsed && (
+        <div className="px-2 pt-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          {type === "admin" ? "Admin Modules (12)" : "Employee Modules (11)"}
+        </div>
+      )}
 
+      {/* Navigation List */}
+      <nav
+        className={`flex-1 overflow-y-auto space-y-1 pt-2 ${
+          isCollapsed ? "flex flex-col items-center" : ""
+        }`}
+      >
+        {visibleItems.map((item) => {
           const isActive =
             item.href === "/admin" || item.href === "/dash"
               ? pathname === item.href
@@ -103,34 +150,71 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
 
           const Icon = item.icon;
 
+          if (isCollapsed) {
+            // Collapsed: Icon-only with accessible floating hover tooltip
+            return (
+              <div key={item.href} className="relative group flex items-center justify-center my-0.5">
+                <Link
+                  href={item.href}
+                  prefetch={false}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                    isActive
+                      ? "bg-[#293381] text-white shadow-sm shadow-[#293381]/25"
+                      : "text-[#293381] dark:text-slate-300 hover:bg-[#EBF7FF] dark:hover:bg-slate-800 hover:text-[#293381]"
+                  }`}
+                  aria-label={item.name}
+                >
+                  <Icon
+                    className={`w-4 h-4 shrink-0 ${
+                      isActive ? "text-white" : "text-[#293381] dark:text-slate-300"
+                    }`}
+                  />
+                </Link>
+
+                {/* Floating Tooltip */}
+                <div
+                  role="tooltip"
+                  className="absolute left-full ml-3 px-2.5 py-1.5 bg-[#293381] text-white text-xs font-semibold rounded-lg shadow-xl whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150 z-50 flex items-center gap-2 border border-slate-700/30"
+                >
+                  <span>{item.name}</span>
+                  {item.badge && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-[#36B4FF] text-[#293381]">
+                      {item.badge}
+                    </span>
+                  )}
+                  {/* Tooltip triangle caret */}
+                  <div className="absolute top-1/2 -left-1 -translate-y-1/2 border-4 border-transparent border-r-[#293381]" />
+                </div>
+              </div>
+            );
+          }
+
+          // Expanded: Full menu item with label & compact badge
           return (
             <Link
               key={item.href}
               href={item.href}
               prefetch={false}
-              onClick={() => {
-                if (onClose) onClose();
-              }}
-              className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition ${
+              className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
                 isActive
                   ? "bg-[#293381] text-white shadow-sm shadow-[#293381]/20"
-                  : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-[#293381] dark:hover:text-white"
+                  : "text-[#293381] dark:text-slate-300 hover:bg-[#EBF7FF] dark:hover:bg-slate-800/80 hover:text-[#293381]"
               }`}
             >
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <Icon
-                  className={`w-4 h-4 ${
-                    isActive ? "text-[#36B4FF]" : "text-slate-400 group-hover:text-[#293381]"
+                  className={`w-4 h-4 shrink-0 ${
+                    isActive ? "text-white" : "text-[#293381] dark:text-slate-300"
                   }`}
                 />
-                <span>{item.name}</span>
+                <span className="truncate">{item.name}</span>
               </div>
               {item.badge && (
                 <span
-                  className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                  className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold shrink-0 ml-1.5 uppercase ${
                     isActive
                       ? "bg-white/20 text-white"
-                      : "bg-[#36B4FF]/10 text-[#293381] dark:text-[#36B4FF] border border-[#36B4FF]/20"
+                      : "bg-[#36B4FF]/15 text-[#293381] dark:text-[#36B4FF] border border-[#36B4FF]/30"
                   }`}
                 >
                   {item.badge}
@@ -141,34 +225,125 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
         })}
       </nav>
 
-      <div className="p-3 bg-[#F8FAFC] dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl mt-4">
-        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-          Programs Mount: <span className="text-[#293381] dark:text-[#36B4FF] font-bold">/payrol</span>
+      {/* Sidebar Footer */}
+      {isCollapsed ? (
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-center shrink-0">
+          <div
+            className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 group relative"
+            title="Programs Mount: /payrol"
+          >
+            <Server className="w-4 h-4 text-[#293381]" />
+            <div
+              role="tooltip"
+              className="absolute left-full ml-3 px-2 py-1 bg-[#293381] text-white text-[11px] font-mono rounded-md shadow-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50"
+            >
+              /payrol
+            </div>
+          </div>
         </div>
-        <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-          MantraCare Ecosystem Active
+      ) : (
+        <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl mt-3 shrink-0">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono flex items-center justify-between">
+            <span>Mount:</span>
+            <span className="text-[#293381] dark:text-[#36B4FF] font-bold">/payrol</span>
+          </div>
+          <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
+            MantraCare Ecosystem
+          </div>
+        </div>
+      )}
+    </aside>
+  );
+
+  // Mobile Drawer (Always fully expanded for mobile touch usability)
+  const mobileDrawer = (
+    <div className="fixed inset-0 z-50 md:hidden">
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Slide-over Panel */}
+      <div className="fixed inset-y-0 left-0 w-64 bg-white dark:bg-slate-900 shadow-2xl flex flex-col p-4 border-r border-slate-200 dark:border-slate-800 z-50">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+          <BrandLogo size="md" />
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            aria-label="Close navigation menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="px-2 pt-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          {type === "admin" ? "Admin Modules (12)" : "Employee Modules (11)"}
+        </div>
+
+        <nav className="flex-1 overflow-y-auto space-y-1 pt-2">
+          {visibleItems.map((item) => {
+            const isActive =
+              item.href === "/admin" || item.href === "/dash"
+                ? pathname === item.href
+                : pathname.startsWith(item.href);
+
+            const Icon = item.icon;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch={false}
+                onClick={onClose}
+                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  isActive
+                    ? "bg-[#293381] text-white shadow-sm shadow-[#293381]/20"
+                    : "text-[#293381] dark:text-slate-300 hover:bg-[#EBF7FF] dark:hover:bg-slate-800/80 hover:text-[#293381]"
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Icon
+                    className={`w-4 h-4 shrink-0 ${
+                      isActive ? "text-white" : "text-[#293381] dark:text-slate-300"
+                    }`}
+                  />
+                  <span className="truncate">{item.name}</span>
+                </div>
+                {item.badge && (
+                  <span
+                    className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold shrink-0 ml-1.5 uppercase ${
+                      isActive
+                        ? "bg-white/20 text-white"
+                        : "bg-[#36B4FF]/15 text-[#293381] border border-[#36B4FF]/30"
+                    }`}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl mt-3 shrink-0">
+          <div className="text-[11px] text-slate-500 font-mono flex items-center justify-between">
+            <span>Mount:</span>
+            <span className="text-[#293381] font-bold">/payrol</span>
+          </div>
+          <div className="text-[10px] text-slate-400 mt-0.5">
+            MantraCare Ecosystem
+          </div>
         </div>
       </div>
-    </aside>
+    </div>
   );
 
   return (
     <>
-      {/* Desktop Persistent Sidebar */}
-      <div className="hidden md:block">{sidebarContent}</div>
-
-      {/* Mobile Drawer Overlay */}
-      {isOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={onClose}
-          />
-          <div className="fixed inset-y-0 left-0 w-64 z-50 shadow-2xl">
-            {sidebarContent}
-          </div>
-        </div>
-      )}
+      <div className="hidden md:block h-full">{desktopSidebar}</div>
+      {isOpen && mobileDrawer}
     </>
   );
 }

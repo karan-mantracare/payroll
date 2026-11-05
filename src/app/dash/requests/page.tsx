@@ -10,7 +10,7 @@ export default function EmployeeRequestsPage() {
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
             <Inbox className="w-6 h-6 text-emerald-400" />
-            Module 9: My Requests
+            My Requests
           </h1>
           <p className="text-sm text-slate-400 mt-1">
             Requisitions, HR letters, address updates, and helpdesk support tickets.

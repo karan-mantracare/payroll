@@ -96,10 +96,8 @@ export default function AdminDashboardPage() {
               href={mod.href}
               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-card hover:border-[#36B4FF] hover:shadow-md transition group block"
             >
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-mono font-bold text-[#36B4FF] bg-[#36B4FF]/10 px-2 py-0.5 rounded">
-                  Module {mod.id}
-                </span>
+              <div className="flex items-center justify-between mb-3">
+                <span className="w-2 h-2 rounded-full bg-[#36B4FF]" />
                 <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-[#293381] dark:group-hover:text-[#36B4FF] transition-transform group-hover:translate-x-1" />
               </div>
               <h3 className="font-bold text-sm text-[#293381] dark:text-white group-hover:text-[#36B4FF] transition">

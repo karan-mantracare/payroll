@@ -9,7 +9,7 @@ export default function EmployeePayrollPage() {
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
           <CreditCard className="w-6 h-6 text-emerald-400" />
-          Module 6: My Payroll & Payslips
+          My Payroll & Payslips
         </h1>
         <p className="text-sm text-slate-400 mt-1">
           Monthly salary statements, tax deduction breakdowns, and downloadable payslip PDFs.

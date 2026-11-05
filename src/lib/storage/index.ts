@@ -168,3 +168,4 @@ class LocalPrivateStorageProvider implements StorageProvider {
 }
 
 export const documentStorage: StorageProvider = new LocalPrivateStorageProvider();
+

@@ -9,7 +9,7 @@ export default function AdminLifecyclePage() {
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
           <GitFork className="w-6 h-6 text-indigo-400" />
-          Module 3: Employee Lifecycle (JML)
+          Employee Lifecycle (JML)
         </h1>
         <p className="text-sm text-slate-400 mt-1">
           Joiner, Mover, Leaver transitions, onboarding workflows, probation tracking, and exit clearance.

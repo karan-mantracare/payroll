@@ -9,7 +9,7 @@ export default function EmployeeLeavesPage() {
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
           <CalendarDays className="w-6 h-6 text-emerald-400" />
-          Module 5: My Leaves
+          My Leaves
         </h1>
         <p className="text-sm text-slate-400 mt-1">
           Apply for paid leaves, casual leaves, sick leave, and view upcoming holiday calendar.

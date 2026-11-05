@@ -66,7 +66,7 @@ export default function EmployeeTeamPage() {
         <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center mx-auto">
           <ShieldAlert className="w-6 h-6" />
         </div>
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Module 10: My Team (Restricted Access)</h2>
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white">My Team (Restricted Access)</h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
           You do not hold permissions to view the team hierarchy. Please contact your administrator if you believe this is in error.
         </p>

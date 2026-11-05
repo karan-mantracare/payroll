@@ -9,7 +9,7 @@ export default function EmployeeOnboardingPage() {
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
           <GitFork className="w-6 h-6 text-emerald-400" />
-          Module 7: Onboarding & JML
+          Onboarding & JML
         </h1>
         <p className="text-sm text-slate-400 mt-1">
           Checklist tasks, company handbook acknowledgment, IT asset allotment, and compliance sign-offs.

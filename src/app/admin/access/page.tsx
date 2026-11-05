@@ -32,7 +32,7 @@ export default function AdminAccessPage() {
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
             <ShieldAlert className="w-6 h-6 text-indigo-400" />
-            Module 12: Access & Administration
+            Access & Administration
           </h1>
           <p className="text-sm text-slate-400 mt-1">
             RBAC Permission Registry, active roles, and tamper-evident SHA-256 audit log verifier.

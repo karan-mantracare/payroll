@@ -14,7 +14,7 @@ export default function EmployeeApprovalsPage() {
         <div className="w-12 h-12 bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mx-auto">
           <ShieldAlert className="w-6 h-6" />
         </div>
-        <h2 className="text-lg font-bold text-white">Module 11: Team Approvals (Permission Protected)</h2>
+        <h2 className="text-lg font-bold text-white">Team Approvals (Permission Protected)</h2>
         <p className="text-xs text-slate-400 max-w-md mx-auto">
           This module is reserved for Team Managers and HR holding the{" "}
           <code className="text-emerald-400 font-mono">dash.team_approvals.manage</code> permission.
@@ -28,7 +28,7 @@ export default function EmployeeApprovalsPage() {
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
           <CheckSquare className="w-6 h-6 text-emerald-400" />
-          Module 11: Team Approvals (Manager View)
+          Team Approvals (Manager View)
         </h1>
         <p className="text-sm text-slate-400 mt-1">
           Review, approve, or reject subordinate leave applications, shift changes, and attendance regularizations.

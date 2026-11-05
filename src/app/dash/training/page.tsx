@@ -9,7 +9,7 @@ export default function EmployeeTrainingPage() {
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
           <GraduationCap className="w-6 h-6 text-emerald-400" />
-          Module 8: My Training
+          My Training
         </h1>
         <p className="text-sm text-slate-400 mt-1">
           Assigned learning modules, data protection certifications, and healthcare workflow courses.

@@ -480,3 +480,4 @@ export async function deleteEmployeeDocument(
 
   return { success: true };
 }
+

@@ -4,6 +4,7 @@ import React, { ReactNode } from "react";
 import { useAuth } from "@/components/AuthGate";
 import { Navbar } from "@/components/Navbar";
 import { Sidebar } from "@/components/Sidebar";
+import { SidebarProvider } from "@/components/SidebarContext";
 import { ShieldAlert } from "lucide-react";
 
 export default function EmployeeLayout({ children }: { children: ReactNode }) {
@@ -17,7 +18,7 @@ export default function EmployeeLayout({ children }: { children: ReactNode }) {
           <div className="w-14 h-14 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center mx-auto">
             <ShieldAlert className="w-8 h-8" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Employee Portal Access Denied</h2>
+          <h2 className="text-xl font-bold text-[#293381] dark:text-white">Employee Portal Access Denied</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Your account requires the <code className="text-[#293381] dark:text-[#36B4FF] font-mono font-semibold">portal.employee.access</code> permission.
           </p>
@@ -27,22 +28,26 @@ export default function EmployeeLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 flex flex-col transition-colors">
-      <Navbar
-        portal="Employee Portal"
-        isMobileMenuOpen={mobileMenuOpen}
-        onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
-      />
-      <div className="flex flex-1">
+    <SidebarProvider>
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 flex transition-colors">
         <Sidebar
           type="dash"
           isOpen={mobileMenuOpen}
           onClose={() => setMobileMenuOpen(false)}
         />
-        <main className="flex-1 p-4 sm:p-8 overflow-y-auto max-w-7xl">
-          {children}
-        </main>
+        <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+          <Navbar
+            portal="Employee Portal"
+            isMobileMenuOpen={mobileMenuOpen}
+            onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
+          />
+          <main className="flex-1 p-4 sm:p-8 overflow-y-auto w-full">
+            <div className="max-w-7xl mx-auto w-full">
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }

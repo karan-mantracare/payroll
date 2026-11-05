@@ -9,7 +9,7 @@ export default function AdminApprovalsPage() {
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
           <CheckSquare className="w-6 h-6 text-indigo-400" />
-          Module 9: Approvals & Requests
+          Approvals & Requests
         </h1>
         <p className="text-sm text-slate-400 mt-1">
           Centralized administrative approval queue for leave escalations, payroll revisions, and expense claims.

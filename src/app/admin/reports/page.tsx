@@ -9,7 +9,7 @@ export default function AdminReportsPage() {
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
           <BarChart3 className="w-6 h-6 text-indigo-400" />
-          Module 10: Reports & Analytics
+          Reports & Analytics
         </h1>
         <p className="text-sm text-slate-400 mt-1">
           Workforce demographic distributions, headcount growth, attrition analysis, and statutory compliance reports.

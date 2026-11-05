@@ -9,7 +9,7 @@ export default function AdminTrainingPage() {
       <div>
         <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
           <GraduationCap className="w-6 h-6 text-indigo-400" />
-          Module 7: Training Management
+          Training Management
         </h1>
         <p className="text-sm text-slate-400 mt-1">
           Corporate training programs, HIPAA/GDPR compliance modules, technical certifications, and progress tracking.
