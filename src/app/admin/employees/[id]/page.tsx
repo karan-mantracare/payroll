@@ -1217,10 +1217,12 @@ export default function EmployeeDetailPage({
         <SensitiveFinancialCard
           employeeId={employee.id}
           canManage={
-            user?.roles.includes("SUPER_ADMIN") ||
-            user?.roles.includes("ADMIN") ||
-            user?.roles.includes("FINANCE_ADMIN") ||
-            user?.permissions?.includes("sensitive.salary.manage")
+            Boolean(
+              user?.roles?.includes("SUPER_ADMIN") ||
+              user?.roles?.includes("ADMIN") ||
+              user?.roles?.includes("FINANCE_ADMIN") ||
+              user?.permissions?.includes("sensitive.salary.manage")
+            )
           }
         />
       )}

@@ -90,7 +90,9 @@ export function Navbar({ portal, onToggleMobileMenu, isMobileMenuOpen }: NavbarP
                 {user?.employeeId || "EMP"}
               </span>
               <span>•</span>
-              <span className="truncate max-w-[130px] font-medium">{user?.roles.join(", ")}</span>
+              <span className="truncate max-w-[130px] font-medium">
+                {Array.isArray(user?.roles) ? user.roles.join(", ") : ""}
+              </span>
             </div>
           </div>
 

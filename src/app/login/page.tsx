@@ -43,10 +43,11 @@ export default function LoginPage() {
   // If user is already authenticated, redirect immediately
   useEffect(() => {
     if (user) {
-      const canAdmin = user.isSuperAdmin || user.permissions.includes("portal.admin.access");
-      router.replace(canAdmin ? "/admin" : "/dash");
+      const perms = Array.isArray(user.permissions) ? user.permissions : [];
+      const canAdmin = Boolean(user.isSuperAdmin) || perms.includes("portal.admin.access");
+      window.location.href = canAdmin ? "/payrol/admin" : "/payrol/dash";
     }
-  }, [user, router]);
+  }, [user]);
 
   // Start countdown when entering OTP step
   useEffect(() => {
@@ -149,10 +150,9 @@ export default function LoginPage() {
         return;
       }
 
-      // Success: Refresh auth context and route to assigned portal
-      await refreshUser();
-      const targetUrl = data.redirectUrl || "/dash";
-      router.replace(targetUrl.replace(/^\/payrol/, ""));
+      // Success: Route directly to assigned portal
+      const targetUrl = data.redirectUrl || "/payrol/dash";
+      window.location.href = targetUrl;
     } catch (err: any) {
       setError("Verification failed due to a network error. Please try again.");
       setLoading(false);

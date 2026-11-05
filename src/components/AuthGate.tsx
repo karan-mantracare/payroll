@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { BrandLogo } from "./BrandLogo";
 
@@ -42,16 +42,24 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const pathname = usePathname();
-  const router = useRouter();
 
-  const isLoginPage = pathname === "/login";
+  const isLoginPage = pathname === "/login" || pathname === "/payrol/login";
 
   async function checkSession() {
     try {
       const res = await fetch("/payrol/api/auth/me");
       if (res.ok) {
         const data = await res.json();
-        setUser(data.user);
+        const rawUser = data.user;
+        if (rawUser) {
+          setUser({
+            ...rawUser,
+            roles: Array.isArray(rawUser.roles) ? rawUser.roles : [],
+            permissions: Array.isArray(rawUser.permissions) ? rawUser.permissions : [],
+          });
+        } else {
+          setUser(null);
+        }
       } else {
         setUser(null);
       }
@@ -66,7 +74,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     checkSession();
   }, []);
 
-  // Handle redirects once session state is known
+  // Handle redirects once session state is resolved
   useEffect(() => {
     if (loading) return;
 
@@ -75,15 +83,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
       if (!isLoginPage) {
         window.location.href = "/payrol/login";
       }
-    } else {
-      // Authenticated user landing on /login
-      if (isLoginPage) {
-        const canAdmin = user.isSuperAdmin || user.permissions.includes("portal.admin.access");
-        const destination = canAdmin ? "/admin" : "/dash";
-        router.replace(destination);
-      }
     }
-  }, [loading, user, isLoginPage, router]);
+  }, [loading, user, isLoginPage]);
 
   const logout = async () => {
     try {
@@ -96,14 +97,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const hasPermission = (permission: string): boolean => {
     if (!user) return false;
     if (user.isSuperAdmin) return true;
+    if (!Array.isArray(user.permissions)) return false;
     return user.permissions.includes(permission);
   };
 
   const canAccessAdmin =
-    user?.isSuperAdmin || (user ? user.permissions.includes("portal.admin.access") : false);
+    Boolean(user?.isSuperAdmin) ||
+    (Array.isArray(user?.permissions) && user.permissions.includes("portal.admin.access"));
 
   const canAccessEmployee =
-    user?.isSuperAdmin || (user ? user.permissions.includes("portal.employee.access") : false);
+    Boolean(user?.isSuperAdmin) ||
+    (Array.isArray(user?.permissions) && user.permissions.includes("portal.employee.access"));
 
   // If on login page and not authenticated, render login form immediately
   if (isLoginPage && (!user || loading)) {

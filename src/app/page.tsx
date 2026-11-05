@@ -1,27 +1,25 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthGate";
 import { Loader2 } from "lucide-react";
 
 export default function RootRedirector() {
-  const router = useRouter();
   const { user, loading, canAccessAdmin, canAccessEmployee } = useAuth();
 
   useEffect(() => {
     if (loading) return;
 
     if (!user) {
-      router.replace("/login");
+      window.location.href = "/payrol/login";
     } else if (canAccessAdmin) {
-      router.replace("/admin");
+      window.location.href = "/payrol/admin";
     } else if (canAccessEmployee) {
-      router.replace("/dash");
+      window.location.href = "/payrol/dash";
     } else {
-      router.replace("/login");
+      window.location.href = "/payrol/login";
     }
-  }, [user, loading, canAccessAdmin, canAccessEmployee, router]);
+  }, [user, loading, canAccessAdmin, canAccessEmployee]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-950 text-slate-900 dark:text-white">
