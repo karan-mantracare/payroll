@@ -249,15 +249,17 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 px-4 bg-[#293381] hover:bg-[#1F2664] text-white font-semibold rounded-xl text-xs sm:text-sm transition shadow-md shadow-[#293381]/20 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#36B4FF] disabled:opacity-60"
+                data-text-white="true"
+                style={{ color: "#ffffff" }}
+                className="w-full py-2.5 px-4 bg-[#293381] hover:bg-[#1F2664] !text-white font-semibold rounded-xl text-xs sm:text-sm transition shadow-md shadow-[#293381]/20 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#36B4FF] disabled:opacity-60"
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Validating credentials...</span>
+                    <span style={{ color: "#ffffff" }}>Validating credentials...</span>
                   </>
                 ) : (
-                  <span>Sign In</span>
+                  <span style={{ color: "#ffffff" }} className="!text-white font-semibold">Sign In</span>
                 )}
               </button>
 
@@ -346,15 +348,17 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading || otp.length !== 6 || timeLeft === 0}
-                className="w-full py-2.5 px-4 bg-[#293381] hover:bg-[#1F2664] text-white font-semibold rounded-xl text-xs sm:text-sm transition shadow-md shadow-[#293381]/20 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#36B4FF] disabled:opacity-60"
+                data-text-white="true"
+                style={{ color: "#ffffff" }}
+                className="w-full py-2.5 px-4 bg-[#293381] hover:bg-[#1F2664] !text-white font-semibold rounded-xl text-xs sm:text-sm transition shadow-md shadow-[#293381]/20 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#36B4FF] disabled:opacity-60"
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Verifying code...</span>
+                    <span style={{ color: "#ffffff" }}>Verifying code...</span>
                   </>
                 ) : (
-                  <span>Verify OTP</span>
+                  <span style={{ color: "#ffffff" }} className="!text-white font-semibold">Verify OTP</span>
                 )}
               </button>
             </form>
@@ -385,7 +389,9 @@ export default function LoginPage() {
             </div>
             <button
               onClick={() => setShowForgotModal(false)}
-              className="w-full py-2 bg-[#293381] hover:bg-[#1F2664] text-white rounded-xl text-xs font-semibold transition"
+              data-text-white="true"
+              style={{ color: "#ffffff" }}
+              className="w-full py-2 bg-[#293381] hover:bg-[#1F2664] !text-white rounded-xl text-xs font-semibold transition"
             >
               Close
             </button>
