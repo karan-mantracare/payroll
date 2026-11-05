@@ -1,0 +1,14 @@
+# Minis Workflow
+
+## Docs
+
+- [The Minis Workflow](https://minis-workflow.mintlify.app/introduction.md): End-to-end guide to building, deploying, and shipping vibe-coded apps ('Minis') across the MantraCare ecosystem: from first prompt to production analytics.
+- [Phase 1: Build the UI](https://minis-workflow.mintlify.app/phases/phase-1-build.md): Start a Mini using an AI UI builder, strip external branding, and set up a standardized Next.js environment locally.
+- [Phase 2: Ship the container](https://minis-workflow.mintlify.app/phases/phase-2-ship.md): Push your code to GitHub, configure CI pipelines, containerize your app, and deploy it to the Minis platform.
+- [Phase 3: Database & Auth](https://minis-workflow.mintlify.app/phases/phase-3-database-auth.md): Connect Neon Postgres and implement our strict, provider-free token-based auth handshake.
+- [Phase 4: Ecosystem Integration](https://minis-workflow.mintlify.app/phases/phase-4-integration.md): Handle HTTPS/iframe quirks, WebView navigation, translations, and platform webhooks to integrate your Mini.
+- [Phase 6: Best Practices & Maintenance](https://minis-workflow.mintlify.app/phases/phase-6-best-practices.md): Keep your project clean, manage registry storage limits, and optimize Docker artifacts.
+- [End-to-End Checklist](https://minis-workflow.mintlify.app/checklist.md): Use this as your final pre-launch pass on every new Mini.
+
+
+This documentation is built and hosted on [Mintlify](https://mintlify.com), a developer documentation platform.
