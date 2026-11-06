@@ -66,8 +66,12 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (err: any) {
+    console.error("[Auth API] Verify OTP exception:", err);
     return NextResponse.json(
-      { success: false, error: err.message || "OTP verification error." },
+      {
+        success: false,
+        error: "Unable to verify login code at this time. Please try again.",
+      },
       { status: 500 }
     );
   }

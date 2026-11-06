@@ -41,8 +41,12 @@ export async function POST(req: NextRequest) {
       isDevStaticEnabled: result.isDevStaticEnabled,
     });
   } catch (err: any) {
+    console.error("[Auth API] Login exception:", err);
     return NextResponse.json(
-      { success: false, error: err.message || "Authentication service error." },
+      {
+        success: false,
+        error: "Unable to complete login at this time. Please try again.",
+      },
       { status: 500 }
     );
   }

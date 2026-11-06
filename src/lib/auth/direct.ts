@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import { db } from "../db/client";
+import { db, rawClient } from "../db/client";
 import { users, employees, userCredentials, otpChallenges, userRoles } from "../db/schema";
 import { eq, and, gt } from "drizzle-orm";
 import { verifyPassword, hashPassword } from "../security/password";
@@ -202,55 +202,92 @@ export async function initiateLoginChallenge(
   email: string,
   password: string
 ): Promise<DirectAuthResult> {
-  const validation = await validateCredentials(email, password);
+  try {
+    const validation = await validateCredentials(email, password);
 
-  if (!validation.success || !validation.user || !validation.employee) {
+    if (!validation.success || !validation.user || !validation.employee) {
+      return {
+        success: false,
+        code: validation.code,
+        error: validation.error,
+      };
+    }
+
+    const { user, employee } = validation;
+    const now = Date.now();
+    const expiresAt = now + OTP_TTL_MS;
+
+    // Generate cryptographically secure 6-digit OTP and keyed HMAC hash
+    const otp = generateSecureOtp();
+    const otpHash = hashOtp(otp);
+    const challengeToken = randomBytes(32).toString("hex");
+    const challengeId = `otp_${randomBytes(16).toString("hex")}`;
+
+    // Persist challenge in database (defensive auto-healing if table wasn't migrated)
+    try {
+      await db.insert(otpChallenges).values({
+        id: challengeId,
+        userId: user.id,
+        challengeToken,
+        otpHash,
+        expiresAt,
+        attempts: 0,
+        maxAttempts: OTP_MAX_ATTEMPTS,
+        isUsed: 0,
+        createdAt: now,
+      });
+    } catch (insertErr: any) {
+      console.warn("[Auth] Initial insert into otp_challenges failed, ensuring schema...", insertErr?.message);
+      await rawClient.execute(`
+        CREATE TABLE IF NOT EXISTS otp_challenges (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id),
+          challenge_token TEXT NOT NULL UNIQUE,
+          otp_hash TEXT NOT NULL,
+          expires_at INTEGER NOT NULL,
+          attempts INTEGER NOT NULL DEFAULT 0,
+          max_attempts INTEGER NOT NULL DEFAULT 5,
+          is_used INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL
+        );
+      `);
+      await db.insert(otpChallenges).values({
+        id: challengeId,
+        userId: user.id,
+        challengeToken,
+        otpHash,
+        expiresAt,
+        attempts: 0,
+        maxAttempts: OTP_MAX_ATTEMPTS,
+        isUsed: 0,
+        createdAt: now,
+      });
+    }
+
+    // Dispatch OTP via pluggable delivery provider
+    const provider = getOtpDeliveryProvider();
+    await provider.sendOtp({
+      email: user.email,
+      otp,
+      challengeId,
+      userName: user.name,
+    });
+
+    return {
+      success: true,
+      challengeToken,
+      emailMasked: maskEmail(user.email),
+      expiresAt,
+      isDevStaticEnabled: isStaticDevOtpAllowed(),
+    };
+  } catch (err: any) {
+    console.error("[Auth] Unexpected error during initiateLoginChallenge:", err);
     return {
       success: false,
-      code: validation.code,
-      error: validation.error,
+      code: "AUTH_SERVICE_ERROR",
+      error: "Authentication service temporarily unavailable. Please try again.",
     };
   }
-
-  const { user, employee } = validation;
-  const now = Date.now();
-  const expiresAt = now + OTP_TTL_MS;
-
-  // Generate cryptographically secure 6-digit OTP and keyed HMAC hash
-  const otp = generateSecureOtp();
-  const otpHash = hashOtp(otp);
-  const challengeToken = randomBytes(32).toString("hex");
-  const challengeId = `otp_${randomBytes(16).toString("hex")}`;
-
-  // Persist challenge in database
-  await db.insert(otpChallenges).values({
-    id: challengeId,
-    userId: user.id,
-    challengeToken,
-    otpHash,
-    expiresAt,
-    attempts: 0,
-    maxAttempts: OTP_MAX_ATTEMPTS,
-    isUsed: 0,
-    createdAt: now,
-  });
-
-  // Dispatch OTP via pluggable delivery provider
-  const provider = getOtpDeliveryProvider();
-  await provider.sendOtp({
-    email: user.email,
-    otp,
-    challengeId,
-    userName: user.name,
-  });
-
-  return {
-    success: true,
-    challengeToken,
-    emailMasked: maskEmail(user.email),
-    expiresAt,
-    isDevStaticEnabled: isStaticDevOtpAllowed(),
-  };
 }
 
 /**

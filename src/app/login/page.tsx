@@ -18,6 +18,36 @@ import {
   Info,
 } from "lucide-react";
 
+function sanitizeErrorMessage(rawError?: string | null): string {
+  if (!rawError || typeof rawError !== "string") {
+    return "Authentication failed. Please check your credentials.";
+  }
+  // Strictly prevent SQL queries, database schema details, or technical stack traces from leaking
+  const technicalLeakPatterns = [
+    /failed query/i,
+    /insert into/i,
+    /select /i,
+    /update /i,
+    /delete from/i,
+    /sqlite_/i,
+    /drizzle/i,
+    /syntax error/i,
+    /constraint/i,
+    /foreign key/i,
+    /table/i,
+    /column/i,
+    /params:/i,
+    /at \w+/i,
+    /stack trace/i,
+  ];
+
+  if (technicalLeakPatterns.some((pattern) => pattern.test(rawError))) {
+    return "An internal authentication service error occurred. Please try again or contact IT support.";
+  }
+
+  return rawError;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { user, refreshUser } = useAuth();
@@ -102,7 +132,7 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setError(data.error || "Authentication failed. Please check your credentials.");
+        setError(sanitizeErrorMessage(data.error));
         setLoading(false);
         return;
       }
@@ -145,7 +175,7 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setError(data.error || "Verification failed. Please try again.");
+        setError(sanitizeErrorMessage(data.error));
         setLoading(false);
         return;
       }
