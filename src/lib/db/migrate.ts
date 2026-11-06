@@ -455,6 +455,11 @@ export async function runMigrations() {
     );
   `);
 
+  // Performance and uniqueness indexes
+  await rawClient.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_otp_challenges_token ON otp_challenges(challenge_token);");
+  await rawClient.execute("CREATE INDEX IF NOT EXISTS idx_otp_challenges_user_active ON otp_challenges(user_id, is_used, expires_at);");
+  await rawClient.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_active ON auth_sessions(user_id, revoked_at, expires_at);");
+
   console.log("Turso schema migration completed successfully.");
 }
 

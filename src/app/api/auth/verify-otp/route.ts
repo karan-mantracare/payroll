@@ -1,15 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyLoginOtp } from "@/lib/auth/direct";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import { generateCorrelationId, logSecureError, sanitizeUserFacingError } from "@/lib/security/safe-logger";
 
 export async function POST(req: NextRequest) {
+  const correlationId = generateCorrelationId("api_verify");
+
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return NextResponse.json(
+        {
+          success: false,
+          code: "INVALID_REQUEST",
+          error: "Verification code and session are required.",
+          correlationId,
+        },
+        { status: 400 }
+      );
+    }
+
     const { challengeToken, otp } = body;
 
-    if (!challengeToken || !otp) {
+    if (!challengeToken || !otp || typeof challengeToken !== "string" || typeof otp !== "string") {
       return NextResponse.json(
-        { success: false, error: "Challenge token and verification code are required." },
+        {
+          success: false,
+          code: "MISSING_PARAMETERS",
+          error: "Please enter the complete 6-digit verification code.",
+          correlationId,
+        },
         { status: 400 }
       );
     }
@@ -38,8 +58,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          code: result.code,
-          error: result.error,
+          code: result.code || "VERIFY_FAILED",
+          error: sanitizeUserFacingError(result.error),
+          correlationId: result.correlationId || correlationId,
         },
         { status }
       );
@@ -49,6 +70,7 @@ export async function POST(req: NextRequest) {
       success: true,
       redirectUrl: result.redirectUrl,
       user: result.user,
+      correlationId: result.correlationId || correlationId,
     });
 
     const isProduction = process.env.NODE_ENV === "production";
@@ -66,14 +88,15 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (err: any) {
-    console.error("[Auth API] Verify OTP exception:", err);
+    logSecureError("AuthAPI.verifyOtp", err, {}, correlationId);
     return NextResponse.json(
       {
         success: false,
-        error: "Unable to verify login code at this time. Please try again.",
+        code: "INTERNAL_VERIFY_ERROR",
+        error: "Unable to complete verification at this time. Please try again.",
+        correlationId,
       },
       { status: 500 }
     );
   }
 }
-

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useAuth } from "@/components/AuthGate";
 import {
@@ -15,45 +14,29 @@ import {
   ArrowLeft,
   Loader2,
   KeyRound,
-  Info,
+  RefreshCw,
 } from "lucide-react";
+import { sanitizeUserFacingError } from "@/lib/security/safe-logger";
 
-function sanitizeErrorMessage(rawError?: string | null): string {
-  if (!rawError || typeof rawError !== "string") {
-    return "Authentication failed. Please check your credentials.";
-  }
-  // Strictly prevent SQL queries, database schema details, or technical stack traces from leaking
-  const technicalLeakPatterns = [
-    /failed query/i,
-    /insert into/i,
-    /select /i,
-    /update /i,
-    /delete from/i,
-    /sqlite_/i,
-    /drizzle/i,
-    /syntax error/i,
-    /constraint/i,
-    /foreign key/i,
-    /table/i,
-    /column/i,
-    /params:/i,
-    /at \w+/i,
-    /stack trace/i,
-  ];
+export type LoginState =
+  | "unauthenticated"
+  | "submitting_credentials"
+  | "awaiting_otp"
+  | "verifying_otp"
+  | "authenticated"
+  | "forbidden"
+  | "recoverable_error";
 
-  if (technicalLeakPatterns.some((pattern) => pattern.test(rawError))) {
-    return "An internal authentication service error occurred. Please try again or contact IT support.";
-  }
-
-  return rawError;
-}
+const REQUEST_TIMEOUT_MS = 6000;
 
 export default function LoginPage() {
-  const router = useRouter();
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
 
-  // State
+  // State Machine
+  const [loginState, setLoginState] = useState<LoginState>("unauthenticated");
   const [step, setStep] = useState<"credentials" | "otp">("credentials");
+
+  // Form Fields
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -62,13 +45,24 @@ export default function LoginPage() {
   const [isDevStaticEnabled, setIsDevStaticEnabled] = useState(false);
   const [otp, setOtp] = useState("");
 
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [correlationId, setCorrelationId] = useState<string | null>(null);
   const [showForgotModal, setShowForgotModal] = useState(false);
 
   // 5-minute Countdown Timer (300 seconds)
   const [timeLeft, setTimeLeft] = useState(300);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Cancel any pending fetch on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
 
   // If user is already authenticated, redirect immediately
   useEffect(() => {
@@ -113,54 +107,98 @@ export default function LoginPage() {
   // Step 1: Submit Credentials
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    if (loginState === "submitting_credentials" || loginState === "verifying_otp") return;
 
-    if (!email.trim() || !password) {
+    setError(null);
+    setCorrelationId(null);
+
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) {
       setError("Please enter both your work email and password.");
+      setLoginState("recoverable_error");
       return;
     }
 
-    setLoading(true);
+    setLoginState("submitting_credentials");
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
       const res = await fetch("/payrol/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ email: cleanEmail, password }),
+        signal: controller.signal,
       });
 
-      const data = await res.json();
+      clearTimeout(timeout);
+      const data = await res.json().catch(() => null);
 
-      if (!res.ok || !data.success) {
-        setError(sanitizeErrorMessage(data.error));
-        setLoading(false);
+      if (!res.ok || !data?.success) {
+        const safeMsg = sanitizeUserFacingError(
+          data?.error,
+          "Unable to complete sign-in right now. Please try again."
+        );
+        setError(safeMsg);
+        setCorrelationId(data?.correlationId || null);
+
+        if (res.status === 403 || data?.code === "ACCOUNT_INACTIVE" || data?.code === "EMPLOYEE_INACTIVE") {
+          setLoginState("forbidden");
+        } else {
+          // Clear sensitive password on error, preserve email
+          setPassword("");
+          setLoginState("recoverable_error");
+        }
         return;
       }
 
       setChallengeToken(data.challengeToken);
-      setEmailMasked(data.emailMasked || email);
-      setIsDevStaticEnabled(!!data.isDevStaticEnabled);
+      setEmailMasked(data.emailMasked || cleanEmail);
+      setIsDevStaticEnabled(Boolean(data.isDevStaticEnabled));
+      setPassword(""); // Clear password from memory once challenge received
       setStep("otp");
+      setLoginState("awaiting_otp");
       setError(null);
     } catch (err: any) {
-      setError("Network or server connection failed. Please try again.");
-    } finally {
-      setLoading(false);
+      clearTimeout(timeout);
+      if (err.name === "AbortError") {
+        setError("Sign-in request timed out. Please check your connection and retry.");
+      } else {
+        setError("Unable to connect to the authentication service. Please retry.");
+      }
+      setPassword("");
+      setLoginState("recoverable_error");
     }
   };
 
   // Step 2: Submit OTP
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loginState === "verifying_otp") return;
+
     setError(null);
+    setCorrelationId(null);
 
     const cleanOtp = otp.trim();
     if (!cleanOtp || cleanOtp.length !== 6) {
       setError("Please enter the complete 6-digit verification code.");
+      setLoginState("recoverable_error");
       return;
     }
 
-    setLoading(true);
+    setLoginState("verifying_otp");
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
       const res = await fetch("/payrol/api/auth/verify-otp", {
@@ -170,24 +208,67 @@ export default function LoginPage() {
           challengeToken,
           otp: cleanOtp,
         }),
+        signal: controller.signal,
       });
 
-      const data = await res.json();
+      clearTimeout(timeout);
+      const data = await res.json().catch(() => null);
 
-      if (!res.ok || !data.success) {
-        setError(sanitizeErrorMessage(data.error));
-        setLoading(false);
+      if (!res.ok || !data?.success) {
+        const safeMsg = sanitizeUserFacingError(
+          data?.error,
+          "Unable to complete verification at this time. Please try again."
+        );
+        setError(safeMsg);
+        setCorrelationId(data?.correlationId || null);
+        setOtp(""); // Clear OTP on failure
+
+        if (res.status === 403 || data?.code === "PORTAL_ACCESS_DENIED") {
+          setLoginState("forbidden");
+        } else {
+          setLoginState("recoverable_error");
+        }
         return;
       }
 
       // Success: Route directly to assigned portal
+      setLoginState("authenticated");
       const targetUrl = data.redirectUrl || "/payrol/dash";
       window.location.replace(targetUrl);
     } catch (err: any) {
-      setError("Verification failed due to a network error. Please try again.");
-      setLoading(false);
+      clearTimeout(timeout);
+      if (err.name === "AbortError") {
+        setError("Verification request timed out. Please retry.");
+      } else {
+        setError("Unable to connect to the verification service. Please retry.");
+      }
+      setOtp("");
+      setLoginState("recoverable_error");
     }
   };
+
+  // Retry Action
+  const handleRetry = () => {
+    setError(null);
+    setCorrelationId(null);
+    if (step === "otp") {
+      setLoginState("awaiting_otp");
+    } else {
+      setLoginState("unauthenticated");
+    }
+  };
+
+  // Back to Credentials
+  const handleBackToCredentials = () => {
+    setStep("credentials");
+    setLoginState("unauthenticated");
+    setError(null);
+    setCorrelationId(null);
+    setOtp("");
+    setPassword("");
+  };
+
+  const isSubmitting = loginState === "submitting_credentials" || loginState === "verifying_otp";
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 selection:bg-[#36B4FF]/20 selection:text-[#293381]">
@@ -202,14 +283,53 @@ export default function LoginPage() {
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-[440px] px-4">
         <div className="bg-white dark:bg-slate-900 py-8 px-6 sm:px-10 shadow-xl shadow-slate-200/50 dark:shadow-none rounded-2xl border border-slate-200 dark:border-slate-800">
+          
+          {/* Safe, Viewport-Bounded Error Alert */}
           {error && (
-            <div className="mb-6 p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 flex items-start gap-2.5 text-xs text-rose-700 dark:text-rose-300 animate-in fade-in">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
-              <div className="flex-1 font-medium">{error}</div>
+            <div className="mb-6 p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 flex flex-col gap-2 text-xs text-rose-700 dark:text-rose-300 break-words overflow-hidden animate-in fade-in">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+                <div className="flex-1 font-medium leading-relaxed">{error}</div>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-rose-200/60 dark:border-rose-900/60">
+                {correlationId && (
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Ref: {correlationId}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-800 dark:text-rose-200 hover:underline ml-auto"
+                >
+                  <RefreshCw className="w-3 h-3" /> Retry
+                </button>
+              </div>
             </div>
           )}
 
-          {step === "credentials" ? (
+          {/* Forbidden Portal Access State */}
+          {loginState === "forbidden" ? (
+            <div className="text-center space-y-4 py-2">
+              <div className="w-12 h-12 bg-rose-50 dark:bg-rose-950/40 text-rose-600 rounded-xl flex items-center justify-center mx-auto">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                Access Restricted
+              </h2>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                Your account does not have permission to access the Payroll portals, or your employee profile is inactive. Please contact People Operations for assistance.
+              </p>
+              <button
+                type="button"
+                onClick={handleBackToCredentials}
+                style={{ color: "#ffffff" }}
+                className="w-full py-2.5 px-4 bg-[#293381] hover:bg-[#1F2664] !text-white font-semibold rounded-xl text-xs sm:text-sm transition shadow-md shadow-[#293381]/20 flex items-center justify-center gap-2"
+              >
+                Back to Sign In
+              </button>
+            </div>
+          ) : step === "credentials" ? (
             /* STEP 1: WORK EMAIL & PASSWORD */
             <form onSubmit={handleCredentialsSubmit} className="space-y-5">
               <div>
@@ -230,11 +350,12 @@ export default function LoginPage() {
                   <input
                     type="email"
                     required
+                    disabled={isSubmitting}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@mantracare.com"
                     autoComplete="username"
-                    className="block w-full pl-9 pr-3 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#36B4FF] focus:border-transparent transition"
+                    className="block w-full pl-9 pr-3 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#36B4FF] focus:border-transparent transition disabled:opacity-60"
                   />
                 </div>
               </div>
@@ -259,11 +380,12 @@ export default function LoginPage() {
                   <input
                     type={showPassword ? "text" : "password"}
                     required
+                    disabled={isSubmitting}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
                     autoComplete="current-password"
-                    className="block w-full pl-9 pr-10 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#36B4FF] focus:border-transparent transition"
+                    className="block w-full pl-9 pr-10 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#36B4FF] focus:border-transparent transition disabled:opacity-60"
                   />
                   <button
                     type="button"
@@ -278,12 +400,12 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={isSubmitting}
                 data-text-white="true"
                 style={{ color: "#ffffff" }}
                 className="w-full py-2.5 px-4 bg-[#293381] hover:bg-[#1F2664] !text-white font-semibold rounded-xl text-xs sm:text-sm transition shadow-md shadow-[#293381]/20 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#36B4FF] disabled:opacity-60"
               >
-                {loading ? (
+                {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-white" />
                     <span style={{ color: "#ffffff" }}>Validating credentials...</span>
@@ -303,30 +425,31 @@ export default function LoginPage() {
               <div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setStep("credentials");
-                    setError(null);
-                    setOtp("");
-                  }}
-                  className="inline-flex items-center gap-1.5 text-xs text-[#293381] dark:text-[#36B4FF] hover:underline mb-2 font-medium"
+                  onClick={handleBackToCredentials}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#293381] dark:text-[#36B4FF] hover:underline mb-2"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" /> Back to Sign In
                 </button>
-                <h1 className="text-xl font-bold text-[#293381] dark:text-white">Verify Your Login</h1>
+                <h1 className="text-xl font-bold text-[#293381] dark:text-white">Verify Identity</h1>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Enter the 6-digit verification code sent to{" "}
-                  <span className="font-semibold text-slate-700 dark:text-slate-200 font-mono">
+                  Enter the 6-digit verification code dispatched to:{" "}
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
                     {emailMasked}
                   </span>
                 </p>
               </div>
 
+              {/* Dev-Only Static OTP Callout */}
               {isDevStaticEnabled && (
-                <div className="p-3 bg-[#EBF7FF] dark:bg-slate-800/80 border border-[#36B4FF]/30 rounded-xl text-xs text-[#293381] dark:text-[#36B4FF] flex items-start gap-2">
-                  <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold">Development Mode Active:</span> Static verification
-                    code is <code className="font-mono font-bold bg-white dark:bg-slate-900 px-1 py-0.5 rounded">123456</code>.
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-xl text-xs text-amber-800 dark:text-amber-300">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-600" /> Local Development Mode
+                  </div>
+                  <div className="mt-1 text-[11px]">
+                    Static OTP enabled for local test accounts:{" "}
+                    <code className="bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded font-mono font-bold text-amber-950 dark:text-amber-100">
+                      123456
+                    </code>
                   </div>
                 </div>
               )}
@@ -343,10 +466,11 @@ export default function LoginPage() {
                     maxLength={6}
                     autoFocus
                     required
+                    disabled={isSubmitting}
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ""))}
                     placeholder="••••••"
-                    className="block w-full text-center py-3 text-2xl font-mono tracking-[0.5em] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#36B4FF] focus:border-transparent transition"
+                    className="block w-full text-center py-3 text-2xl font-mono tracking-[0.5em] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#36B4FF] focus:border-transparent transition disabled:opacity-60"
                   />
                 </div>
               </div>
@@ -368,7 +492,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   disabled
-                  title="Production email delivery service is currently being configured. In local development, use 123456."
+                  title="In local development, use 123456."
                   className="text-slate-400 dark:text-slate-600 font-semibold cursor-not-allowed text-[11px]"
                 >
                   Resend Code
@@ -377,12 +501,12 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={loading || otp.length !== 6 || timeLeft === 0}
+                disabled={isSubmitting || otp.length !== 6 || timeLeft === 0}
                 data-text-white="true"
                 style={{ color: "#ffffff" }}
                 className="w-full py-2.5 px-4 bg-[#293381] hover:bg-[#1F2664] !text-white font-semibold rounded-xl text-xs sm:text-sm transition shadow-md shadow-[#293381]/20 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#36B4FF] disabled:opacity-60"
               >
-                {loading ? (
+                {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-white" />
                     <span style={{ color: "#ffffff" }}>Verifying code...</span>
@@ -418,14 +542,15 @@ export default function LoginPage() {
               <div className="font-semibold text-slate-700 dark:text-slate-200">
                 Contact People Operations:
               </div>
-              <div className="text-slate-500 font-mono text-[11px]">hr@mantracare.com</div>
-              <div className="text-slate-500 text-[11px]">Internal Ext: 4001 / HR Helpdesk</div>
+              <div className="text-slate-500 font-mono text-[11px]">
+                support@mantracare.com • +91 11 4000 0000
+              </div>
             </div>
             <button
+              type="button"
               onClick={() => setShowForgotModal(false)}
-              data-text-white="true"
               style={{ color: "#ffffff" }}
-              className="w-full py-2 bg-[#293381] hover:bg-[#1F2664] !text-white rounded-xl text-xs font-semibold transition"
+              className="w-full py-2 px-3 bg-[#293381] hover:bg-[#1F2664] !text-white font-semibold rounded-xl text-xs transition"
             >
               Close
             </button>
@@ -435,4 +560,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

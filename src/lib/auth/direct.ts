@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { db, rawClient } from "../db/client";
 import { users, employees, userCredentials, otpChallenges, userRoles } from "../db/schema";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { verifyPassword, hashPassword } from "../security/password";
 import {
   generateSecureOtp,
@@ -15,6 +15,8 @@ import { createSession } from "./session";
 import { resolveUserPermissions } from "../permissions/evaluator";
 import { RoleKey } from "../permissions/types";
 import { logAuditEvent } from "../audit/logger";
+import { ensureSchemaReady } from "../db/readiness";
+import { generateCorrelationId, logSecureError } from "../security/safe-logger";
 
 const MAX_FAILED_ATTEMPTS = parseInt(process.env.ACCOUNT_LOCKOUT_MAX_ATTEMPTS || "5", 10);
 const LOCKOUT_DURATION_MS = parseInt(process.env.ACCOUNT_LOCKOUT_DURATION_MINUTES || "15", 10) * 60 * 1000;
@@ -29,6 +31,7 @@ export interface DirectAuthResult {
   emailMasked?: string;
   expiresAt?: number;
   isDevStaticEnabled?: boolean;
+  correlationId?: string;
 }
 
 export interface VerifyOtpResult {
@@ -37,6 +40,7 @@ export interface VerifyOtpResult {
   error?: string;
   sessionId?: string;
   redirectUrl?: string;
+  correlationId?: string;
   user?: {
     id: string;
     employeeId?: string;
@@ -54,154 +58,179 @@ export interface VerifyOtpResult {
  * and authoritative Employee Master mapping.
  */
 export async function validateCredentials(email: string, password: string) {
+  const correlationId = generateCorrelationId("val_cred");
+
   if (!email || !password || typeof email !== "string" || typeof password !== "string") {
     return {
       success: false,
       code: "INVALID_CREDENTIALS",
       error: "Please provide both email and password.",
+      correlationId,
     };
   }
 
   const cleanEmail = email.trim().toLowerCase();
 
-  // 1. Fetch user by email
-  const userRecords = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, cleanEmail))
-    .limit(1);
+  try {
+    // 1. Fetch user by email
+    const userRecords = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, cleanEmail))
+      .limit(1);
 
-  if (userRecords.length === 0) {
-    // Avoid user enumeration
-    return {
-      success: false,
-      code: "INVALID_CREDENTIALS",
-      error: "Invalid email or password.",
-    };
-  }
-
-  const user = userRecords[0];
-
-  // 2. Verify user active status
-  if (user.status !== "ACTIVE") {
-    return {
-      success: false,
-      code: "ACCOUNT_INACTIVE",
-      error: "Your user account is inactive. Please contact HR administration.",
-    };
-  }
-
-  // 3. Resolve linked Employee Master record (authoritative identity & status)
-  const employeeRecords = await db
-    .select()
-    .from(employees)
-    .where(eq(employees.userId, user.id))
-    .limit(1);
-
-  if (employeeRecords.length === 0) {
-    return {
-      success: false,
-      code: "EMPLOYEE_NOT_MAPPED",
-      error: "No linked Employee Master record found. Please contact HR administration.",
-    };
-  }
-
-  const emp = employeeRecords[0];
-
-  if (emp.status !== "ACTIVE") {
-    return {
-      success: false,
-      code: "EMPLOYEE_INACTIVE",
-      error: "Employee profile is inactive or terminated. Access denied.",
-    };
-  }
-
-  // 4. Fetch user credentials
-  const credRecords = await db
-    .select()
-    .from(userCredentials)
-    .where(eq(userCredentials.userId, user.id))
-    .limit(1);
-
-  if (credRecords.length === 0) {
-    return {
-      success: false,
-      code: "CREDENTIALS_NOT_FOUND",
-      error: "Account credentials have not been configured. Please activate your account.",
-    };
-  }
-
-  const creds = credRecords[0];
-  const now = Date.now();
-
-  // 5. Check account lockout
-  if (creds.lockedUntil && creds.lockedUntil > now) {
-    const remainingMinutes = Math.ceil((creds.lockedUntil - now) / 60000);
-    return {
-      success: false,
-      code: "ACCOUNT_LOCKED",
-      error: `Account is temporarily locked due to multiple failed login attempts. Please try again in ${remainingMinutes} minute(s).`,
-    };
-  }
-
-  // 6. Verify password with bcrypt
-  const isMatch = await verifyPassword(password, creds.passwordHash);
-
-  if (!isMatch) {
-    const failedAttempts = creds.failedLoginAttempts + 1;
-    const shouldLock = failedAttempts >= MAX_FAILED_ATTEMPTS;
-    const lockedUntil = shouldLock ? now + LOCKOUT_DURATION_MS : null;
-
-    await db
-      .update(userCredentials)
-      .set({
-        failedLoginAttempts: failedAttempts,
-        lockedUntil,
-        updatedAt: now,
-      })
-      .where(eq(userCredentials.id, creds.id));
-
-    if (shouldLock) {
+    if (userRecords.length === 0) {
+      // Avoid user enumeration
       return {
         success: false,
-        code: "ACCOUNT_LOCKED",
-        error: "Account is temporarily locked due to multiple failed login attempts. Please try again later.",
+        code: "INVALID_CREDENTIALS",
+        error: "Invalid email or password.",
+        correlationId,
       };
     }
 
+    const user = userRecords[0];
+
+    // 2. Verify user active status
+    if (user.status !== "ACTIVE") {
+      return {
+        success: false,
+        code: "ACCOUNT_INACTIVE",
+        error: "Your user account is inactive. Please contact HR administration.",
+        correlationId,
+      };
+    }
+
+    // 3. Resolve linked Employee Master record (authoritative identity & status)
+    const employeeRecords = await db
+      .select()
+      .from(employees)
+      .where(eq(employees.userId, user.id))
+      .limit(1);
+
+    if (employeeRecords.length === 0) {
+      return {
+        success: false,
+        code: "EMPLOYEE_NOT_MAPPED",
+        error: "No linked Employee Master record found. Please contact HR administration.",
+        correlationId,
+      };
+    }
+
+    const emp = employeeRecords[0];
+
+    if (emp.status !== "ACTIVE") {
+      return {
+        success: false,
+        code: "EMPLOYEE_INACTIVE",
+        error: "Employee profile is inactive or terminated. Access denied.",
+        correlationId,
+      };
+    }
+
+    // 4. Fetch user credentials
+    const credRecords = await db
+      .select()
+      .from(userCredentials)
+      .where(eq(userCredentials.userId, user.id))
+      .limit(1);
+
+    if (credRecords.length === 0) {
+      return {
+        success: false,
+        code: "CREDENTIALS_NOT_FOUND",
+        error: "Account credentials have not been configured. Please activate your account.",
+        correlationId,
+      };
+    }
+
+    const creds = credRecords[0];
+    const now = Date.now();
+
+    // 5. Check account lockout
+    if (creds.lockedUntil && creds.lockedUntil > now) {
+      const remainingMinutes = Math.ceil((creds.lockedUntil - now) / 60000);
+      return {
+        success: false,
+        code: "ACCOUNT_LOCKED",
+        error: `Account is temporarily locked due to multiple failed login attempts. Please try again in ${remainingMinutes} minute(s).`,
+        correlationId,
+      };
+    }
+
+    // 6. Verify password with bcrypt
+    const isMatch = await verifyPassword(password, creds.passwordHash);
+
+    if (!isMatch) {
+      const failedAttempts = creds.failedLoginAttempts + 1;
+      const shouldLock = failedAttempts >= MAX_FAILED_ATTEMPTS;
+      const lockedUntil = shouldLock ? now + LOCKOUT_DURATION_MS : null;
+
+      await db
+        .update(userCredentials)
+        .set({
+          failedLoginAttempts: failedAttempts,
+          lockedUntil,
+          updatedAt: now,
+        })
+        .where(eq(userCredentials.id, creds.id));
+
+      if (shouldLock) {
+        return {
+          success: false,
+          code: "ACCOUNT_LOCKED",
+          error: "Account is temporarily locked due to multiple failed login attempts. Please try again later.",
+          correlationId,
+        };
+      }
+
+      return {
+        success: false,
+        code: "INVALID_CREDENTIALS",
+        error: "Invalid email or password.",
+        correlationId,
+      };
+    }
+
+    // 7. Password matched: reset failed login attempts if necessary
+    if (creds.failedLoginAttempts > 0 || creds.lockedUntil !== null) {
+      await db
+        .update(userCredentials)
+        .set({
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          updatedAt: now,
+        })
+        .where(eq(userCredentials.id, creds.id));
+    }
+
+    return {
+      success: true,
+      user,
+      employee: emp,
+      correlationId,
+    };
+  } catch (err: any) {
+    logSecureError("validateCredentials.dbError", err, { email: cleanEmail }, correlationId);
     return {
       success: false,
-      code: "INVALID_CREDENTIALS",
-      error: "Invalid email or password.",
+      code: "DATABASE_UNAVAILABLE",
+      error: "Authentication service temporarily unavailable. Please try again.",
+      correlationId,
     };
   }
-
-  // 7. Password matched: reset failed login attempts if necessary
-  if (creds.failedLoginAttempts > 0 || creds.lockedUntil !== null) {
-    await db
-      .update(userCredentials)
-      .set({
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-        updatedAt: now,
-      })
-      .where(eq(userCredentials.id, creds.id));
-  }
-
-  return {
-    success: true,
-    user,
-    employee: emp,
-  };
 }
 
 /**
  * Initiates direct login by validating email/password and issuing a secure OTP challenge.
+ * Enforces atomic challenge replacement and fails closed if persistence fails.
  */
 export async function initiateLoginChallenge(
   email: string,
   password: string
 ): Promise<DirectAuthResult> {
+  const correlationId = generateCorrelationId("auth_init");
+
   try {
     const validation = await validateCredentials(email, password);
 
@@ -210,10 +239,11 @@ export async function initiateLoginChallenge(
         success: false,
         code: validation.code,
         error: validation.error,
+        correlationId: validation.correlationId || correlationId,
       };
     }
 
-    const { user, employee } = validation;
+    const { user } = validation;
     const now = Date.now();
     const expiresAt = now + OTP_TTL_MS;
 
@@ -223,48 +253,76 @@ export async function initiateLoginChallenge(
     const challengeToken = randomBytes(32).toString("hex");
     const challengeId = `otp_${randomBytes(16).toString("hex")}`;
 
-    // Persist challenge in database (defensive auto-healing if table wasn't migrated)
+    // 1. Invalidate any previous unconsumed challenges for this user atomically
     try {
-      await db.insert(otpChallenges).values({
-        id: challengeId,
-        userId: user.id,
-        challengeToken,
-        otpHash,
-        expiresAt,
-        attempts: 0,
-        maxAttempts: OTP_MAX_ATTEMPTS,
-        isUsed: 0,
-        createdAt: now,
+      await rawClient.execute({
+        sql: `UPDATE otp_challenges SET is_used = 1 WHERE user_id = ? AND is_used = 0;`,
+        args: [user.id],
       });
-    } catch (insertErr: any) {
-      console.warn("[Auth] Initial insert into otp_challenges failed, ensuring schema...", insertErr?.message);
-      await rawClient.execute(`
-        CREATE TABLE IF NOT EXISTS otp_challenges (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL REFERENCES users(id),
-          challenge_token TEXT NOT NULL UNIQUE,
-          otp_hash TEXT NOT NULL,
-          expires_at INTEGER NOT NULL,
-          attempts INTEGER NOT NULL DEFAULT 0,
-          max_attempts INTEGER NOT NULL DEFAULT 5,
-          is_used INTEGER NOT NULL DEFAULT 0,
-          created_at INTEGER NOT NULL
-        );
-      `);
-      await db.insert(otpChallenges).values({
-        id: challengeId,
-        userId: user.id,
-        challengeToken,
-        otpHash,
-        expiresAt,
-        attempts: 0,
-        maxAttempts: OTP_MAX_ATTEMPTS,
-        isUsed: 0,
-        createdAt: now,
-      });
+    } catch {
+      // Defensive schema self-heal if table doesn't exist
+      await ensureSchemaReady();
     }
 
-    // Dispatch OTP via pluggable delivery provider
+    // 2. Persist new challenge in database
+    try {
+      await rawClient.execute({
+        sql: `INSERT INTO otp_challenges (id, user_id, challenge_token, otp_hash, expires_at, attempts, max_attempts, is_used, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        args: [
+          challengeId,
+          user.id,
+          challengeToken,
+          otpHash,
+          expiresAt,
+          0,
+          OTP_MAX_ATTEMPTS,
+          0,
+          now,
+        ],
+      });
+    } catch (insertErr: any) {
+      logSecureError("initiateLoginChallenge.insert", insertErr, { userId: user.id }, correlationId);
+      const healed = await ensureSchemaReady();
+      if (!healed) {
+        return {
+          success: false,
+          code: "DB_PERSISTENCE_FAILED",
+          error: "Unable to complete sign-in right now. Please try again.",
+          correlationId,
+        };
+      }
+
+      // Retry insert once after healing schema
+      try {
+        await rawClient.execute({
+          sql: `INSERT INTO otp_challenges (id, user_id, challenge_token, otp_hash, expires_at, attempts, max_attempts, is_used, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          args: [
+            challengeId,
+            user.id,
+            challengeToken,
+            otpHash,
+            expiresAt,
+            0,
+            OTP_MAX_ATTEMPTS,
+            0,
+            now,
+          ],
+        });
+      } catch (retryErr: any) {
+        logSecureError("initiateLoginChallenge.retryFailed", retryErr, { userId: user.id }, correlationId);
+        // CRITICAL: Never report OTP delivery or verification as successful if persistence fails
+        return {
+          success: false,
+          code: "CHALLENGE_PERSISTENCE_FAILED",
+          error: "Unable to complete sign-in right now. Please try again.",
+          correlationId,
+        };
+      }
+    }
+
+    // 3. Dispatch OTP via pluggable delivery provider ONLY AFTER persistence confirmed
     const provider = getOtpDeliveryProvider();
     await provider.sendOtp({
       email: user.email,
@@ -279,13 +337,15 @@ export async function initiateLoginChallenge(
       emailMasked: maskEmail(user.email),
       expiresAt,
       isDevStaticEnabled: isStaticDevOtpAllowed(),
+      correlationId,
     };
   } catch (err: any) {
-    console.error("[Auth] Unexpected error during initiateLoginChallenge:", err);
+    logSecureError("initiateLoginChallenge.unhandled", err, {}, correlationId);
     return {
       success: false,
       code: "AUTH_SERVICE_ERROR",
-      error: "Authentication service temporarily unavailable. Please try again.",
+      error: "Unable to complete sign-in right now. Please try again.",
+      correlationId,
     };
   }
 }
@@ -293,6 +353,7 @@ export async function initiateLoginChallenge(
 /**
  * Verifies a submitted OTP challenge, checks replay/expiration/attempts,
  * and mints an authenticated session with portal routing.
+ * Enforces atomic consumption to prevent simultaneous requests from consuming the same challenge twice.
  */
 export async function verifyLoginOtp(params: {
   challengeToken: string;
@@ -300,6 +361,7 @@ export async function verifyLoginOtp(params: {
   ipAddress?: string;
   userAgent?: string;
 }): Promise<VerifyOtpResult> {
+  const correlationId = generateCorrelationId("auth_verify");
   const { challengeToken, otp, ipAddress, userAgent } = params;
 
   if (!challengeToken || !otp || typeof challengeToken !== "string" || typeof otp !== "string") {
@@ -307,181 +369,211 @@ export async function verifyLoginOtp(params: {
       success: false,
       code: "INVALID_PARAMETERS",
       error: "Verification token and code are required.",
+      correlationId,
     };
   }
 
   const cleanOtp = otp.trim();
 
-  // 1. Fetch challenge record
-  const challengeRecords = await db
-    .select()
-    .from(otpChallenges)
-    .where(eq(otpChallenges.challengeToken, challengeToken))
-    .limit(1);
+  try {
+    // 1. Fetch challenge record
+    const challengeRecords = await db
+      .select()
+      .from(otpChallenges)
+      .where(eq(otpChallenges.challengeToken, challengeToken))
+      .limit(1);
 
-  if (challengeRecords.length === 0) {
-    return {
-      success: false,
-      code: "CHALLENGE_NOT_FOUND",
-      error: "Invalid or expired verification session. Please log in again.",
-    };
-  }
+    if (challengeRecords.length === 0) {
+      return {
+        success: false,
+        code: "CHALLENGE_NOT_FOUND",
+        error: "Invalid or expired verification session. Please log in again.",
+        correlationId,
+      };
+    }
 
-  const challenge = challengeRecords[0];
-  const now = Date.now();
+    const challenge = challengeRecords[0];
+    const now = Date.now();
 
-  // 2. Replay check
-  if (challenge.isUsed === 1) {
-    return {
-      success: false,
-      code: "CHALLENGE_ALREADY_USED",
-      error: "This verification code has already been used. Please log in again.",
-    };
-  }
+    // 2. Replay check
+    if (challenge.isUsed === 1) {
+      return {
+        success: false,
+        code: "CHALLENGE_ALREADY_USED",
+        error: "This verification code has already been used. Please log in again.",
+        correlationId,
+      };
+    }
 
-  // 3. Expiration check
-  if (now > challenge.expiresAt) {
-    return {
-      success: false,
-      code: "CHALLENGE_EXPIRED",
-      error: "Verification code has expired. Please log in again.",
-    };
-  }
+    // 3. Expiration check
+    if (now > challenge.expiresAt) {
+      return {
+        success: false,
+        code: "CHALLENGE_EXPIRED",
+        error: "Verification code has expired. Please log in again.",
+        correlationId,
+      };
+    }
 
-  // 4. Max attempts check
-  if (challenge.attempts >= challenge.maxAttempts) {
-    return {
-      success: false,
-      code: "MAX_ATTEMPTS_EXCEEDED",
-      error: "Maximum verification attempts exceeded. Please log in again.",
-    };
-  }
-
-  // 5. Increment attempts counter
-  const nextAttempts = challenge.attempts + 1;
-  await db
-    .update(otpChallenges)
-    .set({ attempts: nextAttempts })
-    .where(eq(otpChallenges.id, challenge.id));
-
-  // 6. Validate OTP (Static dev OTP 123456 only in development + enabled flag, or cryptographic HMAC comparison)
-  const isDevStaticMatch = isStaticDevOtpAllowed() && cleanOtp === "123456";
-  const isHmacMatch = verifyOtpHash(cleanOtp, challenge.otpHash);
-
-  if (!isDevStaticMatch && !isHmacMatch) {
-    if (nextAttempts >= challenge.maxAttempts) {
+    // 4. Max attempts check
+    if (challenge.attempts >= challenge.maxAttempts) {
       return {
         success: false,
         code: "MAX_ATTEMPTS_EXCEEDED",
         error: "Maximum verification attempts exceeded. Please log in again.",
+        correlationId,
       };
     }
 
-    return {
-      success: false,
-      code: "INVALID_OTP",
-      error: "Invalid verification code. Please check and try again.",
-    };
-  }
+    // 5. Increment attempts counter
+    const nextAttempts = challenge.attempts + 1;
+    await db
+      .update(otpChallenges)
+      .set({ attempts: nextAttempts })
+      .where(eq(otpChallenges.id, challenge.id));
 
-  // 7. Successful verification: Mark challenge as used immediately
-  await db
-    .update(otpChallenges)
-    .set({ isUsed: 1 })
-    .where(eq(otpChallenges.id, challenge.id));
+    // 6. Validate OTP (Static dev OTP 123456 only in development + enabled flag, or HMAC comparison)
+    const isDevStaticMatch = isStaticDevOtpAllowed() && cleanOtp === "123456";
+    const isHmacMatch = verifyOtpHash(cleanOtp, challenge.otpHash);
 
-  // 8. Fetch user & linked Employee Master
-  const userRecords = await db
-    .select()
-    .from(users)
-    .where(and(eq(users.id, challenge.userId), eq(users.status, "ACTIVE")))
-    .limit(1);
+    if (!isDevStaticMatch && !isHmacMatch) {
+      if (nextAttempts >= challenge.maxAttempts) {
+        return {
+          success: false,
+          code: "MAX_ATTEMPTS_EXCEEDED",
+          error: "Maximum verification attempts exceeded. Please log in again.",
+          correlationId,
+        };
+      }
 
-  if (userRecords.length === 0) {
-    return {
-      success: false,
-      code: "ACCOUNT_INACTIVE",
-      error: "User account is no longer active.",
-    };
-  }
+      return {
+        success: false,
+        code: "INVALID_OTP",
+        error: "Invalid verification code. Please check and try again.",
+        correlationId,
+      };
+    }
 
-  const user = userRecords[0];
+    // 7. Atomic consumption to strictly prevent concurrent duplicate submissions
+    const updateRes = await rawClient.execute({
+      sql: `UPDATE otp_challenges SET is_used = 1 WHERE id = ? AND is_used = 0;`,
+      args: [challenge.id],
+    });
 
-  const empRecords = await db
-    .select()
-    .from(employees)
-    .where(and(eq(employees.userId, user.id), eq(employees.status, "ACTIVE")))
-    .limit(1);
+    if (updateRes.rowsAffected === 0) {
+      return {
+        success: false,
+        code: "CONCURRENT_CONSUMPTION_PREVENTED",
+        error: "This verification code has already been consumed. Please log in again.",
+        correlationId,
+      };
+    }
 
-  if (empRecords.length === 0) {
-    return {
-      success: false,
-      code: "EMPLOYEE_INACTIVE",
-      error: "Active employee profile required. Access denied.",
-    };
-  }
+    // 8. Fetch user & linked Employee Master
+    const userRecords = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, challenge.userId), eq(users.status, "ACTIVE")))
+      .limit(1);
 
-  const emp = empRecords[0];
+    if (userRecords.length === 0) {
+      return {
+        success: false,
+        code: "ACCOUNT_INACTIVE",
+        error: "User account is no longer active.",
+        correlationId,
+      };
+    }
 
-  // 9. Resolve roles and permissions
-  const assignedRoles = await db
-    .select()
-    .from(userRoles)
-    .where(eq(userRoles.userId, user.id));
+    const user = userRecords[0];
 
-  const roleKeys = assignedRoles.map((r) => r.roleKey as RoleKey);
-  const { effectivePermissions, widestScope, isSuperAdmin } = resolveUserPermissions(roleKeys);
+    const empRecords = await db
+      .select()
+      .from(employees)
+      .where(and(eq(employees.userId, user.id), eq(employees.status, "ACTIVE")))
+      .limit(1);
 
-  const canAccessAdmin = isSuperAdmin || effectivePermissions.has("portal.admin.access");
-  const canAccessEmployee = isSuperAdmin || effectivePermissions.has("portal.employee.access");
+    if (empRecords.length === 0) {
+      return {
+        success: false,
+        code: "EMPLOYEE_INACTIVE",
+        error: "Active employee profile required. Access denied.",
+        correlationId,
+      };
+    }
 
-  if (!canAccessAdmin && !canAccessEmployee) {
-    return {
-      success: false,
-      code: "PORTAL_ACCESS_DENIED",
-      error: "Access denied. Your account does not have permission to access any portal.",
-    };
-  }
+    const emp = empRecords[0];
 
-  // Determine authorized destination
-  const redirectUrl = canAccessAdmin ? "/payrol/admin" : "/payrol/dash";
+    // 9. Resolve roles and permissions
+    const assignedRoles = await db
+      .select()
+      .from(userRoles)
+      .where(eq(userRoles.userId, user.id));
 
-  // 10. Mint authenticated server session
-  const tokenHash = hashOtp(challengeToken);
-  const sessionId = await createSession(user.id, tokenHash, ipAddress, userAgent);
+    const roleKeys = assignedRoles.map((r) => r.roleKey as RoleKey);
+    const { effectivePermissions, widestScope, isSuperAdmin } = resolveUserPermissions(roleKeys);
 
-  // 11. Log audit event
-  await logAuditEvent({
-    actorUserId: user.id,
-    actorEmployeeId: emp.id,
-    action: "USER_LOGIN_DIRECT_OTP",
-    targetEntity: "users",
-    targetId: user.id,
-    changes: {
-      authMethod: "DIRECT_EMAIL_OTP",
-      email: user.email,
-      roles: roleKeys,
+    const canAccessAdmin = isSuperAdmin || effectivePermissions.has("portal.admin.access");
+    const canAccessEmployee = isSuperAdmin || effectivePermissions.has("portal.employee.access");
+
+    if (!canAccessAdmin && !canAccessEmployee) {
+      return {
+        success: false,
+        code: "PORTAL_ACCESS_DENIED",
+        error: "Access denied. Your account does not have permission to access any portal.",
+        correlationId,
+      };
+    }
+
+    // Determine authorized destination
+    const redirectUrl = canAccessAdmin ? "/payrol/admin" : "/payrol/dash";
+
+    // 10. Mint authenticated server session
+    const tokenHash = hashOtp(challengeToken);
+    const sessionId = await createSession(user.id, tokenHash, ipAddress, userAgent);
+
+    // 11. Log audit event
+    await logAuditEvent({
+      actorUserId: user.id,
+      actorEmployeeId: emp.id,
+      action: "USER_LOGIN_DIRECT_OTP",
+      targetEntity: "users",
+      targetId: user.id,
+      changes: {
+        authMethod: "DIRECT_EMAIL_OTP",
+        email: user.email,
+        roles: roleKeys,
+        ipAddress,
+      },
       ipAddress,
-    },
-    ipAddress,
-    userAgent,
-  });
+      userAgent,
+    });
 
-  return {
-    success: true,
-    sessionId,
-    redirectUrl,
-    user: {
-      id: user.id,
-      employeeId: emp.id,
-      name: user.name,
-      email: user.email,
-      roles: roleKeys,
-      permissions: Array.from(effectivePermissions),
-      widestScope,
-      isSuperAdmin,
-    },
-  };
+    return {
+      success: true,
+      sessionId,
+      redirectUrl,
+      correlationId,
+      user: {
+        id: user.id,
+        employeeId: emp.id,
+        name: user.name,
+        email: user.email,
+        roles: roleKeys,
+        permissions: Array.from(effectivePermissions),
+        widestScope,
+        isSuperAdmin,
+      },
+    };
+  } catch (err: any) {
+    logSecureError("verifyLoginOtp.unhandled", err, {}, correlationId);
+    return {
+      success: false,
+      code: "AUTH_VERIFY_ERROR",
+      error: "Unable to complete verification at this time. Please try again.",
+      correlationId,
+    };
+  }
 }
 
 /**
@@ -525,4 +617,3 @@ export async function setEmployeeCredentials(params: {
     });
   }
 }
-
