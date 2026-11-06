@@ -43,8 +43,18 @@ export function useAuth() {
 // Global in-flight promise tracker to deduplicate simultaneous requests
 let inFlightSessionCheck: Promise<AuthUser | null> | null = null;
 let cachedClientUser: AuthUser | null = null;
+let lastSessionValidatedAt = 0;
+const SESSION_CACHE_MAX_AGE_MS = 30000; // 30 seconds max client cache before background revalidation
 
 const REQUEST_TIMEOUT_MS = 4000; // 4 seconds max before failing safely
+
+export function invalidateClientSession() {
+  cachedClientUser = null;
+  lastSessionValidatedAt = 0;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("mc_auth_unauthorized"));
+  }
+}
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(cachedClientUser);
@@ -57,14 +67,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const isRootPath = pathname === "/" || pathname === "/payrol" || pathname === "";
 
   const checkSession = useCallback(async (force = false) => {
-    // If we already have a validated user in memory and not forcing revalidation, reuse it
-    if (!force && cachedClientUser) {
+    const now = Date.now();
+    const isCacheFresh = cachedClientUser && now - lastSessionValidatedAt < SESSION_CACHE_MAX_AGE_MS;
+
+    // 1. If we have a fresh, valid session within TTL and not forcing, reuse it
+    if (!force && isCacheFresh) {
       setUser(cachedClientUser);
       setStatus("authenticated");
       setError(null);
       return;
     }
 
+    // 2. Reuse in-flight promise to avoid duplicate network requests
     if (inFlightSessionCheck) {
       try {
         const existingUser = await inFlightSessionCheck;
@@ -83,7 +97,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
       return;
     }
 
-    setStatus((prev) => (prev === "authenticated" ? "authenticated" : "loading"));
+    // Only set loading if we don't have a background stale user
+    if (!cachedClientUser) {
+      setStatus("loading");
+    }
     setError(null);
 
     // Cancel any previous pending request
@@ -106,10 +123,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
         if (res.status === 401) {
           cachedClientUser = null;
+          lastSessionValidatedAt = 0;
           return null;
         }
 
         if (res.status === 403) {
+          cachedClientUser = null;
+          lastSessionValidatedAt = 0;
           throw new Error("FORBIDDEN");
         }
 
@@ -121,6 +141,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         const raw = data.user;
         if (!raw) {
           cachedClientUser = null;
+          lastSessionValidatedAt = 0;
           return null;
         }
 
@@ -131,6 +152,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         };
 
         cachedClientUser = resolvedUser;
+        lastSessionValidatedAt = Date.now();
         return resolvedUser;
       } catch (fetchErr: any) {
         clearTimeout(timeoutId);
@@ -150,27 +172,66 @@ export function AuthGate({ children }: { children: ReactNode }) {
         setStatus("authenticated");
         setError(null);
       } else {
+        cachedClientUser = null;
+        lastSessionValidatedAt = 0;
         setUser(null);
         setStatus("unauthenticated");
         setError(null);
       }
     } catch (err: any) {
       if (err.message === "FORBIDDEN") {
+        cachedClientUser = null;
+        lastSessionValidatedAt = 0;
+        setUser(null);
         setStatus("forbidden");
         setError("Your account does not have authorization to access this service.");
       } else if (err.message === "TIMEOUT") {
-        setStatus("error");
-        setError("Session verification timed out. Please check your connection or retry.");
+        // If timeout occurs and no cache, surface error
+        if (!cachedClientUser) {
+          setStatus("error");
+          setError("Session verification timed out. Please check your connection or retry.");
+        }
       } else {
-        setStatus("error");
-        setError("Unable to verify secure session. Please try again.");
+        if (!cachedClientUser) {
+          setStatus("error");
+          setError("Unable to verify secure session. Please try again.");
+        }
       }
     }
   }, []);
 
-  // Initial load
+  // Initial load & route transition revalidation
   useEffect(() => {
     checkSession();
+  }, [checkSession, pathname]);
+
+  // Window focus & visibility revalidation (rechecks session when user returns to tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        const now = Date.now();
+        if (now - lastSessionValidatedAt >= SESSION_CACHE_MAX_AGE_MS) {
+          checkSession(false);
+        }
+      }
+    };
+
+    const handleUnauthorized = () => {
+      cachedClientUser = null;
+      lastSessionValidatedAt = 0;
+      setUser(null);
+      setStatus("unauthenticated");
+    };
+
+    window.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleVisibilityChange);
+    window.addEventListener("mc_auth_unauthorized", handleUnauthorized);
+
+    return () => {
+      window.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleVisibilityChange);
+      window.removeEventListener("mc_auth_unauthorized", handleUnauthorized);
+    };
   }, [checkSession]);
 
   // Handle redirects once session state is resolved
@@ -189,6 +250,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       await fetch("/payrol/api/auth/logout", { method: "POST" });
     } catch {}
     cachedClientUser = null;
+    lastSessionValidatedAt = 0;
     setUser(null);
     setStatus("unauthenticated");
     window.location.href = "/payrol/login";

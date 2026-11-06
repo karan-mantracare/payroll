@@ -9,6 +9,7 @@ export interface ReadinessReport {
   missingTables: string[];
   missingMigrations: string[];
   missingColumns: string[];
+  missingIndexes: string[];
   indexesReady: boolean;
   schemaValid: boolean;
   migrationHistoryVerified: boolean;
@@ -59,24 +60,26 @@ const CORE_COLUMN_REQUIREMENTS: Record<string, string[]> = {
   auth_sessions: ["session_id", "user_id", "token_hash", "expires_at", "revoked_at"],
 };
 
-const REQUIRED_INDEXES = [
-  { name: "idx_otp_challenges_token", sql: "CREATE UNIQUE INDEX IF NOT EXISTS idx_otp_challenges_token ON otp_challenges(challenge_token);" },
-  { name: "idx_otp_challenges_user_active", sql: "CREATE INDEX IF NOT EXISTS idx_otp_challenges_user_active ON otp_challenges(user_id, is_used, expires_at);" },
-  { name: "idx_sessions_user_active", sql: "CREATE INDEX IF NOT EXISTS idx_sessions_user_active ON auth_sessions(user_id, revoked_at, expires_at);" },
-  { name: "idx_employees_user_id", sql: "CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_user_id ON employees(user_id);" },
-  { name: "idx_user_credentials_user_id", sql: "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_credentials_user_id ON user_credentials(user_id);" },
-  { name: "idx_password_reset_token", sql: "CREATE INDEX IF NOT EXISTS idx_password_reset_token ON password_reset_tokens(token_hash);" },
+export const REQUIRED_INDEX_NAMES = [
+  "idx_otp_challenges_token",
+  "idx_otp_challenges_user_active",
+  "idx_sessions_user_active",
+  "idx_employees_user_id",
+  "idx_user_credentials_user_id",
+  "idx_password_reset_token",
 ];
 
 /**
  * Checks database connectivity, complete table existence, column specifications,
- * versioned migration history, and encryption readiness.
+ * versioned migration history, index presence (strictly read-only), and encryption readiness.
+ * Never executes DDL or modifies schema.
  */
 export async function checkStartupReadiness(): Promise<ReadinessReport> {
   const details: string[] = [];
   const missingTables: string[] = [];
   const missingMigrations: string[] = [];
   const missingColumns: string[] = [];
+  const missingIndexes: string[] = [];
   let dbConnected = false;
   let indexesReady = true;
 
@@ -170,17 +173,30 @@ export async function checkStartupReadiness(): Promise<ReadinessReport> {
     }
   }
 
-  // 5. Index Verification
+  // 5. Index Verification (Strictly read-only via sqlite_master inspection)
   if (dbConnected && missingTables.length === 0) {
     try {
-      for (const idx of REQUIRED_INDEXES) {
-        await rawClient.execute(idx.sql);
+      const indexRes = await rawClient.execute(
+        "SELECT name FROM sqlite_master WHERE type='index';"
+      );
+      const existingIndexes = new Set(indexRes.rows.map((r: any) => String(r.name)));
+
+      for (const idxName of REQUIRED_INDEX_NAMES) {
+        if (!existingIndexes.has(idxName)) {
+          missingIndexes.push(idxName);
+        }
       }
-      details.push("Performance and uniqueness indexes verified.");
+
+      if (missingIndexes.length === 0) {
+        details.push(`All ${REQUIRED_INDEX_NAMES.length} performance and security indexes verified via read-only inspection.`);
+      } else {
+        indexesReady = false;
+        details.push(`Missing indexes (${missingIndexes.length}): ${missingIndexes.join(", ")}. Run versioned migrations to create them.`);
+      }
     } catch (err: any) {
       indexesReady = false;
       logSecureError("StartupReadiness.indexCheck", err);
-      details.push("Index verification warning: Some indexes could not be checked/created.");
+      details.push("Index verification warning: sqlite_master could not be inspected.");
     }
   } else {
     indexesReady = false;
@@ -194,7 +210,7 @@ export async function checkStartupReadiness(): Promise<ReadinessReport> {
     details.push(`Encryption error: ${encValidation.errors.join("; ")}`);
   }
 
-  const schemaValid = missingTables.length === 0 && missingColumns.length === 0;
+  const schemaValid = missingTables.length === 0 && missingColumns.length === 0 && missingIndexes.length === 0;
   const ready =
     dbConnected &&
     schemaValid &&
@@ -208,6 +224,7 @@ export async function checkStartupReadiness(): Promise<ReadinessReport> {
     missingTables,
     missingMigrations,
     missingColumns,
+    missingIndexes,
     indexesReady,
     schemaValid,
     migrationHistoryVerified,

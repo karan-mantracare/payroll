@@ -89,7 +89,9 @@ export function getOtpDeliveryProvider(): OtpDeliveryProvider {
  * Rejects any startup attempt where PAYROLL_DEV_STATIC_OTP_ENABLED is enabled in production.
  */
 export function assertValidOtpConfig(): void {
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd =
+    process.env.PAYROLL_DB_ENV === "production" ||
+    (process.env.NODE_ENV === "production" && process.env.ALLOW_STAGING_STATIC_OTP !== "true");
   const staticOtpEnabled = process.env.PAYROLL_DEV_STATIC_OTP_ENABLED === "true";
 
   if (isProd && staticOtpEnabled) {
@@ -101,14 +103,18 @@ export function assertValidOtpConfig(): void {
 
 /**
  * Strictly verifies whether development static OTP (123456) is permitted.
- * MUST be NODE_ENV === 'development' AND PAYROLL_DEV_STATIC_OTP_ENABLED === 'true'.
+ * CANNOT be enabled when PAYROLL_DB_ENV === 'production'.
  */
 export function isStaticDevOtpAllowed(): boolean {
-  if (process.env.NODE_ENV === "production") return false;
+  if (process.env.PAYROLL_DB_ENV === "production") return false;
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_STAGING_STATIC_OTP !== "true") {
+    return false;
+  }
 
   return (
     (process.env.NODE_ENV === "development" ||
       process.env.NODE_ENV === "test" ||
+      process.env.ALLOW_STAGING_STATIC_OTP === "true" ||
       !process.env.NODE_ENV) &&
     process.env.PAYROLL_DEV_STATIC_OTP_ENABLED === "true"
   );
