@@ -22,14 +22,17 @@ export function BrandLogo({ className = "", size = "md", compact = false }: Bran
   }
 
   const heightClass = size === "sm" ? "h-6" : size === "lg" ? "h-9" : "h-7 sm:h-8";
+  const pixelHeight = size === "sm" ? 24 : size === "lg" ? 36 : 30;
 
   return (
     <div className={`flex items-center shrink-0 ${className}`}>
       <img
         src="/payrol/mantracare-logo.png"
         alt="MantraCare"
+        width={pixelHeight * 3.1}
+        height={pixelHeight}
         className={`${heightClass} w-auto object-contain max-w-[150px]`}
-        style={{ aspectRatio: "906 / 292" }}
+        style={{ aspectRatio: "906 / 292", maxWidth: "150px", maxHeight: `${pixelHeight}px` }}
       />
     </div>
   );

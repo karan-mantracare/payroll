@@ -34,19 +34,19 @@ export default function AdminPayrollPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-          <div className="p-4 bg-slate-800/40 rounded-lg border border-slate-700/50">
-            <span className="text-xs text-slate-400">Current Payroll Cycle</span>
-            <div className="text-lg font-bold text-white mt-1">November 2026</div>
-            <span className="text-[11px] text-amber-400 font-mono">Status: Draft</span>
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-700/50">
+            <span className="text-xs text-slate-500 dark:text-slate-400">Current Payroll Cycle</span>
+            <div className="text-lg font-bold text-slate-900 dark:text-white mt-1">November 2026</div>
+            <span className="text-[11px] text-amber-500 dark:text-amber-400 font-mono">Status: Draft</span>
           </div>
-          <div className="p-4 bg-slate-800/40 rounded-lg border border-slate-700/50">
-            <span className="text-xs text-slate-400">Scoped Headcount</span>
-            <div className="text-lg font-bold text-white mt-1">7 Employees</div>
-            <span className="text-[11px] text-emerald-400 font-mono">100% Eligible</span>
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-700/50">
+            <span className="text-xs text-slate-500 dark:text-slate-400">Scoped Headcount</span>
+            <div className="text-lg font-bold text-slate-900 dark:text-white mt-1">7 Employees</div>
+            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono">100% Eligible</span>
           </div>
-          <div className="p-4 bg-slate-800/40 rounded-lg border border-slate-700/50">
-            <span className="text-xs text-slate-400">Disbursement Window</span>
-            <div className="text-lg font-bold text-white mt-1">Nov 30, 2026</div>
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-700/50">
+            <span className="text-xs text-slate-500 dark:text-slate-400">Disbursement Window</span>
+            <div className="text-lg font-bold text-slate-900 dark:text-white mt-1">Nov 30, 2026</div>
             <span className="text-[11px] text-slate-500 font-mono">Locked</span>
           </div>
         </div>

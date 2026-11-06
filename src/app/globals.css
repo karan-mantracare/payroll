@@ -68,18 +68,19 @@ html:not(.dark) .border-slate-700\/50 {
   border-color: #e2e8f0 !important;
 }
 
-html:not(.dark) .text-white {
-  color: #0f172a !important;
+/* White text enforcement on solid brand backgrounds, buttons, and badges */
+.text-white,
+.text-white-force,
+[data-text-white="true"],
+[data-text-white="true"] *,
+.btn-brand-primary,
+.btn-brand-primary * {
+  color: #ffffff !important;
 }
 
-/* Ensure white text is strictly preserved on solid Navy, Brand Blue buttons, and white-text elements */
-html:not(.dark) .bg-\[\#293381\],
-html:not(.dark) .bg-\[\#1F2664\],
-html:not(.dark) .btn-brand-primary,
-html:not(.dark) .btn-brand-primary *,
-html:not(.dark) .text-white-force,
-html:not(.dark) [data-text-white="true"],
-html:not(.dark) [data-text-white="true"] * {
+/* Ensure solid navy backgrounds always have crisp white text */
+.bg-\[\#293381\],
+.bg-\[\#1F2664\] {
   color: #ffffff !important;
 }
 

@@ -137,7 +137,7 @@ export default function AdminAccessPage() {
                         {new Date(rec.timestamp).toLocaleTimeString()}
                       </td>
                       <td className="px-3 py-2 text-indigo-400">{rec.actorUserId}</td>
-                      <td className="px-3 py-2 font-bold text-white">{rec.action}</td>
+                      <td className="px-3 py-2 font-bold text-slate-900 dark:text-white">{rec.action}</td>
                       <td className="px-3 py-2 text-slate-400">
                         {rec.targetEntity}:{rec.targetId}
                       </td>
