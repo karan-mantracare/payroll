@@ -1,21 +1,81 @@
 import { rawClient, dbConfig, getSafeDatabaseDiagnostics } from "./client";
 
-export async function runMigrations() {
+export interface MigrationStep {
+  version: string;
+  name: string;
+  description: string;
+}
+
+export const MIGRATIONS_REGISTRY: MigrationStep[] = [
+  { version: "001", name: "core_org_and_identity", description: "Organizations, Departments, Locations, Teams, Users, Roles" },
+  { version: "002", name: "employee_master_and_history", description: "Employees, Configs, Status & Manager Histories" },
+  { version: "003", name: "documents_and_sensitive_details", description: "Employee Documents, Sensitive Details & Encryption Envelope" },
+  { version: "004", name: "attendance_and_shifts", description: "Attendance Policies, Shifts, Assignments, Records & Corrections" },
+  { version: "005", name: "auth_credentials_otp_reset_and_audit", description: "Credentials, OTP Challenges, Reset Tokens, Sessions & Audit Logs" },
+  { version: "006", name: "performance_and_security_indexes", description: "Core Unique & Query Performance Indexes" },
+];
+
+/**
+ * Safely executes an ALTER TABLE ADD COLUMN statement.
+ * Explicitly ignores expected benign duplicate-column / already-exists errors,
+ * but surfaces all unexpected failures immediately.
+ */
+export async function executeSafeAlterColumn(sql: string, description: string): Promise<void> {
+  try {
+    await rawClient.execute(sql);
+  } catch (err: any) {
+    const msg = (err?.message || "").toLowerCase();
+    // Explicitly check for benign idempotency conditions
+    if (msg.includes("duplicate column") || msg.includes("already exists")) {
+      return;
+    }
+    // Surface unexpected failures
+    console.error(`[Migration Error] Failed executing ${description}: ${sql}`, err);
+    throw new Error(`[Migration Failure] ${description} failed: ${err.message}`);
+  }
+}
+
+export interface RunMigrationsOptions {
+  allowControlledProduction?: boolean;
+}
+
+export async function runMigrations(options?: RunMigrationsOptions) {
   const diag = getSafeDatabaseDiagnostics(dbConfig);
-  if (dbConfig.isProduction && process.env.ALLOW_PRODUCTION_MIGRATION !== "true") {
+
+  // Safety Guard: Block standard runner from touching production
+  if (dbConfig.isProduction && !options?.allowControlledProduction) {
     throw new Error(
-      "[CRITICAL SAFETY GUARD] Direct migration against PRODUCTION is blocked. Set ALLOW_PRODUCTION_MIGRATION=true with explicit administrative approval to proceed."
+      "[CRITICAL SAFETY GUARD] Direct migration against PRODUCTION is blocked in standard runner. Use controlled production migration runner: 'npm run db:migrate:production' with required approval and backup verification flags."
     );
   }
 
   console.log(`Running Turso schema migrations for environment: [${diag.environment}] (host: ${diag.host})...`);
 
+  // Safe PRAGMA initialization for local SQLite (ignored gracefully on remote HTTP libSQL)
   try {
     await rawClient.execute("PRAGMA journal_mode = WAL;");
     await rawClient.execute("PRAGMA busy_timeout = 5000;");
-  } catch {}
+  } catch (pragmaErr: any) {
+    const msg = (pragmaErr?.message || "").toLowerCase();
+    if (!msg.includes("pragma") && !msg.includes("unsupported") && !msg.includes("interactive")) {
+      console.warn(`[Migration Notice] PRAGMA initialization warning: ${pragmaErr.message}`);
+    }
+  }
 
-  // Organizations
+  // Ensure migration tracking table exists
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id TEXT PRIMARY KEY,
+      version TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      applied_at INTEGER NOT NULL,
+      checksum TEXT NOT NULL
+    );
+  `);
+
+  // --------------------------------------------------------------------------
+  // Version 001: Core Organization & Identity
+  // --------------------------------------------------------------------------
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS organizations (
       id TEXT PRIMARY KEY,
@@ -25,7 +85,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Departments
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS departments (
       id TEXT PRIMARY KEY,
@@ -36,7 +95,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Locations
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS locations (
       id TEXT PRIMARY KEY,
@@ -48,7 +106,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Teams
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS teams (
       id TEXT PRIMARY KEY,
@@ -58,7 +115,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Users
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -71,7 +127,39 @@ export async function runMigrations() {
     );
   `);
 
-  // Employees
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS roles (
+      key TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      is_system INTEGER NOT NULL DEFAULT 1,
+      default_scope TEXT NOT NULL DEFAULT 'SELF'
+    );
+  `);
+
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS user_roles (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      role_key TEXT NOT NULL REFERENCES roles(key),
+      custom_scope_json TEXT,
+      created_at INTEGER NOT NULL
+    );
+  `);
+
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS role_permissions (
+      id TEXT PRIMARY KEY,
+      role_key TEXT NOT NULL REFERENCES roles(key),
+      permission_key TEXT NOT NULL
+    );
+  `);
+
+  await recordMigrationVersion("001", "core_org_and_identity");
+
+  // --------------------------------------------------------------------------
+  // Version 002: Employee Master & History
+  // --------------------------------------------------------------------------
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS employees (
       id TEXT PRIMARY KEY,
@@ -101,32 +189,28 @@ export async function runMigrations() {
     );
   `);
 
-  // Migrate additional columns for existing tables
   const employeeCols = [
-    "ALTER TABLE employees ADD COLUMN employee_code TEXT NOT NULL DEFAULT '';",
-    "ALTER TABLE employees ADD COLUMN probation_status TEXT NOT NULL DEFAULT 'CONFIRMED';",
-    "ALTER TABLE employees ADD COLUMN probation_end_date TEXT;",
-    "ALTER TABLE employees ADD COLUMN phone TEXT;",
-    "ALTER TABLE employees ADD COLUMN personal_email TEXT;",
-    "ALTER TABLE employees ADD COLUMN date_of_birth TEXT;",
-    "ALTER TABLE employees ADD COLUMN gender TEXT;",
-    "ALTER TABLE employees ADD COLUMN emergency_contact_name TEXT;",
-    "ALTER TABLE employees ADD COLUMN emergency_contact_phone TEXT;",
-    "ALTER TABLE employees ADD COLUMN concurrency_version INTEGER NOT NULL DEFAULT 1;",
+    { sql: "ALTER TABLE employees ADD COLUMN employee_code TEXT NOT NULL DEFAULT '';", desc: "employees.employee_code" },
+    { sql: "ALTER TABLE employees ADD COLUMN probation_status TEXT NOT NULL DEFAULT 'CONFIRMED';", desc: "employees.probation_status" },
+    { sql: "ALTER TABLE employees ADD COLUMN probation_end_date TEXT;", desc: "employees.probation_end_date" },
+    { sql: "ALTER TABLE employees ADD COLUMN phone TEXT;", desc: "employees.phone" },
+    { sql: "ALTER TABLE employees ADD COLUMN personal_email TEXT;", desc: "employees.personal_email" },
+    { sql: "ALTER TABLE employees ADD COLUMN date_of_birth TEXT;", desc: "employees.date_of_birth" },
+    { sql: "ALTER TABLE employees ADD COLUMN gender TEXT;", desc: "employees.gender" },
+    { sql: "ALTER TABLE employees ADD COLUMN emergency_contact_name TEXT;", desc: "employees.emergency_contact_name" },
+    { sql: "ALTER TABLE employees ADD COLUMN emergency_contact_phone TEXT;", desc: "employees.emergency_contact_phone" },
+    { sql: "ALTER TABLE employees ADD COLUMN concurrency_version INTEGER NOT NULL DEFAULT 1;", desc: "employees.concurrency_version" },
   ];
 
-  for (const colSql of employeeCols) {
-    try {
-      await rawClient.execute(colSql);
-    } catch {}
+  for (const col of employeeCols) {
+    await executeSafeAlterColumn(col.sql, col.desc);
   }
 
   // Backfill employee_code with id if empty
-  try {
-    await rawClient.execute(`UPDATE employees SET employee_code = id WHERE employee_code = '' OR employee_code IS NULL;`);
-  } catch {}
+  await rawClient.execute(
+    "UPDATE employees SET employee_code = id WHERE employee_code = '' OR employee_code IS NULL;"
+  );
 
-  // Employee ID Configuration
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS employee_id_configs (
       id TEXT PRIMARY KEY,
@@ -140,7 +224,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Employee Status Transitions History
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS employee_status_history (
       id TEXT PRIMARY KEY,
@@ -154,7 +237,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Employee Reporting Manager History
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS employee_manager_history (
       id TEXT PRIMARY KEY,
@@ -168,7 +250,11 @@ export async function runMigrations() {
     );
   `);
 
-  // Employee Documents
+  await recordMigrationVersion("002", "employee_master_and_history");
+
+  // --------------------------------------------------------------------------
+  // Version 003: Documents & Sensitive Details
+  // --------------------------------------------------------------------------
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS employee_documents (
       id TEXT PRIMARY KEY,
@@ -194,24 +280,20 @@ export async function runMigrations() {
     );
   `);
 
-  // Document table column migrations
   const docCols = [
-    "ALTER TABLE employee_documents ADD COLUMN file_hash TEXT;",
-    "ALTER TABLE employee_documents ADD COLUMN version INTEGER NOT NULL DEFAULT 1;",
-    "ALTER TABLE employee_documents ADD COLUMN replaced_document_id TEXT;",
-    "ALTER TABLE employee_documents ADD COLUMN verification_status TEXT NOT NULL DEFAULT 'PENDING';",
-    "ALTER TABLE employee_documents ADD COLUMN verified_by_user_id TEXT;",
-    "ALTER TABLE employee_documents ADD COLUMN verified_at INTEGER;",
-    "ALTER TABLE employee_documents ADD COLUMN rejection_reason TEXT;",
-    "ALTER TABLE employee_documents ADD COLUMN retention_until INTEGER;",
+    { sql: "ALTER TABLE employee_documents ADD COLUMN file_hash TEXT;", desc: "employee_documents.file_hash" },
+    { sql: "ALTER TABLE employee_documents ADD COLUMN version INTEGER NOT NULL DEFAULT 1;", desc: "employee_documents.version" },
+    { sql: "ALTER TABLE employee_documents ADD COLUMN replaced_document_id TEXT;", desc: "employee_documents.replaced_document_id" },
+    { sql: "ALTER TABLE employee_documents ADD COLUMN verification_status TEXT NOT NULL DEFAULT 'PENDING';", desc: "employee_documents.verification_status" },
+    { sql: "ALTER TABLE employee_documents ADD COLUMN verified_by_user_id TEXT;", desc: "employee_documents.verified_by_user_id" },
+    { sql: "ALTER TABLE employee_documents ADD COLUMN verified_at INTEGER;", desc: "employee_documents.verified_at" },
+    { sql: "ALTER TABLE employee_documents ADD COLUMN rejection_reason TEXT;", desc: "employee_documents.rejection_reason" },
+    { sql: "ALTER TABLE employee_documents ADD COLUMN retention_until INTEGER;", desc: "employee_documents.retention_until" },
   ];
   for (const c of docCols) {
-    try {
-      await rawClient.execute(c);
-    } catch {}
+    await executeSafeAlterColumn(c.sql, c.desc);
   }
 
-  // Sensitive Details (AES-256-GCM Encrypted at rest)
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS sensitive_employee_details (
       id TEXT PRIMARY KEY,
@@ -234,17 +316,19 @@ export async function runMigrations() {
   `);
 
   const sensitiveCols = [
-    "ALTER TABLE sensitive_employee_details ADD COLUMN account_holder_name_encrypted TEXT;",
-    "ALTER TABLE sensitive_employee_details ADD COLUMN compensation_effective_date TEXT;",
-    "ALTER TABLE sensitive_employee_details ADD COLUMN version INTEGER NOT NULL DEFAULT 1;",
+    { sql: "ALTER TABLE sensitive_employee_details ADD COLUMN account_holder_name_encrypted TEXT;", desc: "sensitive_employee_details.account_holder_name_encrypted" },
+    { sql: "ALTER TABLE sensitive_employee_details ADD COLUMN compensation_effective_date TEXT;", desc: "sensitive_employee_details.compensation_effective_date" },
+    { sql: "ALTER TABLE sensitive_employee_details ADD COLUMN version INTEGER NOT NULL DEFAULT 1;", desc: "sensitive_employee_details.version" },
   ];
   for (const c of sensitiveCols) {
-    try {
-      await rawClient.execute(c);
-    } catch {}
+    await executeSafeAlterColumn(c.sql, c.desc);
   }
 
-  // Phase 3: Attendance Policies
+  await recordMigrationVersion("003", "documents_and_sensitive_details");
+
+  // --------------------------------------------------------------------------
+  // Version 004: Attendance Policies, Shifts & Records
+  // --------------------------------------------------------------------------
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS attendance_policies (
       id TEXT PRIMARY KEY,
@@ -259,7 +343,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Phase 3: Shifts
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS shifts (
       id TEXT PRIMARY KEY,
@@ -277,7 +360,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Phase 3: Shift Assignments
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS shift_assignments (
       id TEXT PRIMARY KEY,
@@ -292,7 +374,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Phase 3: Shift History
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS shift_history (
       id TEXT PRIMARY KEY,
@@ -306,7 +387,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Phase 3: Attendance Records
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS attendance_records (
       id TEXT PRIMARY KEY,
@@ -326,7 +406,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Phase 3: Attendance Events Log
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS attendance_events (
       id TEXT PRIMARY KEY,
@@ -341,7 +420,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Phase 3: Attendance Correction Requests
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS attendance_correction_requests (
       id TEXT PRIMARY KEY,
@@ -360,39 +438,11 @@ export async function runMigrations() {
     );
   `);
 
+  await recordMigrationVersion("004", "attendance_and_shifts");
 
-  // Roles
-  await rawClient.execute(`
-    CREATE TABLE IF NOT EXISTS roles (
-      key TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL,
-      is_system INTEGER NOT NULL DEFAULT 1,
-      default_scope TEXT NOT NULL DEFAULT 'SELF'
-    );
-  `);
-
-  // User Roles
-  await rawClient.execute(`
-    CREATE TABLE IF NOT EXISTS user_roles (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id),
-      role_key TEXT NOT NULL REFERENCES roles(key),
-      custom_scope_json TEXT,
-      created_at INTEGER NOT NULL
-    );
-  `);
-
-  // Role Permissions
-  await rawClient.execute(`
-    CREATE TABLE IF NOT EXISTS role_permissions (
-      id TEXT PRIMARY KEY,
-      role_key TEXT NOT NULL REFERENCES roles(key),
-      permission_key TEXT NOT NULL
-    );
-  `);
-
-  // Used Tokens (Replay Protection)
+  // --------------------------------------------------------------------------
+  // Version 005: Auth Credentials, OTP, Reset Tokens, Sessions & Audit
+  // --------------------------------------------------------------------------
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS used_tokens (
       token_hash TEXT PRIMARY KEY,
@@ -401,7 +451,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Auth Sessions
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS auth_sessions (
       session_id TEXT PRIMARY KEY,
@@ -415,7 +464,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Audit Logs
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
@@ -433,7 +481,6 @@ export async function runMigrations() {
     );
   `);
 
-  // User Credentials
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS user_credentials (
       id TEXT PRIMARY KEY,
@@ -447,7 +494,6 @@ export async function runMigrations() {
     );
   `);
 
-  // OTP Challenges
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS otp_challenges (
       id TEXT PRIMARY KEY,
@@ -462,7 +508,6 @@ export async function runMigrations() {
     );
   `);
 
-  // Password Reset Tokens
   await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
       id TEXT PRIMARY KEY,
@@ -474,13 +519,42 @@ export async function runMigrations() {
     );
   `);
 
-  // Performance and uniqueness indexes
-  await rawClient.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_otp_challenges_token ON otp_challenges(challenge_token);");
-  await rawClient.execute("CREATE INDEX IF NOT EXISTS idx_otp_challenges_user_active ON otp_challenges(user_id, is_used, expires_at);");
-  await rawClient.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_active ON auth_sessions(user_id, revoked_at, expires_at);");
-  await rawClient.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_token ON password_reset_tokens(token_hash);");
+  await recordMigrationVersion("005", "auth_credentials_otp_reset_and_audit");
 
-  console.log("Turso schema migration completed successfully.");
+  // --------------------------------------------------------------------------
+  // Version 006: Performance and Security Indexes
+  // --------------------------------------------------------------------------
+  await rawClient.execute(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_otp_challenges_token ON otp_challenges(challenge_token);"
+  );
+  await rawClient.execute(
+    "CREATE INDEX IF NOT EXISTS idx_otp_challenges_user_active ON otp_challenges(user_id, is_used, expires_at);"
+  );
+  await rawClient.execute(
+    "CREATE INDEX IF NOT EXISTS idx_sessions_user_active ON auth_sessions(user_id, revoked_at, expires_at);"
+  );
+  await rawClient.execute(
+    "CREATE INDEX IF NOT EXISTS idx_password_reset_token ON password_reset_tokens(token_hash);"
+  );
+  await rawClient.execute(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_user_id ON employees(user_id);"
+  );
+  await rawClient.execute(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_credentials_user_id ON user_credentials(user_id);"
+  );
+
+  await recordMigrationVersion("006", "performance_and_security_indexes");
+
+  console.log("Turso schema migration completed successfully with full version audit trail.");
+}
+
+async function recordMigrationVersion(version: string, name: string) {
+  const checksum = `chk_${version}_${name}`;
+  await rawClient.execute({
+    sql: `INSERT OR REPLACE INTO schema_migrations (id, version, name, applied_at, checksum)
+          VALUES (?, ?, ?, ?, ?);`,
+    args: [`mig_${version}`, version, name, Date.now(), checksum],
+  });
 }
 
 if (require.main === module) {
@@ -491,4 +565,3 @@ if (require.main === module) {
       process.exit(1);
     });
 }
-

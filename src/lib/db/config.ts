@@ -8,6 +8,47 @@ export interface DatabaseConfig {
   isStaging: boolean;
   isDevelopment: boolean;
   isTest: boolean;
+  isDisposable: boolean;
+}
+
+/**
+ * Checks whether a database URL or token targets the production database.
+ * Evaluates both explicit URL/token matches and hostname indicators.
+ */
+export function isProductionDestination(
+  url?: string,
+  token?: string,
+  envSource: Record<string, string | undefined> = process.env
+): boolean {
+  const targetUrl = (url || "").trim().toLowerCase();
+  const targetToken = (token || "").trim();
+
+  const prodUrl = (envSource.TURSO_PRODUCTION_DATABASE_URL || "").trim().toLowerCase();
+  const prodToken = (envSource.TURSO_PRODUCTION_AUTH_TOKEN || "").trim();
+
+  if (targetUrl && prodUrl && targetUrl === prodUrl) return true;
+  if (targetToken && prodToken && targetToken === prodToken) return true;
+
+  // Known production cluster hostnames or URL patterns
+  if (targetUrl.includes("payroll-dashboard")) return true;
+  if (targetUrl.includes(".turso.io") && (targetUrl.includes("prod") || targetUrl.includes("-prd-"))) return true;
+
+  return false;
+}
+
+/**
+ * Checks whether a database URL represents an explicitly disposable local/test store.
+ * Remote Turso databases (staging or production) are NEVER disposable.
+ */
+export function isDisposableDatabase(url: string): boolean {
+  const trimmed = (url || "").trim().toLowerCase();
+  return (
+    trimmed.startsWith("file:") ||
+    trimmed === ":memory:" ||
+    trimmed.includes("localhost") ||
+    trimmed.includes("127.0.0.1") ||
+    (trimmed.endsWith(".db") && !trimmed.includes("://"))
+  );
 }
 
 /**
@@ -20,6 +61,7 @@ export interface DatabaseConfig {
  * 4. No automatic fallback between environments is allowed.
  * 5. Automated tests are strictly prohibited from connecting to production.
  * 6. Auth tokens are never exposed or logged.
+ * 7. Validate resolved destination URL/token, not only PAYROLL_DB_ENV. Fail closed on ambiguous configuration.
  */
 export function resolveDatabaseConfig(customEnv?: Record<string, string | undefined>): DatabaseConfig {
   const envSource = customEnv || process.env;
@@ -45,27 +87,57 @@ export function resolveDatabaseConfig(customEnv?: Record<string, string | undefi
         "[Database Safety Violation] Automated tests are strictly prohibited from connecting to the PRODUCTION database (PAYROLL_DB_ENV=production)."
       );
     }
+
     // Remote staging tests are only permitted if explicitly requested via TEST_REMOTE=true
     if (envSource.TEST_REMOTE === "true" && envSource.TURSO_STAGING_DATABASE_URL) {
+      const url = envSource.TURSO_STAGING_DATABASE_URL.trim();
+      const authToken = envSource.TURSO_STAGING_AUTH_TOKEN?.trim() || undefined;
+
+      if (isProductionDestination(url, authToken, envSource)) {
+        throw new Error(
+          "[Database Safety Violation] Critical: Remote test configuration points directly to the PRODUCTION database. Execution halted immediately."
+        );
+      }
+
       return {
         env: "staging",
-        url: envSource.TURSO_STAGING_DATABASE_URL.trim(),
-        authToken: envSource.TURSO_STAGING_AUTH_TOKEN?.trim() || undefined,
+        url,
+        authToken,
         isProduction: false,
         isStaging: true,
         isDevelopment: false,
         isTest: true,
+        isDisposable: isDisposableDatabase(url),
       };
     }
+
     // Default test DB: isolated SQLite
+    const resolvedTestUrl = envSource.TURSO_DATABASE_URL?.trim() || "file:local.db";
+    const resolvedTestToken = envSource.TURSO_AUTH_TOKEN?.trim() || undefined;
+
+    // Validate that alternate variables (TURSO_DATABASE_URL / TURSO_AUTH_TOKEN) do not point to production
+    if (isProductionDestination(resolvedTestUrl, resolvedTestToken, envSource)) {
+      throw new Error(
+        "[Database Safety Violation] Critical: Alternate test variables (TURSO_DATABASE_URL/TURSO_AUTH_TOKEN) point directly to PRODUCTION. Execution halted immediately."
+      );
+    }
+
+    // Fail closed if test attempts to target an ambiguous non-disposable database without TEST_REMOTE=true
+    if (!isDisposableDatabase(resolvedTestUrl) && envSource.TEST_REMOTE !== "true") {
+      throw new Error(
+        `[Database Safety Violation] Ambiguous configuration: Automated tests must resolve to a disposable local file or in-memory database (resolved: ${resolvedTestUrl}). To run remote tests, set TEST_REMOTE=true explicitly.`
+      );
+    }
+
     return {
       env: "test",
-      url: envSource.TURSO_DATABASE_URL?.trim() || "file:local.db",
-      authToken: envSource.TURSO_AUTH_TOKEN?.trim() || undefined,
+      url: resolvedTestUrl,
+      authToken: resolvedTestToken,
       isProduction: false,
       isStaging: false,
       isDevelopment: true,
       isTest: true,
+      isDisposable: isDisposableDatabase(resolvedTestUrl),
     };
   }
 
@@ -78,7 +150,7 @@ export function resolveDatabaseConfig(customEnv?: Record<string, string | undefi
         "[Database Configuration Error] Missing TURSO_PRODUCTION_DATABASE_URL for PAYROLL_DB_ENV=production. Automatic fallback between environments is strictly forbidden."
       );
     }
-    if (url.startsWith("file:")) {
+    if (isDisposableDatabase(url)) {
       throw new Error(
         "[Database Configuration Error] SQLite local file URL is forbidden in production mode. A remote Turso URL is required."
       );
@@ -92,6 +164,7 @@ export function resolveDatabaseConfig(customEnv?: Record<string, string | undefi
       isStaging: false,
       isDevelopment: false,
       isTest: false,
+      isDisposable: false,
     };
   }
 
@@ -105,6 +178,13 @@ export function resolveDatabaseConfig(customEnv?: Record<string, string | undefi
       );
     }
 
+    // Validate that staging does not point to production
+    if (isProductionDestination(url, authToken, envSource)) {
+      throw new Error(
+        "[Database Configuration Error] Ambiguous configuration: PAYROLL_DB_ENV is set to staging, but TURSO_STAGING_DATABASE_URL points to the PRODUCTION database. Execution halted immediately."
+      );
+    }
+
     return {
       env: "staging",
       url,
@@ -113,12 +193,20 @@ export function resolveDatabaseConfig(customEnv?: Record<string, string | undefi
       isStaging: true,
       isDevelopment: false,
       isTest: false,
+      isDisposable: isDisposableDatabase(url),
     };
   }
 
   if (rawEnv === "development" || rawEnv === "local") {
     const url = envSource.TURSO_DATABASE_URL?.trim() || "file:local.db";
     const authToken = envSource.TURSO_AUTH_TOKEN?.trim() || undefined;
+
+    // Validate that development does not target production
+    if (isProductionDestination(url, authToken, envSource)) {
+      throw new Error(
+        "[Database Configuration Error] Ambiguous configuration: PAYROLL_DB_ENV is set to development, but TURSO_DATABASE_URL points to the PRODUCTION database. Execution halted immediately."
+      );
+    }
 
     return {
       env: "development",
@@ -128,6 +216,7 @@ export function resolveDatabaseConfig(customEnv?: Record<string, string | undefi
       isStaging: false,
       isDevelopment: true,
       isTest: false,
+      isDisposable: isDisposableDatabase(url),
     };
   }
 
@@ -145,14 +234,24 @@ export function resolveDatabaseConfig(customEnv?: Record<string, string | undefi
   }
 
   // Default to development
+  const url = envSource.TURSO_DATABASE_URL?.trim() || "file:local.db";
+  const authToken = envSource.TURSO_AUTH_TOKEN?.trim() || undefined;
+
+  if (isProductionDestination(url, authToken, envSource)) {
+    throw new Error(
+      "[Database Configuration Error] Ambiguous configuration: Default database configuration points to the PRODUCTION database. Execution halted immediately."
+    );
+  }
+
   return {
     env: "development",
-    url: envSource.TURSO_DATABASE_URL?.trim() || "file:local.db",
-    authToken: envSource.TURSO_AUTH_TOKEN?.trim() || undefined,
+    url,
+    authToken,
     isProduction: false,
     isStaging: false,
     isDevelopment: true,
     isTest: false,
+    isDisposable: isDisposableDatabase(url),
   };
 }
 
@@ -180,6 +279,6 @@ export function getSafeDatabaseDiagnostics(config?: DatabaseConfig) {
     isStaging: cfg.isStaging,
     isDevelopment: cfg.isDevelopment,
     isTest: cfg.isTest,
+    isDisposable: cfg.isDisposable,
   };
 }
-

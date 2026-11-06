@@ -6,9 +6,25 @@ import { hashPassword } from "../security/password";
 
 export async function seedDatabase() {
   const diag = getSafeDatabaseDiagnostics(dbConfig);
+
+  // Guard 1: Strictly prohibit seeding on PRODUCTION database
   if (dbConfig.isProduction) {
     throw new Error(
       "[CRITICAL SAFETY GUARD] Database seeding is strictly forbidden on the PRODUCTION database. This would erase live employee records."
+    );
+  }
+
+  // Guard 2: Strictly prohibit destructive seeding on persistent remote databases (e.g. staging or production)
+  if (!dbConfig.isDisposable) {
+    throw new Error(
+      `[CRITICAL SAFETY GUARD] Destructive seeding is strictly prohibited on persistent remote database (${diag.environment} at ${diag.host}). Seeding with table deletions is restricted to explicitly identified disposable local/test databases.`
+    );
+  }
+
+  // Guard 3: Explicit opt-in guard required even for disposable local databases outside test runner
+  if (process.env.ALLOW_DESTRUCTIVE_SEED !== "true" && process.env.NODE_ENV !== "test") {
+    throw new Error(
+      "[SAFETY GUARD] Destructive seeding requires explicit opt-in via ALLOW_DESTRUCTIVE_SEED=true. Aborting to protect database state."
     );
   }
 

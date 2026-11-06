@@ -144,3 +144,34 @@ export async function getScopedEmployees(session: AuthenticatedSession) {
 
 Any query attempting to load data outside the caller's authorized scope returns an empty set or throws an authorization error.
 
+---
+
+## 5. Unified Turso Architecture & Environment Safety Rules
+
+MantraCare HRMS & Payroll standardizes on **exactly two Turso databases**:
+1. **STAGING** (`PAYROLL_DB_ENV=staging`): Shared development and staging database.
+2. **PRODUCTION** (`PAYROLL_DB_ENV=production`): Live employee records and production runtime.
+
+Both the **Admin Portal** (`/payrol/admin`) and **Employee Portal** (`/payrol/dash`) query the exact same singleton database instance for their respective environment.
+
+### 5.1 Standardized `PAYROLL_DB_ENV` Values
+
+| Value | Target Database URL Variable | Destination Description | Destructive Seeding Allowed? |
+| :--- | :--- | :--- | :--- |
+| `development` | `TURSO_DATABASE_URL` or `file:local.db` | Local SQLite store for local offline dev | Only if `ALLOW_DESTRUCTIVE_SEED=true` |
+| `staging` | `TURSO_STAGING_DATABASE_URL` | Remote Turso staging cluster | **STRICTLY FORBIDDEN** |
+| `production` | `TURSO_PRODUCTION_DATABASE_URL` | Remote Turso production cluster | **STRICTLY FORBIDDEN** |
+| `test` | Internal test runner | Disposable local SQLite store | Allowed only in isolated test suite |
+
+### 5.2 Strict Security & Safety Guarantees
+
+- **No Fallback Between Environments:** Missing environment variables throw fatal errors immediately. Staging never falls back to local SQLite, and production never falls back to staging.
+- **Fail-Closed on Ambiguous Alternate Variables:** Automated tests inspect the resolved destination URL and tokens. If `TURSO_DATABASE_URL` or `TURSO_AUTH_TOKEN` points to production hosts, execution halts immediately.
+- **Destructive Seeding Guard:** `seedDatabase()` strictly blocks any remote or persistent database. Only disposable local stores (`file:local.db`, `:memory:`) with `ALLOW_DESTRUCTIVE_SEED=true` or test runner can be seeded.
+- **Auditable Versioned Migrations:** All DDL schema changes are versioned (`001` through `006`) and recorded in `schema_migrations`.
+- **Controlled Production Migration:** Production migrations are blocked in the standard migration runner and require `npm run db:migrate:production` with explicit administrative confirmations:
+  ```bash
+  CONFIRM_PRODUCTION_MIGRATION=true VERIFIED_BACKUP_COMPLETED=true SCHEMA_REVIEW_APPROVED=true npm run db:migrate:production
+  ```
+
+

@@ -22,6 +22,7 @@ import { eq } from "drizzle-orm";
 
 describe("Direct Email/Password Authentication & Two-Factor OTP Engine", () => {
   beforeAll(async () => {
+    process.env.ALLOW_DESTRUCTIVE_SEED = "true";
     process.env.NODE_ENV = "development";
     process.env.PAYROLL_DEV_STATIC_OTP_ENABLED = "true";
     await seedDatabase();

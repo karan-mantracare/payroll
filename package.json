@@ -11,6 +11,7 @@
     "test:watch": "vitest --fileParallelism=false",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/lib/db/migrate.ts",
+    "db:migrate:production": "tsx scripts/production-migration.ts",
     "db:seed": "tsx src/lib/db/seed.ts",
     "db:rotate-keys": "tsx scripts/rotate-keys.ts"
   },
