@@ -26,8 +26,9 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
+    console.error("[Auth API] Session validation error:", err);
     return NextResponse.json(
-      { authenticated: false, error: err.message },
+      { authenticated: false, error: "Session validation error." },
       { status: 500 }
     );
   }

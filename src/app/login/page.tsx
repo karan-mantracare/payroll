@@ -75,7 +75,7 @@ export default function LoginPage() {
     if (user) {
       const perms = Array.isArray(user.permissions) ? user.permissions : [];
       const canAdmin = Boolean(user.isSuperAdmin) || perms.includes("portal.admin.access");
-      window.location.href = canAdmin ? "/payrol/admin" : "/payrol/dash";
+      window.location.replace(canAdmin ? "/payrol/admin" : "/payrol/dash");
     }
   }, [user]);
 
@@ -182,7 +182,7 @@ export default function LoginPage() {
 
       // Success: Route directly to assigned portal
       const targetUrl = data.redirectUrl || "/payrol/dash";
-      window.location.href = targetUrl;
+      window.location.replace(targetUrl);
     } catch (err: any) {
       setError("Verification failed due to a network error. Please try again.");
       setLoading(false);

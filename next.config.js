@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
   basePath: "/payrol",
-  assetPrefix: "/payrol",
   reactStrictMode: true,
   poweredByHeader: false,
   async headers() {

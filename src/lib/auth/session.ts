@@ -9,6 +9,22 @@ import { resolveUserPermissions } from "../permissions/evaluator";
 export const SESSION_COOKIE_NAME = "mc_payroll_session";
 const SESSION_TTL_MS = (parseInt(process.env.SESSION_EXPIRY_SECONDS || "28800", 10)) * 1000;
 
+interface CachedSession {
+  context: SessionContext;
+  cachedAt: number;
+}
+
+const sessionCache = new Map<string, CachedSession>();
+const SESSION_CACHE_TTL_MS = 5000; // 5-second short-lived cache to deduplicate rapid parallel requests
+
+export function invalidateSessionCache(sessionId?: string): void {
+  if (sessionId) {
+    sessionCache.delete(sessionId);
+  } else {
+    sessionCache.clear();
+  }
+}
+
 export async function createSession(
   userId: string,
   tokenHash: string,
@@ -53,6 +69,12 @@ export async function getSessionContext(sessionId?: string): Promise<SessionCont
   if (!targetSessionId) return null;
 
   const now = Date.now();
+
+  // Check in-memory short-lived cache to avoid redundant queries during parallel requests
+  const cached = sessionCache.get(targetSessionId);
+  if (cached && now - cached.cachedAt < SESSION_CACHE_TTL_MS) {
+    return cached.context;
+  }
 
   // 1. Fetch valid session
   const validSessions = await db
@@ -114,7 +136,7 @@ export async function getSessionContext(sessionId?: string): Promise<SessionCont
     if (emp.teamId) managedTeamIds = [emp.teamId];
   }
 
-  return {
+  const context: SessionContext = {
     userId: user.id,
     employeeId: emp?.id,
     name: user.name,
@@ -131,12 +153,16 @@ export async function getSessionContext(sessionId?: string): Promise<SessionCont
     directReportIds,
     isSuperAdmin,
   };
+
+  sessionCache.set(targetSessionId, { context, cachedAt: now });
+  return context;
 }
 
 /**
  * Revokes an active session.
  */
 export async function revokeSession(sessionId: string): Promise<void> {
+  sessionCache.delete(sessionId);
   await db
     .update(authSessions)
     .set({ revokedAt: Date.now() })

@@ -5,21 +5,21 @@ import { useAuth } from "@/components/AuthGate";
 import { Loader2 } from "lucide-react";
 
 export default function RootRedirector() {
-  const { user, loading, canAccessAdmin, canAccessEmployee } = useAuth();
+  const { user, status, loading, canAccessAdmin, canAccessEmployee } = useAuth();
 
   useEffect(() => {
     if (loading) return;
 
-    if (!user) {
-      window.location.href = "/payrol/login";
+    if (status === "unauthenticated" || !user) {
+      window.location.replace("/payrol/login");
     } else if (canAccessAdmin) {
-      window.location.href = "/payrol/admin";
+      window.location.replace("/payrol/admin");
     } else if (canAccessEmployee) {
-      window.location.href = "/payrol/dash";
+      window.location.replace("/payrol/dash");
     } else {
-      window.location.href = "/payrol/login";
+      window.location.replace("/payrol/login");
     }
-  }, [user, loading, canAccessAdmin, canAccessEmployee]);
+  }, [user, status, loading, canAccessAdmin, canAccessEmployee]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-950 text-slate-900 dark:text-white">
