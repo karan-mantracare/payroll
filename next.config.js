@@ -4,6 +4,16 @@ const nextConfig = {
   assetPrefix: "/payrol",
   reactStrictMode: true,
   poweredByHeader: false,
+  async redirects() {
+    return [
+      {
+        source: "/",
+        destination: "/payrol/login",
+        basePath: false,
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {

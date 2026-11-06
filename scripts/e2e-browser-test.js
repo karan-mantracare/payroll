@@ -3,10 +3,10 @@ const path = require("path");
 const fs = require("fs");
 
 const SCREENSHOTS_DIR = "/home/karan/.gemini/antigravity/brain/4ca20f71-7888-49a2-8075-49fdd6efd825/screenshots";
-const BASE_URL = "http://localhost:3005";
+const BASE_URL = "http://localhost:3000";
 
 async function runBrowserTests() {
-  console.log("=== Starting MantraCare HRMS E2E Browser Verification ===");
+  console.log("=== Starting MantraCare HRMS E2E Browser Verification on PORT 3000 ===");
   if (!fs.existsSync(SCREENSHOTS_DIR)) {
     fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
   }
@@ -27,6 +27,9 @@ async function runBrowserTests() {
     consoleLogs.push({ type: msg.type(), text });
     if (msg.type() === "error") {
       console.error(`[Browser Console Error]`, text);
+      if (text.includes("SyntaxError") || text.includes("Invalid or unexpected token")) {
+        throw new Error(`CRITICAL BROWSER SYNTAX ERROR DETECTED: ${text}`);
+      }
     }
   });
 
@@ -38,6 +41,25 @@ async function runBrowserTests() {
   });
 
   try {
+    // -------------------------------------------------------------------------
+    // TEST 0: Root URL http://localhost:3000/ Redirect
+    // -------------------------------------------------------------------------
+    console.log("\n[Test 0] Navigating to http://localhost:3000/ (Root URL)...");
+    const rootRes = await page.goto(`${BASE_URL}/`, {
+      waitUntil: "networkidle0",
+      timeout: 15000,
+    });
+    const finalUrlAfterRoot = page.url();
+    console.log(`[Test 0] Root URL redirected to: ${finalUrlAfterRoot}`);
+    console.log(`[Test 0] HTTP status: ${rootRes.status()}`);
+    if (!finalUrlAfterRoot.includes("/payrol/login")) {
+      throw new Error(`Expected root http://localhost:3000/ to redirect to /payrol/login, got: ${finalUrlAfterRoot}`);
+    }
+    if (rootRes.status() === 404) {
+      throw new Error(`Root URL returned 404 Not Found!`);
+    }
+    console.log("✓ Test 0 Passed: http://localhost:3000/ cleanly redirects to /payrol/login without 404.");
+
     // -------------------------------------------------------------------------
     // TEST 1: Login Page Loading, CSS, Logo, and Favicon
     // -------------------------------------------------------------------------

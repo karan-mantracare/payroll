@@ -157,3 +157,4 @@ The existing MantraCare HRMS & Payroll core system (Authentication, Employee Man
 
 **Audit Baseline Git Commit:** [`aabeb49`](https://github.com/karan-mantracare/payroll/commit/aabeb49)  
 **QA Approval Status:** **APPROVED**
+

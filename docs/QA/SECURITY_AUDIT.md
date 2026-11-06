@@ -100,3 +100,4 @@ A comprehensive security audit of the MantraCare HRMS & Payroll suite was perfor
   - Bcrypt hashes replaced with `$2b$12$[REDACTED_BCRYPT]`.
   - National IDs (PAN, Aadhaar, SSN) and phone numbers replaced with `[REDACTED_...]`.
   - Zero private credentials present in compiled client-side JavaScript bundles.
+

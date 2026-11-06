@@ -159,3 +159,4 @@
 - **Correction:** Wrapped PRAGMA calls in `try/catch` with environment awareness so remote migrations proceed smoothly.
 - **Regression Test:** `npm run db:migrate` against Turso Staging.
 - **Status:** **CLOSED & VERIFIED**
+

@@ -153,3 +153,4 @@ This inventory documents all 26 UI pages, 34 API routes, 28 database tables, 6 s
 | **Reports** | `/payrol/admin/reports` | **PLACEHOLDER** | Reporting catalog shell; query generator deferred. | **Future Phase** |
 | **Settings**| `/payrol/admin/settings` | **PLACEHOLDER** | Company settings overview shell. | **Future Phase** |
 | **Requests**| `/payrol/dash/requests` | **PLACEHOLDER** | Generic request tracker shell. | **Future Phase** |
+
