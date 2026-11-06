@@ -408,4 +408,17 @@ export const otpChallenges = sqliteTable("otp_challenges", {
   createdAt: integer("created_at").notNull(),
 });
 
+// 16. Password Reset Tokens (Self-Service & Admin Password Recovery)
+export const passwordResetTokens = sqliteTable("password_reset_tokens", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: integer("expires_at").notNull(),
+  isUsed: integer("is_used").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+});
+
+
 

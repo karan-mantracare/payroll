@@ -15,6 +15,7 @@ export async function seedDatabase() {
   await rawClient.execute("DELETE FROM auth_sessions;");
   await rawClient.execute("DELETE FROM used_tokens;");
   await rawClient.execute("DELETE FROM otp_challenges;");
+  await rawClient.execute("DELETE FROM password_reset_tokens;");
   await rawClient.execute("DELETE FROM user_credentials;");
   await rawClient.execute("DELETE FROM attendance_events;");
   await rawClient.execute("DELETE FROM attendance_correction_requests;");
@@ -80,13 +81,15 @@ export async function seedDatabase() {
     args: [now, now],
   });
 
-  // 4d. Standard Shifts
+  // 4d. Configurable Example Shifts
   await rawClient.execute({
     sql: `INSERT OR REPLACE INTO shifts (id, organization_id, name, code, start_time, end_time, break_duration_minutes, is_overnight, color_code, is_active, created_at, updated_at) VALUES
-          ('shift_gen', 'org_mc_global', 'General Day Shift', 'GENERAL', '09:00', '18:00', 60, 0, '#36B4FF', 1, ?, ?),
-          ('shift_morn', 'org_mc_global', 'Early Morning Shift', 'MORNING', '06:00', '15:00', 60, 0, '#293381', 1, ?, ?),
-          ('shift_night', 'org_mc_global', 'Overnight Shift', 'NIGHT', '21:00', '06:00', 60, 1, '#6366F1', 1, ?, ?);`,
-    args: [now, now, now, now, now, now],
+          ('shift_morn', 'org_mc_global', 'Morning Shift (08:30)', 'MORNING', '08:30', '17:30', 60, 0, '#36B4FF', 1, ?, ?),
+          ('shift_gen', 'org_mc_global', 'General Day Shift (09:00)', 'GENERAL', '09:00', '18:00', 60, 0, '#293381', 1, ?, ?),
+          ('shift_morn_flex', 'org_mc_global', 'Flexible Morning (09:30)', 'FLEX_MORN', '09:30', '18:30', 60, 0, '#0284C7', 1, ?, ?),
+          ('shift_aft', 'org_mc_global', 'Afternoon Shift (12:00)', 'AFTERNOON', '12:00', '21:00', 60, 0, '#F59E0B', 1, ?, ?),
+          ('shift_night', 'org_mc_global', 'Night Shift (18:00-06:00)', 'NIGHT', '18:00', '06:00', 60, 1, '#6366F1', 1, ?, ?);`,
+    args: [now, now, now, now, now, now, now, now, now, now],
   });
 
   // 5. Default Roles & Permissions

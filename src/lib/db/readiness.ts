@@ -28,6 +28,7 @@ export const REQUIRED_AUTH_TABLES = [
   "audit_logs",
   "user_credentials",
   "otp_challenges",
+  "password_reset_tokens",
   "employee_documents",
   "sensitive_employee_details",
   "shifts",
@@ -44,6 +45,7 @@ const REQUIRED_INDEXES = [
   { name: "idx_sessions_user_active", sql: "CREATE INDEX IF NOT EXISTS idx_sessions_user_active ON auth_sessions(user_id, revoked_at, expires_at);" },
   { name: "idx_employees_user_id", sql: "CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_user_id ON employees(user_id);" },
   { name: "idx_user_credentials_user_id", sql: "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_credentials_user_id ON user_credentials(user_id);" },
+  { name: "idx_password_reset_token", sql: "CREATE INDEX IF NOT EXISTS idx_password_reset_token ON password_reset_tokens(token_hash);" },
 ];
 
 /**
@@ -184,7 +186,19 @@ export async function ensureSchemaReady(): Promise<boolean> {
       );
     `);
 
-    // 5. Ensure indexes
+    // 5. Ensure password_reset_tokens table
+    await rawClient.execute(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        token_hash TEXT NOT NULL UNIQUE,
+        expires_at INTEGER NOT NULL,
+        is_used INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+    `);
+
+    // 6. Ensure indexes
     for (const idx of REQUIRED_INDEXES) {
       await rawClient.execute(idx.sql);
     }

@@ -49,6 +49,16 @@ export default function LoginPage() {
   const [correlationId, setCorrelationId] = useState<string | null>(null);
   const [showForgotModal, setShowForgotModal] = useState(false);
 
+  // Self-Service Password Reset
+  const [resetStep, setResetStep] = useState<"request" | "confirm">("request");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetToken, setResetToken] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetSuccess, setResetSuccess] = useState<string | null>(null);
+
   // 5-minute Countdown Timer (300 seconds)
   const [timeLeft, setTimeLeft] = useState(300);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -102,6 +112,76 @@ export default function LoginPage() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handleRequestReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetLoading(true);
+    setResetError(null);
+    setResetSuccess(null);
+
+    try {
+      const res = await fetch("/payrol/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "request", email: resetEmail.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to request password reset.");
+      }
+
+      setResetSuccess(data.message);
+      if (data.devResetToken) {
+        setResetToken(data.devResetToken);
+      }
+      setResetStep("confirm");
+    } catch (err: any) {
+      setResetError(err.message || "Unable to request password reset.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleConfirmReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (resetNewPassword !== resetConfirmPassword) {
+      setResetError("Passwords do not match.");
+      return;
+    }
+    setResetLoading(true);
+    setResetError(null);
+    setResetSuccess(null);
+
+    try {
+      const res = await fetch("/payrol/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "confirm",
+          token: resetToken.trim(),
+          newPassword: resetNewPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to reset password.");
+      }
+
+      setResetSuccess("Password successfully updated. You may now sign in.");
+      setTimeout(() => {
+        setShowForgotModal(false);
+        setResetStep("request");
+        setResetSuccess(null);
+        setResetToken("");
+        setResetNewPassword("");
+        setResetConfirmPassword("");
+      }, 2500);
+    } catch (err: any) {
+      setResetError(err.message || "Failed to reset password.");
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   // Step 1: Submit Credentials
@@ -524,36 +604,160 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Forgot Password Modal */}
+      {/* Forgot Password / Self-Service Reset Modal */}
       {showForgotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="w-12 h-12 bg-[#293381]/10 text-[#293381] dark:text-[#36B4FF] rounded-xl flex items-center justify-center mx-auto">
               <KeyRound className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-bold text-[#293381] dark:text-white text-center">
-              Password Assistance
-            </h3>
-            <p className="text-xs text-slate-600 dark:text-slate-300 text-center leading-relaxed">
-              To maintain strict enterprise security, account passwords and two-factor configurations
-              are provisioned by HR Administration.
-            </p>
-            <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1">
-              <div className="font-semibold text-slate-700 dark:text-slate-200">
-                Contact People Operations:
+            <div className="text-center">
+              <h3 className="text-base font-bold text-[#293381] dark:text-white">
+                {resetStep === "request" ? "Reset Your Password" : "Enter Reset Token & New Password"}
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                {resetStep === "request"
+                  ? "Enter your work email address to receive a secure password reset token."
+                  : "Enter the reset token along with your new secure password."}
+              </p>
+            </div>
+
+            {resetError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>{resetError}</span>
               </div>
-              <div className="text-slate-500 font-mono text-[11px]">
-                support@mantracare.com • +91 11 4000 0000
+            )}
+
+            {resetSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-lg flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{resetSuccess}</span>
+              </div>
+            )}
+
+            {resetStep === "request" ? (
+              <form onSubmit={handleRequestReset} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Work Email Address
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="you@mantra.care"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowForgotModal(false);
+                      setResetError(null);
+                      setResetSuccess(null);
+                    }}
+                    className="flex-1 py-2 px-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold rounded-xl text-xs hover:bg-slate-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetLoading || !resetEmail.trim()}
+                    style={{ color: "#ffffff" }}
+                    className="flex-1 py-2 px-3 bg-[#293381] hover:bg-[#1F2664] !text-white font-semibold rounded-xl text-xs transition inline-flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
+                  >
+                    {resetLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />}
+                    Request Token
+                  </button>
+                </div>
+
+                <div className="text-center pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setResetStep("confirm")}
+                    className="text-[11px] text-[#293381] dark:text-[#36B4FF] hover:underline"
+                  >
+                    Already have a reset token? Enter it here →
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleConfirmReset} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Reset Token
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Paste your 64-char reset token"
+                    value={resetToken}
+                    onChange={(e) => setResetToken(e.target.value)}
+                    className="w-full font-mono text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Min 8 chars, uppercase, lowercase, digit, symbol"
+                    value={resetNewPassword}
+                    onChange={(e) => setResetNewPassword(e.target.value)}
+                    className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Re-type new password"
+                    value={resetConfirmPassword}
+                    onChange={(e) => setResetConfirmPassword(e.target.value)}
+                    className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setResetStep("request")}
+                    className="flex-1 py-2 px-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold rounded-xl text-xs hover:bg-slate-50 transition"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetLoading || !resetToken.trim() || !resetNewPassword}
+                    style={{ color: "#ffffff" }}
+                    className="flex-1 py-2 px-3 bg-[#293381] hover:bg-[#1F2664] !text-white font-semibold rounded-xl text-xs transition inline-flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
+                  >
+                    {resetLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />}
+                    Update Password
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] space-y-1">
+              <div className="font-semibold text-slate-700 dark:text-slate-300">
+                Need HR Support?
+              </div>
+              <div className="text-slate-500 font-mono">
+                support@mantra.care • +91 11 4000 0000
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowForgotModal(false)}
-              style={{ color: "#ffffff" }}
-              className="w-full py-2 px-3 bg-[#293381] hover:bg-[#1F2664] !text-white font-semibold rounded-xl text-xs transition"
-            >
-              Close
-            </button>
           </div>
         </div>
       )}

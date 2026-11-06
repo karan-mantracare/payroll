@@ -802,3 +802,218 @@ export async function manualAttendanceAdjustment(
     totalWorkMinutes: netWorkMinutes,
   };
 }
+
+export interface AttendanceImportRow {
+  employeeCode: string;
+  date: string; // YYYY-MM-DD
+  checkInTime: string; // "09:00" or ISO 8601 UTC
+  checkOutTime?: string; // "18:00" or ISO 8601 UTC
+  status?: "PRESENT" | "LATE" | "HALF_DAY" | "ABSENT" | "ON_LEAVE";
+  notes?: string;
+}
+
+export interface AttendanceImportResult {
+  totalProcessed: number;
+  importedCount: number;
+  failedCount: number;
+  errors: Array<{ rowNumber: number; employeeCode: string; error: string }>;
+}
+
+/**
+ * Monthly attendance batch import engine.
+ * Validates date formats, maps employee codes, calculates working hours & overnight durations,
+ * detects duplicates, records events, and logs tamper-evident audit trails.
+ */
+export async function importMonthlyAttendance(
+  session: SessionContext,
+  rows: AttendanceImportRow[],
+  meta?: { ipAddress?: string; userAgent?: string }
+): Promise<AttendanceImportResult> {
+  const canManage =
+    session.isSuperAdmin ||
+    session.roles.includes("SUPER_ADMIN") ||
+    session.roles.includes("ADMIN") ||
+    session.roles.includes("HR_MANAGER") ||
+    session.effectivePermissions.includes("admin.attendance.manage");
+
+  if (!canManage) {
+    throw new Error("UNAUTHORIZED: Insufficient permissions to import attendance records.");
+  }
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new Error("INVALID_PAYLOAD: Attendance import rows array is empty.");
+  }
+
+  const errors: Array<{ rowNumber: number; employeeCode: string; error: string }> = [];
+  let importedCount = 0;
+  const now = Date.now();
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNumber = i + 1;
+    const cleanCode = row.employeeCode?.trim();
+
+    if (!cleanCode) {
+      errors.push({ rowNumber, employeeCode: "UNKNOWN", error: "Missing employee code." });
+      continue;
+    }
+
+    if (!row.date || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)) {
+      errors.push({ rowNumber, employeeCode: cleanCode, error: `Invalid date format '${row.date}'. Expected YYYY-MM-DD.` });
+      continue;
+    }
+
+    if (!row.checkInTime) {
+      errors.push({ rowNumber, employeeCode: cleanCode, error: "Missing check-in time." });
+      continue;
+    }
+
+    // Resolve Employee Code
+    const employee = await resolveEmployee(cleanCode);
+    if (!employee) {
+      errors.push({ rowNumber, employeeCode: cleanCode, error: `No employee found with code '${cleanCode}'.` });
+      continue;
+    }
+
+    try {
+      // Normalize Check-in and Check-out UTC strings
+      let checkInUtc: string;
+      if (row.checkInTime.includes("T")) {
+        checkInUtc = new Date(row.checkInTime).toISOString();
+      } else if (/^([01]\d|2[0-3]):[0-5]\d$/.test(row.checkInTime)) {
+        checkInUtc = `${row.date}T${row.checkInTime}:00.000Z`;
+      } else {
+        errors.push({ rowNumber, employeeCode: cleanCode, error: `Invalid check-in time format '${row.checkInTime}'.` });
+        continue;
+      }
+
+      let checkOutUtc: string | null = null;
+      let totalWorkMinutes = 0;
+
+      if (row.checkOutTime) {
+        if (row.checkOutTime.includes("T")) {
+          checkOutUtc = new Date(row.checkOutTime).toISOString();
+        } else if (/^([01]\d|2[0-3]):[0-5]\d$/.test(row.checkOutTime)) {
+          // Check for overnight shift (checkout time numerically before checkin time)
+          const inMins = parseTimeToMinutes(row.checkInTime);
+          const outMins = parseTimeToMinutes(row.checkOutTime);
+          if (outMins < inMins) {
+            // Next day overnight
+            const nextDayDate = new Date(Date.parse(row.date) + 86400000).toISOString().split("T")[0];
+            checkOutUtc = `${nextDayDate}T${row.checkOutTime}:00.000Z`;
+          } else {
+            checkOutUtc = `${row.date}T${row.checkOutTime}:00.000Z`;
+          }
+        }
+
+        if (checkOutUtc) {
+          const inMs = new Date(checkInUtc).getTime();
+          const outMs = new Date(checkOutUtc).getTime();
+          if (outMs > inMs) {
+            totalWorkMinutes = Math.floor((outMs - inMs) / (60 * 1000));
+          }
+        }
+      }
+
+      // Shift lateness rule
+      const shift = await getEmployeeShiftForDate(employee.id, row.date);
+      let lateMinutes = 0;
+      let status: "PRESENT" | "LATE" | "HALF_DAY" | "ABSENT" | "ON_LEAVE" = row.status || "PRESENT";
+
+      if (shift && "startTime" in shift && shift.startTime) {
+        const shiftStartMins = parseTimeToMinutes(shift.startTime);
+        const checkInMins = getUtcTimeMinutes(checkInUtc);
+        const graceMins = 15;
+        if (checkInMins > shiftStartMins + graceMins) {
+          lateMinutes = checkInMins - shiftStartMins;
+          if (!row.status) status = "LATE";
+        }
+      }
+
+      if (totalWorkMinutes > 0 && totalWorkMinutes < 240 && !row.status) {
+        status = "HALF_DAY";
+      }
+
+      // Check for existing duplicate record for same date
+      const existingRecords = await db
+        .select()
+        .from(attendanceRecords)
+        .where(and(eq(attendanceRecords.employeeId, employee.id), eq(attendanceRecords.date, row.date)))
+        .limit(1);
+
+      let recordId: string;
+      if (existingRecords.length > 0) {
+        recordId = existingRecords[0].id;
+        await db
+          .update(attendanceRecords)
+          .set({
+            checkInTimeUtc: checkInUtc,
+            checkOutTimeUtc: checkOutUtc,
+            totalWorkMinutes,
+            lateMinutes,
+            status,
+            source: "MANUAL_ADJUSTMENT",
+            notes: row.notes || "Imported via CSV/Excel batch",
+            updatedAt: now,
+          })
+          .where(eq(attendanceRecords.id, recordId));
+      } else {
+        recordId = `att_${randomUUID()}`;
+        await db.insert(attendanceRecords).values({
+          id: recordId,
+          employeeId: employee.id,
+          date: row.date,
+          shiftId: shift?.shiftId || null,
+          checkInTimeUtc: checkInUtc,
+          checkOutTimeUtc: checkOutUtc,
+          totalWorkMinutes,
+          lateMinutes,
+          earlyExitMinutes: 0,
+          status,
+          source: "MANUAL_ADJUSTMENT",
+          notes: row.notes || "Imported via CSV/Excel batch",
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      // Insert event
+      await db.insert(attendanceEvents).values({
+        id: `evt_${randomUUID()}`,
+        attendanceRecordId: recordId,
+        employeeId: employee.id,
+        eventType: "CHECK_IN",
+        timestampUtc: checkInUtc,
+        source: "MANUAL_ADJUSTMENT",
+        createdAt: now,
+      });
+
+      importedCount++;
+    } catch (rowErr: any) {
+      errors.push({ rowNumber, employeeCode: cleanCode, error: rowErr?.message || "Failed to process record." });
+    }
+  }
+
+  // Tamper-evident Audit log
+  await auditLogger.logAuditEvent({
+    actorUserId: session.userId,
+    actorEmployeeId: session.employeeId,
+    action: "ATTENDANCE_MONTHLY_IMPORTED",
+    targetEntity: "attendance_records",
+    targetId: `import_${now}`,
+    changes: {
+      totalRows: rows.length,
+      importedCount,
+      failedCount: errors.length,
+    },
+    ipAddress: meta?.ipAddress,
+    userAgent: meta?.userAgent,
+  });
+
+  return {
+    totalProcessed: rows.length,
+    importedCount,
+    failedCount: errors.length,
+    errors,
+  };
+}

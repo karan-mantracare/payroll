@@ -19,6 +19,8 @@ import {
   User,
   Shield,
   Calendar,
+  Upload,
+  FileSpreadsheet,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthGate";
 
@@ -55,6 +57,15 @@ export default function AdminAttendancePage() {
   });
   const [adjusting, setAdjusting] = useState(false);
   const [adjustError, setAdjustError] = useState<string | null>(null);
+
+  // Monthly Attendance Import Modal
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importCsvText, setImportCsvText] = useState(
+    "EmployeeCode,Date,CheckIn,CheckOut,Status,Notes\nMC-ADM-001,2026-11-01,09:00,18:00,PRESENT,Regular schedule\nMC-HRM-002,2026-11-01,08:35,17:35,PRESENT,On time morning"
+  );
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<any | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const fetchAttendance = useCallback(async () => {
     setLoading(true);
@@ -153,6 +164,42 @@ export default function AdminAttendancePage() {
     } finally {
       setAdjusting(false);
     }
+  };
+
+  const handleImportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setImporting(true);
+    setImportError(null);
+    setImportResult(null);
+
+    try {
+      const res = await fetch("/payrol/api/attendance/import", {
+        method: "POST",
+        headers: { "Content-Type": "text/csv" },
+        body: importCsvText,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to import attendance data");
+
+      setImportResult(data.result);
+      await fetchAttendance();
+    } catch (err: any) {
+      setImportError(err.message || "Failed to process attendance import");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (text) setImportCsvText(text);
+    };
+    reader.readAsText(file);
   };
 
   const handleReviewCorrection = async (requestId: string, decision: "APPROVED" | "REJECTED") => {
@@ -261,6 +308,17 @@ export default function AdminAttendancePage() {
                 {stats.pendingCorrections}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => {
+              setShowImportModal(true);
+              setImportResult(null);
+              setImportError(null);
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF] bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 font-semibold text-xs transition shadow-sm"
+          >
+            <Upload className="w-4 h-4" /> Import Monthly
           </button>
 
           <button
@@ -607,6 +665,127 @@ export default function AdminAttendancePage() {
                 >
                   {adjusting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Apply Adjustment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Monthly Attendance Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-[#293381]/10 rounded-lg text-[#293381] dark:text-[#36B4FF]">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                    Import Monthly Attendance
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Bulk-load attendance records with automatic shift matching, lateness, and overnight shift calculation.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {importError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>{importError}</span>
+              </div>
+            )}
+
+            {importResult && (
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl space-y-2">
+                <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-sm">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  Import Completed Successfully
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-center pt-2">
+                  <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-emerald-100 dark:border-slate-700">
+                    <span className="text-[10px] text-slate-500 block">Total</span>
+                    <span className="font-bold text-slate-800 dark:text-white text-base">{importResult.summary?.total || 0}</span>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-emerald-100 dark:border-slate-700">
+                    <span className="text-[10px] text-emerald-600 block">Created</span>
+                    <span className="font-bold text-emerald-600 text-base">{importResult.summary?.created || 0}</span>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-emerald-100 dark:border-slate-700">
+                    <span className="text-[10px] text-blue-600 block">Updated</span>
+                    <span className="font-bold text-blue-600 text-base">{importResult.summary?.updated || 0}</span>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-emerald-100 dark:border-slate-700">
+                    <span className="text-[10px] text-rose-600 block">Failed</span>
+                    <span className="font-bold text-rose-600 text-base">{importResult.summary?.failed || 0}</span>
+                  </div>
+                </div>
+                {importResult.summary?.failed > 0 && importResult.errors?.length > 0 && (
+                  <div className="mt-2 text-xs text-rose-700 bg-rose-50 dark:bg-rose-950/40 p-2 rounded border border-rose-200 dark:border-rose-900 max-h-24 overflow-y-auto">
+                    {importResult.errors.map((errItem: any, idx: number) => (
+                      <div key={idx}>Row {errItem.row}: {errItem.reason}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <form onSubmit={handleImportSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Upload CSV File
+                </label>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleFileUpload}
+                  className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#293381] file:text-white hover:file:bg-[#1F2664] cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    CSV Data (or paste directly)
+                  </label>
+                  <span className="text-[11px] text-slate-400">
+                    Format: EmployeeCode,Date,CheckIn,CheckOut,Status,Notes
+                  </span>
+                </div>
+                <textarea
+                  rows={6}
+                  value={importCsvText}
+                  onChange={(e) => setImportCsvText(e.target.value)}
+                  className="w-full font-mono text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                  placeholder="EmployeeCode,Date,CheckIn,CheckOut,Status,Notes"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowImportModal(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 hover:bg-slate-50 text-xs font-semibold"
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  disabled={importing || !importCsvText.trim()}
+                  className="px-4 py-2 rounded-lg bg-[#293381] hover:bg-[#1F2664] text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                >
+                  {importing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <Upload className="w-3.5 h-3.5" />
+                  Execute Batch Import
                 </button>
               </div>
             </form>

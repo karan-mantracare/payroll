@@ -34,7 +34,7 @@ export default function AdminDashboardPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#293381] text-white shadow-sm border border-[#293381] dark:bg-[#36B4FF] dark:text-[#293381] mb-2">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#36B4FF] dark:text-[#293381]" /> Programs Platform Environment
+              <ShieldCheck className="w-3.5 h-3.5 text-[#36B4FF] dark:text-[#293381]" /> Enterprise HRMS Environment
             </div>
             <h1 className="text-2xl font-bold text-[#293381] dark:text-white tracking-tight">
               Admin & HRMS Command Center
