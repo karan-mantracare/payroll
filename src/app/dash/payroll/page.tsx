@@ -207,28 +207,28 @@ This is a secure system-generated payslip from MantraCare HRMS.
                 <div className="text-[10px] text-slate-500 mt-0.5">Credited: {p.date}</div>
               </div>
 
-              {/* 2 Buttons: View and Download */}
-              <div className="flex items-center gap-2">
+              {/* 2 Buttons: View and Download (Icon Only) */}
+              <div className="flex items-center gap-1.5">
                 {/* View Button */}
                 <button
                   type="button"
                   onClick={() => setSelectedPayslip(p)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#293381] dark:text-[#36B4FF] border border-slate-300 dark:border-slate-600 text-xs font-semibold rounded transition shadow-sm"
+                  className="p-1.5 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#293381] dark:text-[#36B4FF] border border-slate-300 dark:border-slate-600 rounded-lg transition shadow-sm flex items-center justify-center"
                   title={`View ${p.month} payslip`}
+                  aria-label={`View ${p.month} payslip`}
                 >
-                  <Eye className="w-3.5 h-3.5 text-[#293381] dark:text-[#36B4FF]" />
-                  <span>View</span>
+                  <Eye className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" />
                 </button>
 
                 {/* Download Button */}
                 <button
                   type="button"
                   onClick={() => handleDownload(p)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#293381] hover:bg-[#1F2664] text-white text-xs font-semibold rounded transition shadow-sm"
+                  className="p-1.5 bg-[#293381] hover:bg-[#1F2664] text-white rounded-lg transition shadow-sm flex items-center justify-center"
                   title={`Download ${p.month} payslip`}
+                  aria-label={`Download ${p.month} payslip`}
                 >
-                  <Download className="w-3.5 h-3.5 text-white" />
-                  <span className="text-white">Download</span>
+                  <Download className="w-4 h-4 text-white" />
                 </button>
               </div>
             </div>

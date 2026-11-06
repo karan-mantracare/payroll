@@ -184,26 +184,26 @@ Generated securely by MantraCare HRMS Admin Portal.
                 </div>
               </div>
 
-              {/* 2 Buttons: View and Download */}
-              <div className="flex items-center gap-2">
+              {/* 2 Buttons: View and Download (Icon Only) */}
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setSelectedCycle(cycle)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#293381] dark:text-[#36B4FF] border border-slate-300 dark:border-slate-600 text-xs font-semibold rounded transition shadow-sm"
+                  className="p-1.5 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#293381] dark:text-[#36B4FF] border border-slate-300 dark:border-slate-600 rounded-lg transition shadow-sm flex items-center justify-center"
                   title={`View ${cycle.month} statement`}
+                  aria-label={`View ${cycle.month} statement`}
                 >
-                  <Eye className="w-3.5 h-3.5 text-[#293381] dark:text-[#36B4FF]" />
-                  <span>View</span>
+                  <Eye className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleDownload(cycle)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#293381] hover:bg-[#1F2664] text-white text-xs font-semibold rounded transition shadow-sm"
+                  className="p-1.5 bg-[#293381] hover:bg-[#1F2664] text-white rounded-lg transition shadow-sm flex items-center justify-center"
                   title={`Download ${cycle.month} statement`}
+                  aria-label={`Download ${cycle.month} statement`}
                 >
-                  <Download className="w-3.5 h-3.5 text-white" />
-                  <span className="text-white">Download</span>
+                  <Download className="w-4 h-4 text-white" />
                 </button>
               </div>
             </div>
