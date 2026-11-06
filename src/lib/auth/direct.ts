@@ -15,7 +15,6 @@ import { createSession } from "./session";
 import { resolveUserPermissions } from "../permissions/evaluator";
 import { RoleKey } from "../permissions/types";
 import { logAuditEvent } from "../audit/logger";
-import { ensureSchemaReady } from "../db/readiness";
 import { generateCorrelationId, logSecureError } from "../security/safe-logger";
 
 const MAX_FAILED_ATTEMPTS = parseInt(process.env.ACCOUNT_LOCKOUT_MAX_ATTEMPTS || "5", 10);
@@ -259,9 +258,8 @@ export async function initiateLoginChallenge(
         sql: `UPDATE otp_challenges SET is_used = 1 WHERE user_id = ? AND is_used = 0;`,
         args: [user.id],
       });
-    } catch {
-      // Defensive schema self-heal if table doesn't exist
-      await ensureSchemaReady();
+    } catch (err: any) {
+      logSecureError("initiateLoginChallenge.invalidatePrevious", err, { userId: user.id }, correlationId);
     }
 
     // 2. Persist new challenge in database
@@ -283,43 +281,12 @@ export async function initiateLoginChallenge(
       });
     } catch (insertErr: any) {
       logSecureError("initiateLoginChallenge.insert", insertErr, { userId: user.id }, correlationId);
-      const healed = await ensureSchemaReady();
-      if (!healed) {
-        return {
-          success: false,
-          code: "DB_PERSISTENCE_FAILED",
-          error: "Unable to complete sign-in right now. Please try again.",
-          correlationId,
-        };
-      }
-
-      // Retry insert once after healing schema
-      try {
-        await rawClient.execute({
-          sql: `INSERT INTO otp_challenges (id, user_id, challenge_token, otp_hash, expires_at, attempts, max_attempts, is_used, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-          args: [
-            challengeId,
-            user.id,
-            challengeToken,
-            otpHash,
-            expiresAt,
-            0,
-            OTP_MAX_ATTEMPTS,
-            0,
-            now,
-          ],
-        });
-      } catch (retryErr: any) {
-        logSecureError("initiateLoginChallenge.retryFailed", retryErr, { userId: user.id }, correlationId);
-        // CRITICAL: Never report OTP delivery or verification as successful if persistence fails
-        return {
-          success: false,
-          code: "CHALLENGE_PERSISTENCE_FAILED",
-          error: "Unable to complete sign-in right now. Please try again.",
-          correlationId,
-        };
-      }
+      return {
+        success: false,
+        code: "CHALLENGE_PERSISTENCE_FAILED",
+        error: "Unable to complete sign-in right now. Please try again.",
+        correlationId,
+      };
     }
 
     // 3. Dispatch OTP via pluggable delivery provider ONLY AFTER persistence confirmed

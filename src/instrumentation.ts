@@ -12,11 +12,17 @@ export async function register() {
       }
     }
 
-    // 2. Startup schema & database readiness validation
+    // 2. Startup schema & database readiness validation (read-only verification)
     try {
-      const { ensureSchemaReady } = await import("./lib/db/readiness");
-      await ensureSchemaReady();
-      console.log("[Database] Schema readiness check completed successfully.");
+      const { checkStartupReadiness } = await import("./lib/db/readiness");
+      const report = await checkStartupReadiness();
+      if (!report.ready) {
+        console.warn(
+          `[Database] Notice: Schema not fully migrated. Missing ${report.missingTables.length} tables (${report.missingTables.join(", ")}). Run 'npm run db:migrate' to apply migrations.`
+        );
+      } else {
+        console.log("[Database] All tables and indexes verified ready.");
+      }
     } catch (err: any) {
       console.warn("[Database] Startup schema readiness warning:", err?.message);
     }

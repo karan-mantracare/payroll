@@ -1,12 +1,19 @@
-import { rawClient } from "./client";
+import { rawClient, dbConfig, getSafeDatabaseDiagnostics } from "./client";
 import { runMigrations } from "./migrate";
 import { DEFAULT_ROLES } from "../permissions/registry";
 import { encryptField } from "../security/crypto";
 import { hashPassword } from "../security/password";
 
 export async function seedDatabase() {
+  const diag = getSafeDatabaseDiagnostics(dbConfig);
+  if (dbConfig.isProduction) {
+    throw new Error(
+      "[CRITICAL SAFETY GUARD] Database seeding is strictly forbidden on the PRODUCTION database. This would erase live employee records."
+    );
+  }
+
   await runMigrations();
-  console.log("Seeding MantraCare HRMS & Payroll database...");
+  console.log(`Seeding MantraCare HRMS & Payroll database for environment: [${diag.environment}] (host: ${diag.host})...`);
 
   const now = Date.now();
 

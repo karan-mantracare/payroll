@@ -1,7 +1,14 @@
-import { rawClient } from "./client";
+import { rawClient, dbConfig, getSafeDatabaseDiagnostics } from "./client";
 
 export async function runMigrations() {
-  console.log("Running Turso / SQLite table initializations...");
+  const diag = getSafeDatabaseDiagnostics(dbConfig);
+  if (dbConfig.isProduction && process.env.ALLOW_PRODUCTION_MIGRATION !== "true") {
+    throw new Error(
+      "[CRITICAL SAFETY GUARD] Direct migration against PRODUCTION is blocked. Set ALLOW_PRODUCTION_MIGRATION=true with explicit administrative approval to proceed."
+    );
+  }
+
+  console.log(`Running Turso schema migrations for environment: [${diag.environment}] (host: ${diag.host})...`);
 
   try {
     await rawClient.execute("PRAGMA journal_mode = WAL;");
