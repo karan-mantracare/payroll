@@ -1,0 +1,128 @@
+[
+  {
+    "id": "hol_2026_01",
+    "name": "Republic Day",
+    "date": "2026-01-26",
+    "dayOfWeek": "Monday",
+    "type": "Gazetted",
+    "location": "All Locations",
+    "description": "National holiday commemorating the Constitution of India."
+  },
+  {
+    "id": "hol_2026_02",
+    "name": "Holi (Festival of Colors)",
+    "date": "2026-03-04",
+    "dayOfWeek": "Wednesday",
+    "type": "Gazetted",
+    "location": "All Locations",
+    "description": "Spring festival of colours and joy."
+  },
+  {
+    "id": "hol_2026_03",
+    "name": "Id-ul-Fitr",
+    "date": "2026-03-21",
+    "dayOfWeek": "Saturday",
+    "type": "Gazetted",
+    "location": "All Locations",
+    "description": "Celebration of the conclusion of the holy month of Ramadan."
+  },
+  {
+    "id": "hol_2026_04",
+    "name": "Good Friday",
+    "date": "2026-04-03",
+    "dayOfWeek": "Friday",
+    "type": "Gazetted",
+    "location": "All Locations",
+    "description": "Christian holiday observing the crucifixion of Jesus."
+  },
+  {
+    "id": "hol_2026_05",
+    "name": "Dr. Ambedkar Jayanti",
+    "date": "2026-04-14",
+    "dayOfWeek": "Tuesday",
+    "type": "Optional",
+    "location": "All Locations",
+    "description": "Birth anniversary of Dr. B. R. Ambedkar."
+  },
+  {
+    "id": "hol_2026_06",
+    "name": "International Labour Day",
+    "date": "2026-05-01",
+    "dayOfWeek": "Friday",
+    "type": "Gazetted",
+    "location": "All Locations",
+    "description": "May Day honoring working individuals and labor rights."
+  },
+  {
+    "id": "hol_2026_07",
+    "name": "Bakrid / Id-ul-Zuha",
+    "date": "2026-05-27",
+    "dayOfWeek": "Wednesday",
+    "type": "Gazetted",
+    "location": "All Locations",
+    "description": "Feast of the Sacrifice."
+  },
+  {
+    "id": "hol_2026_08",
+    "name": "Independence Day",
+    "date": "2026-08-15",
+    "dayOfWeek": "Saturday",
+    "type": "Gazetted",
+    "location": "All Locations",
+    "description": "National holiday marking India's independence in 1947."
+  },
+  {
+    "id": "hol_2026_09",
+    "name": "Janmashtami",
+    "date": "2026-09-04",
+    "dayOfWeek": "Friday",
+    "type": "Optional",
+    "location": "All Locations",
+    "description": "Celebration of the birth of Lord Krishna."
+  },
+  {
+    "id": "hol_2026_10",
+    "name": "Mahatma Gandhi Jayanti",
+    "date": "2026-10-02",
+    "dayOfWeek": "Friday",
+    "type": "Gazetted",
+    "location": "All Locations",
+    "description": "National holiday honoring the Father of the Nation."
+  },
+  {
+    "id": "hol_2026_11",
+    "name": "Dussehra (Vijaya Dashami)",
+    "date": "2026-10-20",
+    "dayOfWeek": "Tuesday",
+    "type": "Gazetted",
+    "location": "All Locations",
+    "description": "Triumph of good over evil."
+  },
+  {
+    "id": "hol_2026_12",
+    "name": "Diwali (Deepavali)",
+    "date": "2026-11-08",
+    "dayOfWeek": "Sunday",
+    "type": "Gazetted",
+    "location": "All Locations",
+    "description": "Festival of Lights celebrating peace and prosperity."
+  },
+  {
+    "id": "hol_2026_13",
+    "name": "Guru Nanak Jayanti",
+    "date": "2026-11-24",
+    "dayOfWeek": "Tuesday",
+    "type": "Gazetted",
+    "location": "All Locations",
+    "description": "Birth anniversary of the first Sikh Guru."
+  },
+  {
+    "id": "hol_2026_14",
+    "name": "Christmas Day",
+    "date": "2026-12-25",
+    "dayOfWeek": "Friday",
+    "type": "Gazetted",
+    "location": "All Locations",
+    "description": "Worldwide religious and cultural holiday celebrating the birth of Jesus Christ."
+  }
+]
