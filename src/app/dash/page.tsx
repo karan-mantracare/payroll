@@ -450,13 +450,13 @@ export default function EmployeeDashboardPage() {
           </span>
         </div>
 
-        {/* 3x3 Grid for Quick Links (Clean, no short descriptions) */}
+        {/* 3x3 Grid for Quick Links (Clean, Title next to Icon) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-4">
           {QUICK_LINKS.map((link) => (
             <Link
               key={link.name}
               href={link.href}
-              className="group relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 sm:p-5 shadow-card hover:border-[#36B4FF] hover:shadow-lg transition-all duration-300 flex flex-col justify-between min-h-[115px] sm:min-h-[120px] overflow-hidden"
+              className="group relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 sm:p-5 shadow-card hover:border-[#36B4FF] hover:shadow-lg transition-all duration-300 flex flex-col justify-between min-h-[105px] sm:min-h-[110px] overflow-hidden"
             >
               {/* Top-Right Decorative Card Corner Color Gradient */}
               <div
@@ -464,26 +464,28 @@ export default function EmployeeDashboardPage() {
               />
 
               <div className="relative z-10">
-                <div className="flex items-center justify-between mb-2 sm:mb-2.5">
-                  {/* Icon container with Top-Right Color Gradient Accent */}
-                  <div className="relative">
-                    <div
-                      className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl ${link.iconBg} border flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform duration-200 shadow-sm`}
-                    >
-                      {/* Gradient flare on top-right of the icon container */}
+                <div className="flex items-center justify-between">
+                  {/* Icon container with Title next to it */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative flex-shrink-0">
                       <div
-                        className={`absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-bl ${link.iconCornerGradient} opacity-90 blur-[1px]`}
-                      />
-                      <link.icon className={`w-5 h-5 relative z-10 ${link.iconColor}`} />
+                        className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl ${link.iconBg} border flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform duration-200 shadow-sm`}
+                      >
+                        {/* Gradient flare on top-right of the icon container */}
+                        <div
+                          className={`absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-bl ${link.iconCornerGradient} opacity-90 blur-[1px]`}
+                        />
+                        <link.icon className={`w-5 h-5 relative z-10 ${link.iconColor}`} />
+                      </div>
                     </div>
+
+                    <h3 className="font-bold text-sm sm:text-base text-[#293381] dark:text-white group-hover:text-[#36B4FF] transition truncate">
+                      {link.name}
+                    </h3>
                   </div>
 
-                  <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-[#293381] dark:group-hover:text-[#36B4FF] transition-transform group-hover:translate-x-1" />
+                  <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-[#293381] dark:group-hover:text-[#36B4FF] transition-transform group-hover:translate-x-1 flex-shrink-0 ml-2" />
                 </div>
-
-                <h3 className="font-bold text-sm sm:text-base text-[#293381] dark:text-white group-hover:text-[#36B4FF] transition">
-                  {link.name}
-                </h3>
               </div>
 
               <div className="relative z-10 mt-3 pt-2 sm:pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-medium text-slate-400 group-hover:text-[#293381] dark:group-hover:text-[#36B4FF] transition">
