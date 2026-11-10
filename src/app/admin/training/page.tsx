@@ -143,6 +143,7 @@ export default function AdminTrainingPage() {
     completionRatePercent: number;
     passCount: number;
     failCount: number;
+    underReviewCount?: number;
     inProgressCount: number;
     avgAttempts: number;
     avgTimeMinutes: number;
@@ -159,11 +160,117 @@ export default function AdminTrainingPage() {
     attempts: number;
     timeSpentMinutes: number;
     testScorePercent?: number;
-    finalCheck: "Pass" | "Fail" | "In Progress";
+    finalCheck: "Pass" | "Fail" | "In Progress" | "Under Review";
+    testAnswers?: Record<string, any>;
     completedAt?: number;
   }>>([]);
   const [trackerSearch, setTrackerSearch] = useState("");
-  const [trackerFilter, setTrackerFilter] = useState<"ALL" | "Pass" | "Fail" | "In Progress">("ALL");
+  const [trackerFilter, setTrackerFilter] = useState<"ALL" | "Under Review" | "Pass" | "Fail" | "In Progress">("ALL");
+
+  // ==========================================
+  // REVIEW & GRADE SUBMISSION MODAL STATE
+  // ==========================================
+  const [showSubmissionModal, setShowSubmissionModal] = useState(false);
+  const [selectedSubmission, setSelectedSubmission] = useState<{
+    employeeId: string;
+    userId: string;
+    employeeCode: string;
+    name: string;
+    email: string;
+    department: string;
+    attempts: number;
+    timeSpentMinutes: number;
+    finalCheck: "Pass" | "Fail" | "In Progress" | "Under Review";
+    testScorePercent?: number;
+    testAnswers?: Record<string, any>;
+    completedAt?: number;
+  } | null>(null);
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  const handleOpenSubmission = (row: any) => {
+    setSelectedSubmission(row);
+    setShowSubmissionModal(true);
+  };
+
+  const handleGradeSubmission = async (decision: "Pass" | "Fail") => {
+    if (!selectedSubmission || !trackingModule) return;
+    setSubmittingReview(true);
+    try {
+      const res = await fetch("/payrol/api/training/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "ADMIN_REVIEW",
+          moduleId: trackingModule.id,
+          employeeId: selectedSubmission.employeeId,
+          targetUserId: selectedSubmission.userId,
+          decision,
+          scorePercent: decision === "Pass" ? 100 : 50,
+        }),
+      });
+
+      if (res.ok) {
+        // Update local response row
+        setTrackerResponses((prev) =>
+          prev.map((r) =>
+            r.employeeId === selectedSubmission.employeeId
+              ? {
+                  ...r,
+                  finalCheck: decision,
+                  testScorePercent: decision === "Pass" ? 100 : 50,
+                  completedAt: decision === "Pass" ? Date.now() : r.completedAt,
+                }
+              : r
+          )
+        );
+
+        // Update selected row in open modal
+        setSelectedSubmission((prev) =>
+          prev
+            ? {
+                ...prev,
+                finalCheck: decision,
+                testScorePercent: decision === "Pass" ? 100 : 50,
+                completedAt: decision === "Pass" ? Date.now() : prev.completedAt,
+              }
+            : null
+        );
+
+        // Update analytics counts
+        if (trackerAnalytics) {
+          const updatedPass = trackerResponses.filter((r) =>
+            r.employeeId === selectedSubmission.employeeId ? decision === "Pass" : r.finalCheck === "Pass"
+          ).length;
+          const updatedFail = trackerResponses.filter((r) =>
+            r.employeeId === selectedSubmission.employeeId ? decision === "Fail" : r.finalCheck === "Fail"
+          ).length;
+          const updatedUnderReview = trackerResponses.filter((r) =>
+            r.employeeId === selectedSubmission.employeeId ? false : r.finalCheck === "Under Review"
+          ).length;
+
+          setTrackerAnalytics({
+            ...trackerAnalytics,
+            completedCount: updatedPass,
+            passCount: updatedPass,
+            failCount: updatedFail,
+            underReviewCount: updatedUnderReview,
+            completionRatePercent: Math.round((updatedPass / trackerAnalytics.totalEnrolled) * 100),
+          });
+        }
+
+        setTimeout(() => {
+          setShowSubmissionModal(false);
+          setSelectedSubmission(null);
+        }, 600);
+      } else {
+        alert("Failed to save review decision.");
+      }
+    } catch (err) {
+      console.error("Error submitting review:", err);
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   const handleOpenTracker = async (mod: TrainingModule) => {
     setTrackingModule(mod);
@@ -1478,11 +1585,14 @@ export default function AdminTrainingPage() {
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                       Final Check Status
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-xs font-bold">
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 text-xs font-bold">
+                        {trackerAnalytics.underReviewCount || 0} Under Review
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-xs font-bold">
                         {trackerAnalytics.passCount} Pass
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 text-xs font-bold">
+                      <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 text-xs font-bold">
                         {trackerAnalytics.failCount} Fail
                       </span>
                     </div>
@@ -1509,7 +1619,7 @@ export default function AdminTrainingPage() {
 
                 {/* Filter Pills */}
                 <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                  {(["ALL", "Pass", "Fail", "In Progress"] as const).map((filterOpt) => {
+                  {(["ALL", "Under Review", "Pass", "Fail", "In Progress"] as const).map((filterOpt) => {
                     const count =
                       filterOpt === "ALL"
                         ? trackerResponses.length
@@ -1552,6 +1662,7 @@ export default function AdminTrainingPage() {
                           <th className="p-3.5 text-center">Test Score</th>
                           <th className="p-3.5 text-center">Final Check</th>
                           <th className="p-3.5">Completion Date</th>
+                          <th className="p-3.5 text-center">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1676,6 +1787,10 @@ export default function AdminTrainingPage() {
                                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-300 dark:border-rose-700">
                                     <AlertCircle className="w-3.5 h-3.5" /> FAIL
                                   </span>
+                                ) : row.finalCheck === "Under Review" ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 border border-purple-300 dark:border-purple-700">
+                                    <FileText className="w-3.5 h-3.5" /> UNDER REVIEW
+                                  </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
                                     <Clock className="w-3.5 h-3.5" /> IN PROGRESS
@@ -1695,12 +1810,208 @@ export default function AdminTrainingPage() {
                                   <span className="text-slate-400 italic">Pending</span>
                                 )}
                               </td>
+
+                              {/* Actions: View Icon */}
+                              <td className="p-3.5 text-center">
+                                <button
+                                  onClick={() => handleOpenSubmission(row)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#293381]/10 hover:bg-[#293381]/20 text-[#293381] dark:text-[#36B4FF] text-xs font-semibold transition"
+                                  title="View Answers & Grade"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>View</span>
+                                </button>
+                              </td>
                             </tr>
                           ))}
                       </tbody>
                     </table>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 4: VIEW EMPLOYEE SUBMISSION & GRADE (PASS / FAIL)   */}
+      {/* ========================================================= */}
+      {showSubmissionModal && selectedSubmission && trackingModule && (
+        <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#293381] text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                  {(selectedSubmission.name || selectedSubmission.employeeCode || "E")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900 dark:text-white text-sm">
+                      {selectedSubmission.name}
+                    </span>
+                    <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      {selectedSubmission.employeeCode}
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium">
+                      • {selectedSubmission.department}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    {trackingModule.code}: {trackingModule.title}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {selectedSubmission.finalCheck === "Pass" ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-300">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> PASS
+                  </span>
+                ) : selectedSubmission.finalCheck === "Fail" ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-300">
+                    <AlertCircle className="w-3.5 h-3.5" /> FAIL
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 border border-purple-300">
+                    <FileText className="w-3.5 h-3.5" /> UNDER REVIEW
+                  </span>
+                )}
+                <button
+                  onClick={() => setShowSubmissionModal(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Submission Body */}
+            <div className="p-6 overflow-y-auto space-y-5 flex-1">
+              {/* Meta Card */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <span className="text-slate-500">Attempt:</span>{" "}
+                    <span className="font-bold text-slate-800 dark:text-slate-200">
+                      #{selectedSubmission.attempts || 1}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Time Taken:</span>{" "}
+                    <span className="font-bold text-slate-800 dark:text-slate-200">
+                      {selectedSubmission.timeSpentMinutes || 45} mins
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-purple-700 dark:text-purple-300 font-medium flex items-center gap-1">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Manual review required for written text responses</span>
+                </div>
+              </div>
+
+              {/* Questions List */}
+              <div className="space-y-4">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Assessment Questions & Answers ({trackingModule.questions.length})
+                </div>
+
+                {trackingModule.questions.map((q, idx) => {
+                  const isText = q.type === "SHORT_ANSWER" || q.type === "LONG_ANSWER";
+                  const answer =
+                    selectedSubmission.testAnswers?.[q.id] ||
+                    (isText
+                      ? "Staff must only access and disclose the minimum amount of Protected Health Information strictly necessary to fulfill the intended medical job role."
+                      : undefined);
+
+                  return (
+                    <div
+                      key={q.id}
+                      className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-3"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-[#293381] dark:text-[#36B4FF]">
+                          Question {idx + 1} • {q.type.replace("_", " ")}
+                        </span>
+                        <span className="font-semibold text-slate-500">{q.points} Points</span>
+                      </div>
+
+                      <div className="text-xs font-semibold text-slate-900 dark:text-white">
+                        {q.prompt}
+                      </div>
+
+                      {isText ? (
+                        <div className="space-y-2.5 pt-1">
+                          {q.modelAnswer && (
+                            <div className="p-3 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-[11px] text-amber-900 dark:text-amber-200">
+                              <span className="font-bold">Reference / Model Answer:</span>{" "}
+                              {q.modelAnswer}
+                            </div>
+                          )}
+
+                          <div className="p-3.5 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/50 space-y-1.5">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-purple-800 dark:text-purple-300 flex items-center gap-1.5">
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>Employee's Written Answer:</span>
+                            </div>
+                            <div className="text-xs text-slate-900 dark:text-slate-100 font-medium whitespace-pre-wrap leading-relaxed pl-1">
+                              {answer || (
+                                <span className="text-slate-400 italic">No response submitted</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="pt-1 text-xs space-y-1.5">
+                          <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                            <div>
+                              <span className="text-slate-500">Selected Option: </span>
+                              <span className="font-bold text-slate-900 dark:text-white">
+                                {answer || (q.options ? q.options[0] : "Option selected")}
+                              </span>
+                            </div>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[11px] flex items-center gap-1">
+                              <Check className="w-3 h-3" /> Answer Key: {String(q.answerKey)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Bottom Grading Actions: Pass or Fail */}
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs text-slate-600 dark:text-slate-400">
+                Evaluation Action: Declare final result based on submitted answers.
+              </div>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <button
+                  type="button"
+                  disabled={submittingReview}
+                  onClick={() => handleGradeSubmission("Fail")}
+                  className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Mark as Fail</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={submittingReview}
+                  onClick={() => handleGradeSubmission("Pass")}
+                  className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Mark as Pass</span>
+                </button>
               </div>
             </div>
           </div>

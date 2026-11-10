@@ -60,7 +60,7 @@ export interface UserModuleProgress {
   testCompleted: boolean;
   testScorePercent?: number;
   testPassed?: boolean;
-  finalCheck: "Pass" | "Fail" | "In Progress";
+  finalCheck: "Pass" | "Fail" | "In Progress" | "Under Review";
   testAnswers?: Record<string, any>;
   completedAt?: number;
   updatedAt: number;
@@ -294,7 +294,7 @@ export async function getModuleResponsesAnalytics(moduleId: string) {
     const prog = progressRecords[key] || progressRecords[altKey];
 
     const finalCheck = prog
-      ? prog.finalCheck || (prog.testPassed ? "Pass" : prog.testCompleted ? "Fail" : "In Progress")
+      ? prog.finalCheck || (prog.testPassed ? "Pass" : prog.testCompleted ? "Under Review" : "In Progress")
       : "In Progress";
 
     return {
@@ -315,7 +315,8 @@ export async function getModuleResponsesAnalytics(moduleId: string) {
       attempts: prog?.attempts || 0,
       timeSpentMinutes: prog?.timeSpentMinutes || 0,
       testScorePercent: prog?.testScorePercent,
-      finalCheck: finalCheck as "Pass" | "Fail" | "In Progress",
+      finalCheck: finalCheck as "Pass" | "Fail" | "In Progress" | "Under Review",
+      testAnswers: prog?.testAnswers || null,
       completedAt: prog?.completedAt,
     };
   });
@@ -323,6 +324,7 @@ export async function getModuleResponsesAnalytics(moduleId: string) {
   const totalEnrolled = employeeResponses.length;
   const completedCount = employeeResponses.filter((e) => e.finalCheck === "Pass").length;
   const failedCount = employeeResponses.filter((e) => e.finalCheck === "Fail").length;
+  const underReviewCount = employeeResponses.filter((e) => e.finalCheck === "Under Review").length;
   const inProgressCount = employeeResponses.filter((e) => e.finalCheck === "In Progress").length;
 
   const attemptedRows = employeeResponses.filter((e) => e.attempts > 0);
@@ -347,6 +349,7 @@ export async function getModuleResponsesAnalytics(moduleId: string) {
       completionRatePercent: totalEnrolled > 0 ? Math.round((completedCount / totalEnrolled) * 100) : 0,
       passCount: completedCount,
       failCount: failedCount,
+      underReviewCount,
       inProgressCount,
       avgAttempts,
       avgTimeMinutes,

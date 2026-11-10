@@ -23,6 +23,7 @@ import {
   X,
   Loader2,
   ExternalLink,
+  FileText,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthGate";
 
@@ -69,7 +70,7 @@ interface UserModuleProgress {
   testCompleted: boolean;
   testScorePercent?: number;
   testPassed?: boolean;
-  finalCheck: "Pass" | "Fail" | "In Progress";
+  finalCheck: "Pass" | "Fail" | "In Progress" | "Under Review";
   completedAt?: number;
 }
 
@@ -350,6 +351,11 @@ export default function EmployeeTrainingPage() {
                   <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/20 border border-rose-400 text-rose-300 font-bold text-sm shadow-sm">
                     <AlertCircle className="w-5 h-5 text-rose-400" />
                     <span>Final Check: FAIL</span>
+                  </div>
+                ) : currentModuleProg?.finalCheck === "Under Review" ? (
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500/20 border border-purple-400 text-purple-200 font-bold text-sm shadow-sm">
+                    <FileText className="w-5 h-5 text-purple-300" />
+                    <span>Final Check: UNDER REVIEW</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-400 text-amber-300 font-bold text-sm shadow-sm">
@@ -652,7 +658,9 @@ export default function EmployeeTrainingPage() {
                       className={`p-5 rounded-2xl border flex items-center justify-between gap-4 ${
                         currentModuleProg.finalCheck === "Pass"
                           ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100"
-                          : "bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-100"
+                          : currentModuleProg.finalCheck === "Fail"
+                          ? "bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-100"
+                          : "bg-purple-50 dark:bg-purple-950/30 border-purple-300 dark:border-purple-800 text-purple-900 dark:text-purple-100"
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -660,17 +668,25 @@ export default function EmployeeTrainingPage() {
                           <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold">
                             <CheckCircle2 className="w-6 h-6" />
                           </div>
-                        ) : (
+                        ) : currentModuleProg.finalCheck === "Fail" ? (
                           <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold">
                             <AlertCircle className="w-6 h-6" />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold">
+                            <FileText className="w-6 h-6" />
                           </div>
                         )}
                         <div>
                           <div className="font-bold text-sm">
-                            Final Check: {currentModuleProg.finalCheck.toUpperCase()} (Score: {currentModuleProg.testScorePercent}%)
+                            {currentModuleProg.finalCheck === "Under Review"
+                              ? "Final Check: UNDER REVIEW (Awaiting Admin Evaluation)"
+                              : `Final Check: ${currentModuleProg.finalCheck.toUpperCase()} (Score: ${currentModuleProg.testScorePercent}%)`}
                           </div>
                           <div className="text-xs opacity-80">
-                            Attempts taken: {currentModuleProg.attempts} • Passing requirement: {activeModule.passingScorePercent}%
+                            {currentModuleProg.finalCheck === "Under Review"
+                              ? "This test contains written text questions. Your submission has been routed to the admin for manual review."
+                              : `Attempts taken: ${currentModuleProg.attempts} • Passing requirement: ${activeModule.passingScorePercent}%`}
                           </div>
                         </div>
                       </div>
@@ -694,7 +710,9 @@ export default function EmployeeTrainingPage() {
                   {testResult && (
                     <div
                       className={`p-6 rounded-2xl border shadow-md space-y-3 ${
-                        testResult.passed
+                        (testResult as any).requiresReview
+                          ? "bg-purple-50 dark:bg-purple-950/40 border-purple-400 text-purple-950 dark:text-purple-100"
+                          : testResult.passed
                           ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-950 dark:text-emerald-100"
                           : "bg-rose-50 dark:bg-rose-950/40 border-rose-400 text-rose-950 dark:text-rose-100"
                       }`}
@@ -703,10 +721,16 @@ export default function EmployeeTrainingPage() {
                         <div className="flex items-center gap-3">
                           <div
                             className={`w-12 h-12 rounded-xl flex items-center justify-center text-white ${
-                              testResult.passed ? "bg-emerald-600" : "bg-rose-600"
+                              (testResult as any).requiresReview
+                                ? "bg-purple-600"
+                                : testResult.passed
+                                ? "bg-emerald-600"
+                                : "bg-rose-600"
                             }`}
                           >
-                            {testResult.passed ? (
+                            {(testResult as any).requiresReview ? (
+                              <FileText className="w-7 h-7" />
+                            ) : testResult.passed ? (
                               <Award className="w-7 h-7" />
                             ) : (
                               <AlertCircle className="w-7 h-7" />
@@ -714,15 +738,19 @@ export default function EmployeeTrainingPage() {
                           </div>
                           <div>
                             <h3 className="text-lg font-bold">
-                              Final Check: {testResult.passed ? "PASS" : "FAIL"}
+                              {(testResult as any).requiresReview
+                                ? "Assessment Submitted — Under Review"
+                                : `Final Check: ${testResult.passed ? "PASS" : "FAIL"}`}
                             </h3>
                             <p className="text-xs opacity-90">
-                              Your Score: <span className="font-bold text-sm">{testResult.scorePercent}%</span> (Passing score: {testResult.passingScorePercent}%)
+                              {(testResult as any).requiresReview
+                                ? "This assessment contains written short answer questions. Your submission has been routed to the admin for manual review."
+                                : `Your Score: ${testResult.scorePercent}% (Passing score: ${testResult.passingScorePercent}%)`}
                             </p>
                           </div>
                         </div>
 
-                        {!testResult.passed && (
+                        {!testResult.passed && !(testResult as any).requiresReview && (
                           <button
                             onClick={() => {
                               setTestResult(null);
@@ -927,7 +955,8 @@ export default function EmployeeTrainingPage() {
                   const prog = progressMap[mod.id];
                   const isPassed = prog?.finalCheck === "Pass";
                   const isFailed = prog?.finalCheck === "Fail";
-                  const isInProgress = prog && !isPassed && !isFailed;
+                  const isUnderReview = prog?.finalCheck === "Under Review";
+                  const isInProgress = prog && !isPassed && !isFailed && !isUnderReview;
 
                   // Compute average video progress
                   const totalVideos = mod.videos.length || 1;
@@ -962,6 +991,10 @@ export default function EmployeeTrainingPage() {
                           ) : isFailed ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-300">
                               <AlertCircle className="w-3.5 h-3.5" /> Final: FAIL ({prog.testScorePercent}%)
+                            </span>
+                          ) : isUnderReview ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-300">
+                              <FileText className="w-3.5 h-3.5" /> Under Review
                             </span>
                           ) : isInProgress ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300">

@@ -102,30 +102,92 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const scorePercent = totalPoints > 0 ? Math.round((scoredPoints / totalPoints) * 100) : 100;
-      const passed = scorePercent >= (mod.passingScorePercent || 80);
+      const hasTextQuestions = mod.questions.some(
+        (q) => q.type === "SHORT_ANSWER" || q.type === "LONG_ANSWER"
+      );
 
-      current.attempts = (current.attempts || 0) + 1;
-      current.testCompleted = true;
-      current.testScorePercent = scorePercent;
-      current.testPassed = passed;
-      current.finalCheck = passed ? "Pass" : "Fail";
-      current.testAnswers = testAnswers;
-      current.timeSpentMinutes = (current.timeSpentMinutes || 0) + 12; // Add test duration to time spent
-      current.completedAt = passed ? Date.now() : current.completedAt;
+      if (hasTextQuestions) {
+        // Result cannot be automatically declared Pass or Fail when text answers exist
+        current.attempts = (current.attempts || 0) + 1;
+        current.testCompleted = true;
+        current.finalCheck = "Under Review";
+        current.testPassed = undefined;
+        current.testScorePercent = undefined;
+        current.testAnswers = testAnswers;
+        current.timeSpentMinutes = (current.timeSpentMinutes || 0) + 12;
+        current.updatedAt = Date.now();
+
+        records[key] = current;
+        saveProgressRecords(records);
+
+        return NextResponse.json({
+          success: true,
+          requiresReview: true,
+          status: "Under Review",
+          message: "Assessment submitted. Contains written text questions awaiting admin review.",
+          results,
+          progress: current,
+        });
+      } else {
+        const scorePercent = totalPoints > 0 ? Math.round((scoredPoints / totalPoints) * 100) : 100;
+        const passed = scorePercent >= (mod.passingScorePercent || 80);
+
+        current.attempts = (current.attempts || 0) + 1;
+        current.testCompleted = true;
+        current.testScorePercent = scorePercent;
+        current.testPassed = passed;
+        current.finalCheck = passed ? "Pass" : "Fail";
+        current.testAnswers = testAnswers;
+        current.timeSpentMinutes = (current.timeSpentMinutes || 0) + 12; // Add test duration to time spent
+        current.completedAt = passed ? Date.now() : current.completedAt;
+        current.updatedAt = Date.now();
+
+        records[key] = current;
+        saveProgressRecords(records);
+
+        return NextResponse.json({
+          success: true,
+          scorePercent,
+          passed,
+          passingScorePercent: mod.passingScorePercent || 80,
+          results,
+          progress: current,
+        });
+      }
+    }
+
+    if (action === "ADMIN_REVIEW") {
+      const { employeeId, targetUserId, decision, scorePercent } = body;
+      if (!decision || (decision !== "Pass" && decision !== "Fail")) {
+        return NextResponse.json({ error: "decision must be 'Pass' or 'Fail'" }, { status: 400 });
+      }
+
+      const records = getProgressRecords();
+      const key = `${targetUserId}_${moduleId}`;
+      const altKey = `${employeeId}_${moduleId}`;
+      const targetKey = records[key] ? key : records[altKey] ? altKey : key;
+
+      const current = records[targetKey] || {
+        userId: targetUserId || employeeId,
+        employeeId,
+        moduleId,
+        videoProgress: {},
+        videosFullyCompleted: true,
+        timeSpentMinutes: 45,
+        attempts: 1,
+        testCompleted: true,
+      };
+
+      current.finalCheck = decision;
+      current.testPassed = decision === "Pass";
+      current.testScorePercent = decision === "Pass" ? (scorePercent || 100) : (scorePercent || 50);
+      current.completedAt = decision === "Pass" ? Date.now() : current.completedAt;
       current.updatedAt = Date.now();
 
-      records[key] = current;
+      records[targetKey] = current;
       saveProgressRecords(records);
 
-      return NextResponse.json({
-        success: true,
-        scorePercent,
-        passed,
-        passingScorePercent: mod.passingScorePercent || 80,
-        results,
-        progress: current,
-      });
+      return NextResponse.json({ success: true, progress: current });
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });

@@ -3,8 +3,8 @@
     "userId": "usr_emp001",
     "employeeId": "EMP-001",
     "employeeCode": "EMP-001",
-    "employeeName": "Rajesh Sharma",
-    "departmentName": "Engineering",
+    "employeeName": "Siddharth SuperAdmin",
+    "departmentName": "Human Resources",
     "moduleId": "mod_hipaa_2026",
     "videoProgress": {
       "vid_1": 100,
@@ -16,18 +16,23 @@
     "startedAt": 1731210000000,
     "attempts": 1,
     "testCompleted": true,
-    "testScorePercent": 100,
-    "testPassed": true,
     "finalCheck": "Pass",
-    "completedAt": 1731214000000,
-    "updatedAt": 1731214000000
+    "testAnswers": {
+      "q_1": "Patient IP address, medical record number, and billing logs",
+      "q_2": "Within 60 calendar days of discovery",
+      "q_3": "Staff members must only access and disclose the exact minimum Protected Health Information (PHI) required to carry out their specific medical or administrative task, preventing unauthorized exposure."
+    },
+    "completedAt": 1794317068412,
+    "updatedAt": 1794317068412,
+    "testPassed": true,
+    "testScorePercent": 100
   },
   "EMP-002_mod_hipaa_2026": {
     "userId": "usr_emp002",
     "employeeId": "EMP-002",
     "employeeCode": "EMP-002",
-    "employeeName": "Priya Patel",
-    "departmentName": "Healthcare Operations",
+    "employeeName": "Aakash Admin",
+    "departmentName": "Finance & Payroll",
     "moduleId": "mod_hipaa_2026",
     "videoProgress": {
       "vid_1": 100,
@@ -39,9 +44,12 @@
     "startedAt": 1731205000000,
     "attempts": 2,
     "testCompleted": true,
-    "testScorePercent": 85,
-    "testPassed": true,
-    "finalCheck": "Pass",
+    "finalCheck": "Under Review",
+    "testAnswers": {
+      "q_1": "Patient IP address, medical record number, and billing logs",
+      "q_2": "Within 60 calendar days of discovery",
+      "q_3": "The minimum necessary principle dictates that healthcare entities restrict access to patient records so that staff only see information directly pertinent to their immediate job responsibilities."
+    },
     "completedAt": 1731212000000,
     "updatedAt": 1731212000000
   },
@@ -49,8 +57,8 @@
     "userId": "usr_emp003",
     "employeeId": "EMP-003",
     "employeeCode": "EMP-003",
-    "employeeName": "Amit Verma",
-    "departmentName": "Clinical Operations",
+    "employeeName": "Meera HR-Manager",
+    "departmentName": "Human Resources",
     "moduleId": "mod_hipaa_2026",
     "videoProgress": {
       "vid_1": 100,
@@ -65,6 +73,11 @@
     "testScorePercent": 60,
     "testPassed": false,
     "finalCheck": "Fail",
+    "testAnswers": {
+      "q_1": "Public healthcare provider directory phone numbers",
+      "q_2": "Within 30 calendar days",
+      "q_3": "Everyone can see files as long as they work in the hospital."
+    },
     "completedAt": 1731198000000,
     "updatedAt": 1731198000000
   },
@@ -72,7 +85,7 @@
     "userId": "usr_emp004",
     "employeeId": "EMP-004",
     "employeeCode": "EMP-004",
-    "employeeName": "Sneha Kulkarni",
+    "employeeName": "Kavita HR-Executive",
     "departmentName": "Human Resources",
     "moduleId": "mod_hipaa_2026",
     "videoProgress": {
@@ -85,9 +98,12 @@
     "startedAt": 1731220000000,
     "attempts": 1,
     "testCompleted": true,
-    "testScorePercent": 90,
-    "testPassed": true,
-    "finalCheck": "Pass",
+    "finalCheck": "Under Review",
+    "testAnswers": {
+      "q_1": "Patient IP address, medical record number, and billing logs",
+      "q_2": "Within 60 calendar days of discovery",
+      "q_3": "Limit disclosure of patient information strictly to what is needed to complete the healthcare transaction or treatment."
+    },
     "completedAt": 1731224000000,
     "updatedAt": 1731224000000
   },
@@ -95,8 +111,8 @@
     "userId": "usr_emp005",
     "employeeId": "EMP-005",
     "employeeCode": "EMP-005",
-    "employeeName": "Vikram Malhotra",
-    "departmentName": "Finance & Accounts",
+    "employeeName": "Vikram Team-Lead",
+    "departmentName": "Engineering & Tech",
     "moduleId": "mod_hipaa_2026",
     "videoProgress": {
       "vid_1": 100,
@@ -115,8 +131,8 @@
     "userId": "usr_emp006",
     "employeeId": "EMP-006",
     "employeeCode": "EMP-006",
-    "employeeName": "Ananya Roy",
-    "departmentName": "Product & Design",
+    "employeeName": "Rohan Employee",
+    "departmentName": "Engineering & Tech",
     "moduleId": "mod_hipaa_2026",
     "videoProgress": {
       "vid_1": 100,
@@ -135,8 +151,8 @@
     "userId": "usr_emp007",
     "employeeId": "EMP-007",
     "employeeCode": "EMP-007",
-    "employeeName": "Rohit Deshmukh",
-    "departmentName": "IT & Infrastructure",
+    "employeeName": "Ananya Multi-Role",
+    "departmentName": "Engineering & Tech",
     "moduleId": "mod_hipaa_2026",
     "videoProgress": {
       "vid_1": 100,
@@ -151,6 +167,11 @@
     "testScorePercent": 100,
     "testPassed": true,
     "finalCheck": "Pass",
+    "testAnswers": {
+      "q_1": "Patient IP address, medical record number, and billing logs",
+      "q_2": "Within 60 calendar days of discovery",
+      "q_3": "To ensure that workforce members only request or disclose the minimum amount of PHI necessary to accomplish the intended purpose."
+    },
     "completedAt": 1731219000000,
     "updatedAt": 1731219000000
   },
@@ -171,9 +192,12 @@
     "startedAt": 1731210000000,
     "attempts": 2,
     "testCompleted": true,
-    "testScorePercent": 85,
-    "testPassed": true,
-    "finalCheck": "Pass",
+    "finalCheck": "Under Review",
+    "testAnswers": {
+      "q_1": "Patient IP address, medical record number, and billing logs",
+      "q_2": "Within 60 calendar days of discovery",
+      "q_3": "Access to protected health information should be constrained exclusively to what an employee needs to perform their clinical duties."
+    },
     "completedAt": 1731218000000,
     "updatedAt": 1731218000000
   },
@@ -181,8 +205,8 @@
     "userId": "usr_emp010",
     "employeeId": "EMP-010",
     "employeeCode": "EMP-010",
-    "employeeName": "Karthik Sundaram",
-    "departmentName": "Data Analytics",
+    "employeeName": "HRT Mantra",
+    "departmentName": "Human Resources",
     "moduleId": "mod_hipaa_2026",
     "videoProgress": {
       "vid_1": 100,
@@ -197,6 +221,11 @@
     "testScorePercent": 50,
     "testPassed": false,
     "finalCheck": "Fail",
+    "testAnswers": {
+      "q_1": "Aggregated corporate balance sheet metrics",
+      "q_2": "Within 180 days of annual audit",
+      "q_3": "Minimum necessary is not required."
+    },
     "completedAt": 1731225000000,
     "updatedAt": 1731225000000
   },
@@ -220,75 +249,12 @@
     "testScorePercent": 100,
     "testPassed": true,
     "finalCheck": "Pass",
-    "completedAt": 1731226000000,
-    "updatedAt": 1731226000000
-  },
-  "EMP-001_mod_payroll_std": {
-    "userId": "usr_emp001",
-    "employeeId": "EMP-001",
-    "employeeCode": "EMP-001",
-    "employeeName": "Rajesh Sharma",
-    "departmentName": "Engineering",
-    "moduleId": "mod_payroll_std",
-    "videoProgress": {
-      "vid_p1": 100,
-      "vid_p2": 100
-    },
-    "videosFullyCompleted": true,
-    "timeSpentMinutes": 42,
-    "startedAt": 1731210000000,
-    "attempts": 1,
-    "testCompleted": true,
-    "testScorePercent": 100,
-    "testPassed": true,
-    "finalCheck": "Pass",
-    "completedAt": 1731214000000,
-    "updatedAt": 1731214000000
-  },
-  "EMP-005_mod_payroll_std": {
-    "userId": "usr_emp005",
-    "employeeId": "EMP-005",
-    "employeeCode": "EMP-005",
-    "employeeName": "Vikram Malhotra",
-    "departmentName": "Finance & Accounts",
-    "moduleId": "mod_payroll_std",
-    "videoProgress": {
-      "vid_p1": 100,
-      "vid_p2": 100
-    },
-    "videosFullyCompleted": true,
-    "timeSpentMinutes": 44,
-    "startedAt": 1731215000000,
-    "attempts": 1,
-    "testCompleted": true,
-    "testScorePercent": 100,
-    "testPassed": true,
-    "finalCheck": "Pass",
-    "completedAt": 1731219000000,
-    "updatedAt": 1731219000000
-  },
-  "usr_temp_admin_mod_hipaa_2026": {
-    "userId": "usr_temp_admin",
-    "moduleId": "mod_hipaa_2026",
-    "videoProgress": {
-      "vid_1": 100,
-      "vid_2": 100,
-      "vid_3": 100
-    },
-    "videosFullyCompleted": true,
-    "timeSpentMinutes": 108,
-    "startedAt": 1794313384245,
-    "attempts": 7,
-    "testCompleted": true,
-    "finalCheck": "Fail",
-    "updatedAt": 1794313823689,
-    "testScorePercent": 67,
-    "testPassed": false,
     "testAnswers": {
       "q_1": "Patient IP address, medical record number, and billing logs",
-      "q_2": "Within 180 days of annual audit",
-      "q_3": "Staff must only access minimum PHI necessary for the specific medical job function."
+      "q_2": "Within 60 calendar days of discovery",
+      "q_3": "Mandate that covered entities make reasonable efforts to limit the use and disclosure of PHI to the minimum necessary to achieve the medical purpose."
     },
-    "completedAt": 1794313417930
+    "completedAt": 1731226000000,
+    "updatedAt": 1731226000000
   }
 }
