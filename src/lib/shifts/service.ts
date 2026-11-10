@@ -1,6 +1,6 @@
 import { db } from "../db/client";
 import { shifts, shiftAssignments, shiftHistory, employees, users } from "../db/schema";
-import { eq, and, or, desc, inArray, gte, lte } from "drizzle-orm";
+import { eq, and, or, desc, inArray, gte, lte, ne } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { SessionContext } from "../permissions/types";
 import { auditLogger } from "../audit/logger";
@@ -15,6 +15,18 @@ export interface CreateShiftInput {
   isOvernight?: boolean;
   colorCode?: string;
   organizationId?: string;
+}
+
+export interface UpdateShiftInput {
+  id: string;
+  name?: string;
+  code?: string;
+  startTime?: string;
+  endTime?: string;
+  breakDurationMinutes?: number;
+  isOvernight?: boolean;
+  colorCode?: string;
+  isActive?: boolean;
 }
 
 export interface AssignShiftInput {
@@ -105,6 +117,88 @@ export async function createShift(
   });
 
   return newShift;
+}
+
+/**
+ * Updates an existing shift definition.
+ */
+export async function updateShift(
+  session: SessionContext,
+  input: UpdateShiftInput,
+  meta?: { ipAddress?: string; userAgent?: string }
+) {
+  const canManage =
+    session.isSuperAdmin ||
+    session.roles.includes("SUPER_ADMIN") ||
+    session.roles.includes("ADMIN") ||
+    session.roles.includes("HR_MANAGER") ||
+    session.effectivePermissions.includes("admin.shifts.manage");
+
+  if (!canManage) {
+    throw new Error("UNAUTHORIZED: Insufficient permissions to edit shifts.");
+  }
+
+  const existing = await db
+    .select()
+    .from(shifts)
+    .where(eq(shifts.id, input.id))
+    .limit(1);
+
+  if (existing.length === 0) {
+    throw new Error("SHIFT_NOT_FOUND: Target shift does not exist.");
+  }
+
+  const currentShift = existing[0];
+
+  // If code is being changed, check uniqueness
+  if (input.code && input.code.toUpperCase().trim() !== currentShift.code) {
+    const codeConflict = await db
+      .select({ id: shifts.id })
+      .from(shifts)
+      .where(and(eq(shifts.code, input.code.toUpperCase().trim()), ne(shifts.id, input.id)))
+      .limit(1);
+
+    if (codeConflict.length > 0) {
+      throw new Error(`SHIFT_CODE_EXISTS: Shift with code '${input.code}' already exists.`);
+    }
+  }
+
+  // Validate format if provided
+  if (input.startTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.startTime)) {
+    throw new Error("INVALID_TIME_FORMAT: Shift start time must be in HH:mm 24-hour format.");
+  }
+  if (input.endTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.endTime)) {
+    throw new Error("INVALID_TIME_FORMAT: Shift end time must be in HH:mm 24-hour format.");
+  }
+
+  const now = Date.now();
+  const updatedFields: Partial<typeof shifts.$inferInsert> = {
+    updatedAt: now,
+  };
+
+  if (input.name !== undefined) updatedFields.name = input.name.trim();
+  if (input.code !== undefined) updatedFields.code = input.code.toUpperCase().trim();
+  if (input.startTime !== undefined) updatedFields.startTime = input.startTime;
+  if (input.endTime !== undefined) updatedFields.endTime = input.endTime;
+  if (input.breakDurationMinutes !== undefined) updatedFields.breakDurationMinutes = input.breakDurationMinutes;
+  if (input.isOvernight !== undefined) updatedFields.isOvernight = input.isOvernight;
+  if (input.colorCode !== undefined) updatedFields.colorCode = input.colorCode;
+  if (input.isActive !== undefined) updatedFields.isActive = input.isActive;
+
+  await db.update(shifts).set(updatedFields).where(eq(shifts.id, input.id));
+
+  await auditLogger.logAuditEvent({
+    actorUserId: session.userId,
+    actorEmployeeId: session.employeeId,
+    action: "SHIFT_UPDATED",
+    targetEntity: "shifts",
+    targetId: input.id,
+    changes: updatedFields,
+    ipAddress: meta?.ipAddress,
+    userAgent: meta?.userAgent,
+  });
+
+  return { ...currentShift, ...updatedFields };
 }
 
 /**

@@ -13,6 +13,7 @@ import {
   Moon,
   CheckCircle2,
   Users,
+  Pencil,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthGate";
 
@@ -26,6 +27,21 @@ export default function AdminShiftsPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState({
+    name: "",
+    code: "",
+    startTime: "09:00",
+    endTime: "18:00",
+    breakDurationMinutes: 60,
+    isOvernight: false,
+    colorCode: "#36B4FF",
+  });
+
+  // Edit Shift Modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    id: "",
     name: "",
     code: "",
     startTime: "09:00",
@@ -99,6 +115,45 @@ export default function AdminShiftsPage() {
       setCreateError(err.message);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleOpenEditModal = (shift: any) => {
+    setEditForm({
+      id: shift.id,
+      name: shift.name,
+      code: shift.code,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      breakDurationMinutes: shift.breakDurationMinutes ?? 60,
+      isOvernight: Boolean(shift.isOvernight),
+      colorCode: shift.colorCode || "#36B4FF",
+    });
+    setEditError(null);
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditing(true);
+    setEditError(null);
+
+    try {
+      const res = await fetch("/payrol/api/shifts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update shift");
+
+      setShowEditModal(false);
+      await fetchShifts();
+    } catch (err: any) {
+      setEditError(err.message);
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -203,20 +258,29 @@ export default function AdminShiftsPage() {
                 style={{ backgroundColor: s.colorCode || "#36B4FF" }}
               />
 
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2">
                 <div>
                   <h3 className="font-bold text-[#293381] dark:text-white text-base">{s.name}</h3>
                   <span className="font-mono text-xs text-[#36B4FF] font-bold">{s.code}</span>
                 </div>
-                {s.isOvernight ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-                    <Moon className="w-3 h-3 text-purple-600" /> Overnight
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                    <Sun className="w-3 h-3 text-amber-600" /> Day Shift
-                  </span>
-                )}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {s.isOvernight ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                      <Moon className="w-3 h-3 text-purple-600" /> Overnight
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                      <Sun className="w-3 h-3 text-amber-600" /> Day Shift
+                    </span>
+                  )}
+                  <button
+                    onClick={() => handleOpenEditModal(s)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-[#293381] dark:hover:text-[#36B4FF] hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                    title="Edit Shift"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1.5 text-xs">
@@ -238,17 +302,29 @@ export default function AdminShiftsPage() {
                 </div>
               </div>
 
-              <div className="pt-1 flex items-center justify-between text-[11px] text-slate-400">
-                <span>Status: Active</span>
-                <button
-                  onClick={() => {
-                    setAssignForm((prev) => ({ ...prev, shiftId: s.id }));
-                    setShowAssignModal(true);
-                  }}
-                  className="text-[#293381] dark:text-[#36B4FF] font-semibold hover:underline"
-                >
-                  Assign to Employee →
-                </button>
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Active
+                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => handleOpenEditModal(s)}
+                    className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300 font-semibold hover:text-[#293381] dark:hover:text-[#36B4FF] transition"
+                  >
+                    <Pencil className="w-3 h-3 text-[#36B4FF]" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAssignForm((prev) => ({ ...prev, shiftId: s.id }));
+                      setShowAssignModal(true);
+                    }}
+                    className="text-[#293381] dark:text-[#36B4FF] font-semibold hover:underline"
+                  >
+                    Assign to Employee →
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -354,6 +430,126 @@ export default function AdminShiftsPage() {
                 >
                   {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Create Shift
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Shift Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl space-y-4">
+            <h3 className="text-base font-bold text-[#293381] dark:text-white flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-[#36B4FF]" />
+              Edit Shift Definition
+            </h3>
+
+            {editError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs">
+                {editError}
+              </div>
+            )}
+
+            <form onSubmit={handleEditSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Shift Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Afternoon Support"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Shift Code *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. AFTERNOON"
+                  value={editForm.code}
+                  onChange={(e) => setEditForm({ ...editForm, code: e.target.value.toUpperCase() })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-mono uppercase focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Start Time (24h) *
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={editForm.startTime}
+                    onChange={(e) => setEditForm({ ...editForm, startTime: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    End Time (24h) *
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={editForm.endTime}
+                    onChange={(e) => setEditForm({ ...editForm, endTime: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Break Duration (Minutes)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="240"
+                  value={editForm.breakDurationMinutes}
+                  onChange={(e) => setEditForm({ ...editForm, breakDurationMinutes: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="editOvernight"
+                  checked={editForm.isOvernight}
+                  onChange={(e) => setEditForm({ ...editForm, isOvernight: e.target.checked })}
+                  className="rounded text-[#293381]"
+                />
+                <label htmlFor="editOvernight" className="font-semibold text-slate-700 dark:text-slate-300">
+                  Overnight Shift (Crosses Midnight)
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 hover:bg-slate-50 text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editing}
+                  className="px-4 py-2 rounded-lg bg-[#293381] hover:bg-[#1F2664] text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm"
+                >
+                  {editing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  Save Changes
                 </button>
               </div>
             </form>
