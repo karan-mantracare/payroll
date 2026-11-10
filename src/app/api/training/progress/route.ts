@@ -105,10 +105,15 @@ export async function POST(req: NextRequest) {
       const scorePercent = totalPoints > 0 ? Math.round((scoredPoints / totalPoints) * 100) : 100;
       const passed = scorePercent >= (mod.passingScorePercent || 80);
 
+      current.attempts = (current.attempts || 0) + 1;
       current.testCompleted = true;
       current.testScorePercent = scorePercent;
       current.testPassed = passed;
-      current.completedAt = passed ? Date.now() : undefined;
+      current.finalCheck = passed ? "Pass" : "Fail";
+      current.testAnswers = testAnswers;
+      current.timeSpentMinutes = (current.timeSpentMinutes || 0) + 12; // Add test duration to time spent
+      current.completedAt = passed ? Date.now() : current.completedAt;
+      current.updatedAt = Date.now();
 
       records[key] = current;
       saveProgressRecords(records);
@@ -128,3 +133,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+

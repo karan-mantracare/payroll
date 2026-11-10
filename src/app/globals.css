@@ -84,6 +84,16 @@ html:not(.dark) .border-slate-700\/50 {
   color: #ffffff !important;
 }
 
+html:not(.dark) [data-text-white="true"],
+html:not(.dark) [data-text-white="true"] h1,
+html:not(.dark) [data-text-white="true"] h2,
+html:not(.dark) [data-text-white="true"] h3,
+html:not(.dark) [data-text-white="true"] p,
+html:not(.dark) [data-text-white="true"] span,
+html:not(.dark) [data-text-white="true"] * {
+  color: #ffffff !important;
+}
+
 
 html:not(.dark) h1,
 html:not(.dark) h2,
