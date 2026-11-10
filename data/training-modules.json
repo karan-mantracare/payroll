@@ -1,0 +1,141 @@
+[
+  {
+    "id": "mod_hipaa_2026",
+    "title": "HIPAA & Patient Data Privacy (2026)",
+    "code": "COMP-101",
+    "category": "Compliance",
+    "description": "Mandatory healthcare data security compliance covering Protected Health Information (PHI), encryption standards, and breach reporting under HHS OCR.",
+    "targetDepartment": "All Departments",
+    "passingScorePercent": 80,
+    "require100PercentVideoCompletion": true,
+    "totalVideoMinutes": 50,
+    "totalQuestions": 3,
+    "totalPoints": 30,
+    "videos": [
+      {
+        "id": "vid_1",
+        "partNumber": 1,
+        "title": "Part 1: PHI Identification & Minimum Necessary Rule",
+        "durationMinutes": 15,
+        "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+        "requiredCompletionPercent": 100
+      },
+      {
+        "id": "vid_2",
+        "partNumber": 2,
+        "title": "Part 2: Digital Safeguards & Access Controls",
+        "durationMinutes": 20,
+        "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+        "requiredCompletionPercent": 100
+      },
+      {
+        "id": "vid_3",
+        "partNumber": 3,
+        "title": "Part 3: Breach Notification & Incident Response Protocols",
+        "durationMinutes": 15,
+        "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        "requiredCompletionPercent": 100
+      }
+    ],
+    "hasTest": true,
+    "questions": [
+      {
+        "id": "q_1",
+        "type": "MCQ_SINGLE",
+        "prompt": "Under HIPAA regulations, which of the following is legally classified as Protected Health Information (PHI)?",
+        "options": [
+          "Patient IP address, medical record number, and billing logs",
+          "Anonymized national health research summary",
+          "Public healthcare provider directory phone numbers",
+          "Aggregated corporate balance sheet metrics"
+        ],
+        "answerKey": "Patient IP address, medical record number, and billing logs",
+        "points": 10
+      },
+      {
+        "id": "q_2",
+        "type": "MCQ_SINGLE",
+        "prompt": "What is the mandatory federal reporting window for a security breach affecting 500 or more individuals?",
+        "options": [
+          "Within 180 days of annual audit",
+          "Within 30 calendar days",
+          "Without unreasonable delay and no later than 60 calendar days",
+          "Notification is only required if ransomware was deployed"
+        ],
+        "answerKey": "Without unreasonable delay and no later than 60 calendar days",
+        "points": 10
+      },
+      {
+        "id": "q_3",
+        "type": "SHORT_ANSWER",
+        "prompt": "Briefly state the core objective of the HIPAA 'Minimum Necessary' standard.",
+        "modelAnswer": "Staff must only access and disclose the minimum amount of PHI strictly necessary to fulfill the intended job function.",
+        "points": 10
+      }
+    ],
+    "createdAt": 1731200000000,
+    "updatedAt": 1731200000000
+  },
+  {
+    "id": "mod_payroll_std",
+    "title": "Enterprise Payroll & Statutory Deductions",
+    "code": "FIN-201",
+    "category": "Operations",
+    "description": "Comprehensive walkthrough of EPF, ESI, Professional Tax, TDS withholding schedules, and monthly disbursement workflows.",
+    "targetDepartment": "Finance & HR",
+    "passingScorePercent": 75,
+    "require100PercentVideoCompletion": true,
+    "totalVideoMinutes": 40,
+    "totalQuestions": 2,
+    "totalPoints": 20,
+    "videos": [
+      {
+        "id": "vid_p1",
+        "partNumber": 1,
+        "title": "Part 1: Provident Fund (PF) & ESI Calculation Slabs",
+        "durationMinutes": 18,
+        "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4",
+        "requiredCompletionPercent": 100
+      },
+      {
+        "id": "vid_p2",
+        "partNumber": 2,
+        "title": "Part 2: TDS Withholding, New vs Old Tax Regimes, and Form 16",
+        "durationMinutes": 22,
+        "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+        "requiredCompletionPercent": 100
+      }
+    ],
+    "hasTest": true,
+    "questions": [
+      {
+        "id": "qp_1",
+        "type": "MCQ_SINGLE",
+        "prompt": "What is the standard employee EPF contribution rate applied to eligible basic wages?",
+        "options": [
+          "8.33%",
+          "10.0%",
+          "12.0%",
+          "15.0%"
+        ],
+        "answerKey": "12.0%",
+        "points": 10
+      },
+      {
+        "id": "qp_2",
+        "type": "MCQ_SINGLE",
+        "prompt": "Under statutory tax compliance, on what schedule must monthly TDS withheld from employees be remitted to the government?",
+        "options": [
+          "By the 7th of the following month",
+          "At the end of the financial year",
+          "Within 90 days of payroll generation",
+          "On the 25th of the payroll month"
+        ],
+        "answerKey": "By the 7th of the following month",
+        "points": 10
+      }
+    ],
+    "createdAt": 1731200000000,
+    "updatedAt": 1731200000000
+  }
+]
