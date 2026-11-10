@@ -31,6 +31,10 @@ interface QuickLinkItem {
   desc: string;
   tag: string;
   icon: React.ComponentType<{ className?: string }>;
+  cardGradient: string;
+  iconCornerGradient: string;
+  iconBg: string;
+  iconColor: string;
 }
 
 const QUICK_LINKS: QuickLinkItem[] = [
@@ -40,6 +44,10 @@ const QUICK_LINKS: QuickLinkItem[] = [
     desc: "Daily check-in/out logs, shift hours & timesheet history",
     tag: "Attendance & Shifts",
     icon: CalendarCheck2,
+    cardGradient: "from-emerald-400/35 via-teal-300/15 to-transparent",
+    iconCornerGradient: "from-emerald-400 to-teal-500",
+    iconBg: "bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-800/50",
+    iconColor: "text-emerald-600 dark:text-emerald-400",
   },
   {
     name: "My Payroll",
@@ -47,6 +55,10 @@ const QUICK_LINKS: QuickLinkItem[] = [
     desc: "Monthly payslips, salary breakdowns & tax declarations",
     tag: "Finance & Payslips",
     icon: CreditCard,
+    cardGradient: "from-[#36B4FF]/40 via-[#293381]/25 to-transparent",
+    iconCornerGradient: "from-[#36B4FF] to-[#293381]",
+    iconBg: "bg-blue-50/80 dark:bg-blue-950/30 border-blue-100 dark:border-blue-800/50",
+    iconColor: "text-[#293381] dark:text-[#36B4FF]",
   },
   {
     name: "My Leaves",
@@ -54,6 +66,10 @@ const QUICK_LINKS: QuickLinkItem[] = [
     desc: "Apply for leaves, view balance quotas & public holidays",
     tag: "Leave Management",
     icon: CalendarDays,
+    cardGradient: "from-amber-400/35 via-orange-300/15 to-transparent",
+    iconCornerGradient: "from-amber-400 to-orange-500",
+    iconBg: "bg-amber-50/80 dark:bg-amber-950/30 border-amber-100 dark:border-amber-800/50",
+    iconColor: "text-amber-600 dark:text-amber-400",
   },
   {
     name: "My Training",
@@ -61,6 +77,10 @@ const QUICK_LINKS: QuickLinkItem[] = [
     desc: "Assigned compliance modules, courses & certificates",
     tag: "Learning & Growth",
     icon: GraduationCap,
+    cardGradient: "from-indigo-400/35 via-purple-300/15 to-transparent",
+    iconCornerGradient: "from-indigo-400 to-purple-500",
+    iconBg: "bg-indigo-50/80 dark:bg-indigo-950/30 border-indigo-100 dark:border-indigo-800/50",
+    iconColor: "text-indigo-600 dark:text-indigo-400",
   },
   {
     name: "My Requests",
@@ -68,6 +88,10 @@ const QUICK_LINKS: QuickLinkItem[] = [
     desc: "Track status of submitted HR, IT & administrative requests",
     tag: "Helpdesk & Requests",
     icon: Inbox,
+    cardGradient: "from-rose-400/35 via-pink-300/15 to-transparent",
+    iconCornerGradient: "from-rose-400 to-pink-500",
+    iconBg: "bg-rose-50/80 dark:bg-rose-950/30 border-rose-100 dark:border-rose-800/50",
+    iconColor: "text-rose-600 dark:text-rose-400",
   },
   {
     name: "My Team",
@@ -75,6 +99,10 @@ const QUICK_LINKS: QuickLinkItem[] = [
     desc: "Direct reports, peers directory & reporting hierarchy",
     tag: "Organization & Directory",
     icon: Users,
+    cardGradient: "from-cyan-400/35 via-sky-300/15 to-transparent",
+    iconCornerGradient: "from-cyan-400 to-blue-500",
+    iconBg: "bg-cyan-50/80 dark:bg-cyan-950/30 border-cyan-100 dark:border-cyan-800/50",
+    iconColor: "text-cyan-600 dark:text-cyan-400",
   },
 ];
 
@@ -262,21 +290,37 @@ export default function EmployeeDashboardPage() {
             </span>
           </div>
 
-          {/* 3x3 Grid for Quick Links */}
+          {/* 3x3 Grid for Quick Links with Color Gradients on Top-Right */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {QUICK_LINKS.map((link) => (
               <Link
                 key={link.name}
                 href={link.href}
-                className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-card hover:border-[#36B4FF] hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[145px]"
+                className="group relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 shadow-card hover:border-[#36B4FF] hover:shadow-lg transition-all duration-300 flex flex-col justify-between min-h-[145px] overflow-hidden"
               >
-                <div>
+                {/* Top-Right Decorative Card Corner Color Gradient */}
+                <div
+                  className={`absolute -top-6 -right-6 w-28 h-28 bg-gradient-to-bl ${link.cardGradient} rounded-full blur-xl pointer-events-none opacity-40 group-hover:opacity-75 group-hover:scale-125 transition-all duration-300`}
+                />
+
+                <div className="relative z-10">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 flex items-center justify-center text-[#293381] dark:text-[#36B4FF] group-hover:scale-105 group-hover:bg-[#293381] group-hover:text-white transition duration-200">
-                      <link.icon className="w-5 h-5" />
+                    {/* Icon container with Top-Right Color Gradient Accent */}
+                    <div className="relative">
+                      <div
+                        className={`w-11 h-11 rounded-xl ${link.iconBg} border flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform duration-200 shadow-sm`}
+                      >
+                        {/* Gradient flare on top-right of the icon container */}
+                        <div
+                          className={`absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-bl ${link.iconCornerGradient} opacity-90 blur-[1px]`}
+                        />
+                        <link.icon className={`w-5 h-5 relative z-10 ${link.iconColor}`} />
+                      </div>
                     </div>
+
                     <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-[#293381] dark:group-hover:text-[#36B4FF] transition-transform group-hover:translate-x-1" />
                   </div>
+
                   <h3 className="font-bold text-sm text-[#293381] dark:text-white group-hover:text-[#36B4FF] transition">
                     {link.name}
                   </h3>
@@ -284,7 +328,8 @@ export default function EmployeeDashboardPage() {
                     {link.desc}
                   </p>
                 </div>
-                <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-medium text-slate-400 group-hover:text-[#293381] dark:group-hover:text-[#36B4FF] transition">
+
+                <div className="relative z-10 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-medium text-slate-400 group-hover:text-[#293381] dark:group-hover:text-[#36B4FF] transition">
                   <span>{link.tag}</span>
                   <span className="font-semibold text-xs">Open →</span>
                 </div>
@@ -293,7 +338,7 @@ export default function EmployeeDashboardPage() {
           </div>
         </div>
 
-        {/* 25% AREA: Punch Now Widget */}
+        {/* 25% AREA: Punch Now Widget (Highlighted with Deep Drop Shadow) */}
         <div className="lg:col-span-3 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -319,13 +364,16 @@ export default function EmployeeDashboardPage() {
             </span>
           </div>
 
-          {/* Widget Card */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-card space-y-4 relative overflow-hidden">
+          {/* Widget Card: Elevated with prominent 2xl drop shadow and accent border */}
+          <div className="bg-white dark:bg-slate-900 border-2 border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-5 shadow-2xl shadow-[#293381]/15 dark:shadow-black/70 ring-1 ring-slate-900/5 space-y-4 relative overflow-hidden transition-all duration-200 hover:shadow-[0_20px_50px_rgba(41,51,129,0.22)]">
+            {/* Top accent highlight bar */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#293381] via-[#36B4FF] to-[#293381]" />
+
             {/* Top decorative gradient glow */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#36B4FF]/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
+            <div className="absolute top-0 right-0 w-36 h-36 bg-[#36B4FF]/15 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
 
             {/* Live Clock Display */}
-            <div>
+            <div className="pt-1">
               <div className="text-2xl sm:text-3xl font-mono font-bold text-[#293381] dark:text-white tracking-tight">
                 {currentTime
                   ? currentTime.toLocaleTimeString([], {
@@ -403,7 +451,7 @@ export default function EmployeeDashboardPage() {
                   type="button"
                   onClick={handlePunchAction}
                   disabled={punchLoading}
-                  className="w-full py-2.5 px-3 bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white font-semibold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-2.5 px-3 bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white font-semibold text-xs rounded-xl shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {punchLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin text-white" />
@@ -417,7 +465,7 @@ export default function EmployeeDashboardPage() {
                   type="button"
                   onClick={handlePunchAction}
                   disabled={punchLoading || punchStatus?.isCheckedOut}
-                  className="w-full py-2.5 px-3 bg-[#293381] hover:bg-[#1F2664] active:scale-[0.98] text-white font-semibold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-2.5 px-3 bg-[#293381] hover:bg-[#1F2664] active:scale-[0.98] text-white font-semibold text-xs rounded-xl shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {punchLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin text-[#36B4FF]" />
