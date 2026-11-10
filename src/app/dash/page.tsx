@@ -30,7 +30,6 @@ interface QuickLinkItem {
   tag: string;
   icon: React.ComponentType<{ className?: string }>;
   cardGradient: string;
-  iconCornerGradient: string;
   iconBg: string;
   iconColor: string;
 }
@@ -42,7 +41,6 @@ const QUICK_LINKS: QuickLinkItem[] = [
     tag: "Attendance & Shifts",
     icon: CalendarCheck2,
     cardGradient: "from-emerald-400/35 via-teal-300/15 to-transparent",
-    iconCornerGradient: "from-emerald-400 to-teal-500",
     iconBg: "bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-800/50",
     iconColor: "text-emerald-600 dark:text-emerald-400",
   },
@@ -52,7 +50,6 @@ const QUICK_LINKS: QuickLinkItem[] = [
     tag: "Finance & Payslips",
     icon: CreditCard,
     cardGradient: "from-[#36B4FF]/40 via-[#293381]/25 to-transparent",
-    iconCornerGradient: "from-[#36B4FF] to-[#293381]",
     iconBg: "bg-blue-50/80 dark:bg-blue-950/30 border-blue-100 dark:border-blue-800/50",
     iconColor: "text-[#293381] dark:text-[#36B4FF]",
   },
@@ -62,7 +59,6 @@ const QUICK_LINKS: QuickLinkItem[] = [
     tag: "Leave Management",
     icon: CalendarDays,
     cardGradient: "from-amber-400/35 via-orange-300/15 to-transparent",
-    iconCornerGradient: "from-amber-400 to-orange-500",
     iconBg: "bg-amber-50/80 dark:bg-amber-950/30 border-amber-100 dark:border-amber-800/50",
     iconColor: "text-amber-600 dark:text-amber-400",
   },
@@ -72,7 +68,6 @@ const QUICK_LINKS: QuickLinkItem[] = [
     tag: "Learning & Growth",
     icon: GraduationCap,
     cardGradient: "from-indigo-400/35 via-purple-300/15 to-transparent",
-    iconCornerGradient: "from-indigo-400 to-purple-500",
     iconBg: "bg-indigo-50/80 dark:bg-indigo-950/30 border-indigo-100 dark:border-indigo-800/50",
     iconColor: "text-indigo-600 dark:text-indigo-400",
   },
@@ -82,7 +77,6 @@ const QUICK_LINKS: QuickLinkItem[] = [
     tag: "Helpdesk & Requests",
     icon: Inbox,
     cardGradient: "from-rose-400/35 via-pink-300/15 to-transparent",
-    iconCornerGradient: "from-rose-400 to-pink-500",
     iconBg: "bg-rose-50/80 dark:bg-rose-950/30 border-rose-100 dark:border-rose-800/50",
     iconColor: "text-rose-600 dark:text-rose-400",
   },
@@ -92,7 +86,6 @@ const QUICK_LINKS: QuickLinkItem[] = [
     tag: "Organization & Directory",
     icon: Users,
     cardGradient: "from-cyan-400/35 via-sky-300/15 to-transparent",
-    iconCornerGradient: "from-cyan-400 to-blue-500",
     iconBg: "bg-cyan-50/80 dark:bg-cyan-950/30 border-cyan-100 dark:border-cyan-800/50",
     iconColor: "text-cyan-600 dark:text-cyan-400",
   },
@@ -460,13 +453,9 @@ export default function EmployeeDashboardPage() {
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="relative flex-shrink-0">
                           <div
-                            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl ${link.iconBg} border flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform duration-200 shadow-sm`}
+                            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl ${link.iconBg} border flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shadow-sm`}
                           >
-                            {/* Gradient flare on top-right of the icon container */}
-                            <div
-                              className={`absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-bl ${link.iconCornerGradient} opacity-90 blur-[1px]`}
-                            />
-                            <link.icon className={`w-5 h-5 relative z-10 ${link.iconColor}`} />
+                            <link.icon className={`w-5 h-5 ${link.iconColor}`} />
                           </div>
                         </div>
 
