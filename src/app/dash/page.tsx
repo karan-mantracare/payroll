@@ -5,7 +5,6 @@ import { useAuth } from "@/components/AuthGate";
 import Link from "next/link";
 import {
   CalendarCheck2,
-  Clock,
   CalendarDays,
   CreditCard,
   GraduationCap,
@@ -28,7 +27,6 @@ import {
 interface QuickLinkItem {
   name: string;
   href: string;
-  desc: string;
   tag: string;
   icon: React.ComponentType<{ className?: string }>;
   cardGradient: string;
@@ -41,7 +39,6 @@ const QUICK_LINKS: QuickLinkItem[] = [
   {
     name: "My Attendance",
     href: "/dash/attendance",
-    desc: "Daily check-in/out logs, shift hours & timesheet history",
     tag: "Attendance & Shifts",
     icon: CalendarCheck2,
     cardGradient: "from-emerald-400/35 via-teal-300/15 to-transparent",
@@ -52,7 +49,6 @@ const QUICK_LINKS: QuickLinkItem[] = [
   {
     name: "My Payroll",
     href: "/dash/payroll",
-    desc: "Monthly payslips, salary breakdowns & tax declarations",
     tag: "Finance & Payslips",
     icon: CreditCard,
     cardGradient: "from-[#36B4FF]/40 via-[#293381]/25 to-transparent",
@@ -63,7 +59,6 @@ const QUICK_LINKS: QuickLinkItem[] = [
   {
     name: "My Leaves",
     href: "/dash/leaves",
-    desc: "Apply for leaves, view balance quotas & public holidays",
     tag: "Leave Management",
     icon: CalendarDays,
     cardGradient: "from-amber-400/35 via-orange-300/15 to-transparent",
@@ -74,7 +69,6 @@ const QUICK_LINKS: QuickLinkItem[] = [
   {
     name: "My Training",
     href: "/dash/training",
-    desc: "Assigned compliance modules, courses & certificates",
     tag: "Learning & Growth",
     icon: GraduationCap,
     cardGradient: "from-indigo-400/35 via-purple-300/15 to-transparent",
@@ -85,7 +79,6 @@ const QUICK_LINKS: QuickLinkItem[] = [
   {
     name: "My Requests",
     href: "/dash/requests",
-    desc: "Track status of submitted HR, IT & administrative requests",
     tag: "Helpdesk & Requests",
     icon: Inbox,
     cardGradient: "from-rose-400/35 via-pink-300/15 to-transparent",
@@ -96,7 +89,6 @@ const QUICK_LINKS: QuickLinkItem[] = [
   {
     name: "My Team",
     href: "/dash/team",
-    desc: "Direct reports, peers directory & reporting hierarchy",
     tag: "Organization & Directory",
     icon: Users,
     cardGradient: "from-cyan-400/35 via-sky-300/15 to-transparent",
@@ -389,21 +381,15 @@ export default function EmployeeDashboardPage() {
         </div>
       </div>
 
-      {/* 3. QUICK METRICS
-             Mobile: order-3 (2x2 compact grid)
-             Desktop: lg:order-2 lg:col-span-12 (4-column horizontal strip)
+      {/* 3. QUICK METRICS (Shift Schedule removed)
+             Mobile: order-3 (compact 3-column row)
+             Desktop: lg:order-2 lg:col-span-12 (3-column horizontal strip)
       */}
       <div className="order-3 lg:order-2 lg:col-span-12">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
           {[
             {
-              title: "Shift Schedule",
-              value: "09:00 - 18:00",
-              note: "General Shift Today",
-              icon: Clock,
-              color: "text-[#293381]",
-            },
-            {
+              mobileTitle: "Attendance",
               title: "Monthly Attendance",
               value: "100%",
               note: "0 Late Marks",
@@ -411,6 +397,7 @@ export default function EmployeeDashboardPage() {
               color: "text-[#36B4FF]",
             },
             {
+              mobileTitle: "Leaves",
               title: "Leave Balance",
               value: "18 Days",
               note: "12 Privilege, 6 Casual",
@@ -418,6 +405,7 @@ export default function EmployeeDashboardPage() {
               color: "text-[#293381]",
             },
             {
+              mobileTitle: "Payslip",
               title: "Latest Payslip",
               value: "Oct 2026",
               note: "Disbursed On Time",
@@ -427,22 +415,25 @@ export default function EmployeeDashboardPage() {
           ].map((m) => (
             <div
               key={m.title}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-5 shadow-card space-y-1.5 sm:space-y-2"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 sm:p-5 shadow-card space-y-1 sm:space-y-2"
             >
               <div className="flex items-center justify-between">
-                <span className="text-[11px] sm:text-xs font-semibold text-slate-500 truncate">{m.title}</span>
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
+                <span className="text-[11px] sm:text-xs font-semibold text-slate-500">
+                  <span className="sm:hidden">{m.mobileTitle}</span>
+                  <span className="hidden sm:inline">{m.title}</span>
+                </span>
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
                   <m.icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${m.color}`} />
                 </div>
               </div>
-              <div className="text-lg sm:text-2xl font-bold text-[#293381] dark:text-white">{m.value}</div>
-              <div className="text-[10px] sm:text-[11px] text-slate-400 truncate">{m.note}</div>
+              <div className="text-base sm:text-2xl font-bold text-[#293381] dark:text-white">{m.value}</div>
+              <div className="text-[9px] sm:text-[11px] text-slate-400 truncate">{m.note}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* 4. QUICK LINKS
+      {/* 4. QUICK LINKS (Descriptions removed)
              Mobile: order-4 (below metrics)
              Desktop: lg:order-3 lg:col-span-9 (75% LEFT COLUMN)
       */}
@@ -459,13 +450,13 @@ export default function EmployeeDashboardPage() {
           </span>
         </div>
 
-        {/* 3x3 Grid for Quick Links with Color Gradients on Top-Right */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        {/* 3x3 Grid for Quick Links (Clean, no short descriptions) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-4">
           {QUICK_LINKS.map((link) => (
             <Link
               key={link.name}
               href={link.href}
-              className="group relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-5 shadow-card hover:border-[#36B4FF] hover:shadow-lg transition-all duration-300 flex flex-col justify-between min-h-[145px] overflow-hidden"
+              className="group relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl p-4 sm:p-5 shadow-card hover:border-[#36B4FF] hover:shadow-lg transition-all duration-300 flex flex-col justify-between min-h-[115px] sm:min-h-[120px] overflow-hidden"
             >
               {/* Top-Right Decorative Card Corner Color Gradient */}
               <div
@@ -473,11 +464,11 @@ export default function EmployeeDashboardPage() {
               />
 
               <div className="relative z-10">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-2 sm:mb-2.5">
                   {/* Icon container with Top-Right Color Gradient Accent */}
                   <div className="relative">
                     <div
-                      className={`w-11 h-11 rounded-xl ${link.iconBg} border flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform duration-200 shadow-sm`}
+                      className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl ${link.iconBg} border flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform duration-200 shadow-sm`}
                     >
                       {/* Gradient flare on top-right of the icon container */}
                       <div
@@ -490,15 +481,12 @@ export default function EmployeeDashboardPage() {
                   <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-[#293381] dark:group-hover:text-[#36B4FF] transition-transform group-hover:translate-x-1" />
                 </div>
 
-                <h3 className="font-bold text-sm text-[#293381] dark:text-white group-hover:text-[#36B4FF] transition">
+                <h3 className="font-bold text-sm sm:text-base text-[#293381] dark:text-white group-hover:text-[#36B4FF] transition">
                   {link.name}
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                  {link.desc}
-                </p>
               </div>
 
-              <div className="relative z-10 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-medium text-slate-400 group-hover:text-[#293381] dark:group-hover:text-[#36B4FF] transition">
+              <div className="relative z-10 mt-3 pt-2 sm:pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-medium text-slate-400 group-hover:text-[#293381] dark:group-hover:text-[#36B4FF] transition">
                 <span>{link.tag}</span>
                 <span className="font-semibold text-xs">Open →</span>
               </div>
