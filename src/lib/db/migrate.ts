@@ -428,6 +428,10 @@ export async function runMigrations(options?: RunMigrationsOptions) {
       requested_date TEXT NOT NULL,
       requested_check_in_utc TEXT NOT NULL,
       requested_check_out_utc TEXT NOT NULL,
+      conflict_field TEXT,
+      current_value TEXT,
+      requested_value TEXT,
+      proof_link TEXT,
       reason TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'PENDING',
       reviewed_by_user_id TEXT REFERENCES users(id),
@@ -437,6 +441,16 @@ export async function runMigrations(options?: RunMigrationsOptions) {
       updated_at INTEGER NOT NULL
     );
   `);
+
+  const correctionCols = [
+    { sql: "ALTER TABLE attendance_correction_requests ADD COLUMN conflict_field TEXT;", desc: "attendance_correction_requests.conflict_field" },
+    { sql: "ALTER TABLE attendance_correction_requests ADD COLUMN current_value TEXT;", desc: "attendance_correction_requests.current_value" },
+    { sql: "ALTER TABLE attendance_correction_requests ADD COLUMN requested_value TEXT;", desc: "attendance_correction_requests.requested_value" },
+    { sql: "ALTER TABLE attendance_correction_requests ADD COLUMN proof_link TEXT;", desc: "attendance_correction_requests.proof_link" },
+  ];
+  for (const col of correctionCols) {
+    await executeSafeAlterColumn(col.sql, col.desc);
+  }
 
   await recordMigrationVersion("004", "attendance_and_shifts");
 

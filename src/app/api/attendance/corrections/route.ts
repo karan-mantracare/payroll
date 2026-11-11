@@ -28,6 +28,10 @@ export async function GET(req: NextRequest) {
         requestedDate: attendanceCorrectionRequests.requestedDate,
         requestedCheckInUtc: attendanceCorrectionRequests.requestedCheckInUtc,
         requestedCheckOutUtc: attendanceCorrectionRequests.requestedCheckOutUtc,
+        conflictField: attendanceCorrectionRequests.conflictField,
+        currentValue: attendanceCorrectionRequests.currentValue,
+        requestedValue: attendanceCorrectionRequests.requestedValue,
+        proofLink: attendanceCorrectionRequests.proofLink,
         reason: attendanceCorrectionRequests.reason,
         status: attendanceCorrectionRequests.status,
         rejectionReason: attendanceCorrectionRequests.rejectionReason,
@@ -62,7 +66,10 @@ export async function POST(req: NextRequest) {
     const result = await requestAttendanceCorrection(session, body, { ipAddress, userAgent });
     return NextResponse.json({ success: true, request: result }, { status: 201 });
   } catch (err: any) {
-    const status = err.message.includes("REASON_REQUIRED") ? 400 : 500;
+    const status =
+      err.message.includes("REASON_REQUIRED") || err.message.includes("DATE_REQUIRED")
+        ? 400
+        : 500;
     return NextResponse.json({ error: err.message }, { status });
   }
 }

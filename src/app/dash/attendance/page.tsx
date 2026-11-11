@@ -17,6 +17,9 @@ import {
   Check,
   X,
   FileQuestion,
+  Flag,
+  Link2,
+  ExternalLink,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthGate";
 
@@ -47,6 +50,14 @@ export default function EmployeeAttendancePage() {
   const [regReason, setRegReason] = useState("");
   const [submittingReg, setSubmittingReg] = useState(false);
   const [regRequests, setRegRequests] = useState<any[]>([]);
+
+  // Report Attendance modal state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportDate, setReportDate] = useState(new Date().toISOString().split("T")[0]);
+  const [reportConflictWith, setReportConflictWith] = useState<"IN_TIME" | "OUT_TIME">("IN_TIME");
+  const [reportYourValue, setReportYourValue] = useState("09:00");
+  const [reportProofLink, setReportProofLink] = useState("");
+  const [submittingReport, setSubmittingReport] = useState(false);
 
   // Keep live clock updated
   useEffect(() => {
@@ -189,6 +200,90 @@ export default function EmployeeAttendancePage() {
     }
   };
 
+  // Format UTC ISO to local HH:mm string
+  const formatTime = (iso?: string | null) => {
+    if (!iso) return "--:--";
+    try {
+      return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    } catch {
+      return "--:--";
+    }
+  };
+
+  const localDateTimeToUtcIso = (dateStr: string, timeStr: string) => {
+    const dt = new Date(`${dateStr}T${timeStr}:00`);
+    return Number.isNaN(dt.getTime()) ? `${dateStr}T${timeStr}:00Z` : dt.toISOString();
+  };
+
+  const matchedReportRecord = monthlyRecords.find((r) => r.date === reportDate) || null;
+  const currentReportValue =
+    reportConflictWith === "IN_TIME"
+      ? formatTime(matchedReportRecord?.checkInTimeUtc)
+      : formatTime(matchedReportRecord?.checkOutTimeUtc);
+
+  const openReportModal = (record?: any, defaultConflict: "IN_TIME" | "OUT_TIME" = "IN_TIME") => {
+    const targetRecord = record || monthlyRecords[0] || null;
+    const targetDate = targetRecord?.date || new Date().toISOString().split("T")[0];
+    setReportDate(targetDate);
+    setReportConflictWith(defaultConflict);
+    setReportYourValue(defaultConflict === "IN_TIME" ? "09:00" : "18:00");
+    setReportProofLink("");
+    setError(null);
+    setShowReportModal(true);
+  };
+
+  const handleReportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportYourValue.trim()) {
+      setError("Please enter Your Value for the conflicting time.");
+      return;
+    }
+    if (!reportProofLink.trim()) {
+      setError("Please provide a Link of Proof.");
+      return;
+    }
+
+    try {
+      setSubmittingReport(true);
+      setError(null);
+
+      const requestedCheckInUtc =
+        reportConflictWith === "IN_TIME"
+          ? localDateTimeToUtcIso(reportDate, reportYourValue)
+          : matchedReportRecord?.checkInTimeUtc || localDateTimeToUtcIso(reportDate, "09:00");
+
+      const requestedCheckOutUtc =
+        reportConflictWith === "OUT_TIME"
+          ? localDateTimeToUtcIso(reportDate, reportYourValue)
+          : matchedReportRecord?.checkOutTimeUtc || localDateTimeToUtcIso(reportDate, "18:00");
+
+      const res = await fetch("/payrol/api/attendance/corrections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: reportDate,
+          requestedCheckInUtc,
+          requestedCheckOutUtc,
+          conflictField: reportConflictWith,
+          currentValue: currentReportValue,
+          requestedValue: reportYourValue,
+          proofLink: reportProofLink.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to submit attendance report.");
+
+      setShowReportModal(false);
+      setReportProofLink("");
+      setSuccessMsg("Attendance conflict report submitted for HR review.");
+      await fetchCorrections();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSubmittingReport(false);
+    }
+  };
+
   // Calculate live worked duration if checked in
   const getElapsedDuration = () => {
     if (!todayStatus) return "0h 0m";
@@ -206,16 +301,6 @@ export default function EmployeeAttendancePage() {
       return `${hours}h ${mins}m ${secs}s`;
     }
     return "0h 0m";
-  };
-
-  // Format UTC ISO to local time string
-  const formatTime = (iso?: string | null) => {
-    if (!iso) return "--:--";
-    try {
-      return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    } catch {
-      return "--:--";
-    }
   };
 
   // Shift timings label
@@ -236,13 +321,23 @@ export default function EmployeeAttendancePage() {
             Real-time punch in/out, shift status, timesheet history, and regularization requests.
           </p>
         </div>
-        <button
-          onClick={() => setShowRegModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-[#36B4FF] text-[#293381] hover:bg-[#209ee8] transition shadow-sm self-start sm:self-auto"
-        >
-          <FileQuestion className="w-4 h-4" />
-          Request Regularization
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => openReportModal()}
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition shadow-sm"
+          >
+            <Flag className="w-4 h-4 text-amber-600" />
+            Report Attendance
+          </button>
+          <button
+            onClick={() => setShowRegModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-[#36B4FF] text-[#293381] hover:bg-[#209ee8] transition shadow-sm"
+          >
+            <FileQuestion className="w-4 h-4" />
+            Request Regularization
+          </button>
+        </div>
       </div>
 
       {/* Notifications */}
@@ -431,7 +526,7 @@ export default function EmployeeAttendancePage() {
                     className="p-3 rounded-xl border border-slate-100 bg-slate-50 hover:bg-slate-100/60 transition text-xs space-y-1"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-800">{req.date}</span>
+                      <span className="font-semibold text-slate-800">{req.requestedDate || req.date}</span>
                       <span
                         className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
                           req.status === "APPROVED"
@@ -444,6 +539,23 @@ export default function EmployeeAttendancePage() {
                         {req.status}
                       </span>
                     </div>
+                    {req.conflictField && (
+                      <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold text-amber-700">
+                        <span>
+                          {req.conflictField === "IN_TIME" ? "In Time" : "Out Time"}: {req.currentValue || "--:--"} → {req.requestedValue || "--:--"}
+                        </span>
+                        {req.proofLink && (
+                          <a
+                            href={req.proofLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-0.5 text-[#293381] hover:underline"
+                          >
+                            Proof <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        )}
+                      </div>
+                    )}
                     <p className="text-slate-500 text-[11px] truncate">
                       {req.reason}
                     </p>
@@ -537,6 +649,7 @@ export default function EmployeeAttendancePage() {
                   <th className="px-4 py-3">Work Hours</th>
                   <th className="px-4 py-3">Lateness</th>
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -586,6 +699,16 @@ export default function EmployeeAttendancePage() {
                         >
                           {rec.status}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => openReportModal(rec, rec.checkOutTimeUtc ? "OUT_TIME" : "IN_TIME")}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition"
+                        >
+                          <Flag className="w-3 h-3" />
+                          Report Attendance
+                        </button>
                       </td>
                     </tr>
                   );
@@ -674,6 +797,129 @@ export default function EmployeeAttendancePage() {
                   className="px-5 py-2 rounded-lg bg-[#293381] hover:bg-[#1f2766] text-white font-bold flex items-center gap-2"
                 >
                   {submittingReg ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  Submit Request
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Report Attendance Popup Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-[#293381] text-base flex items-center gap-2">
+                <Flag className="w-5 h-5 text-amber-600" />
+                Report Attendance
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowReportModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleReportSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Attendance Date</label>
+                <input
+                  type="date"
+                  value={reportDate}
+                  onChange={(e) => setReportDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1.5">Conflict With</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReportConflictWith("IN_TIME");
+                      setReportYourValue("09:00");
+                    }}
+                    className={`py-2 px-3 rounded-lg border text-xs font-semibold transition ${
+                      reportConflictWith === "IN_TIME"
+                        ? "bg-[#293381] text-white border-[#293381] shadow-sm"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    In Time
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReportConflictWith("OUT_TIME");
+                      setReportYourValue("18:00");
+                    }}
+                    className={`py-2 px-3 rounded-lg border text-xs font-semibold transition ${
+                      reportConflictWith === "OUT_TIME"
+                        ? "bg-[#293381] text-white border-[#293381] shadow-sm"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    Out Time
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Current Value</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={currentReportValue}
+                    className="w-full px-3 py-2 border border-slate-200 bg-slate-100 text-slate-600 rounded-lg text-xs font-mono font-semibold cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Your Value</label>
+                  <input
+                    type="time"
+                    value={reportYourValue}
+                    onChange={(e) => setReportYourValue(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Link of Proof</label>
+                <div className="relative">
+                  <Link2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="url"
+                    value={reportProofLink}
+                    onChange={(e) => setReportProofLink(e.target.value)}
+                    placeholder="https://drive.google.com/... or screenshot URL"
+                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingReport}
+                  className="px-5 py-2 rounded-lg bg-[#293381] hover:bg-[#1f2766] text-white font-bold flex items-center gap-2 disabled:opacity-50"
+                >
+                  {submittingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                   Submit Request
                 </button>
               </div>

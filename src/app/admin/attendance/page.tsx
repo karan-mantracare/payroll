@@ -523,6 +523,33 @@ export default function AdminAttendancePage() {
                       <div>Check-Out: {formatUtcTime(c.requestedCheckOutUtc)}</div>
                     </div>
 
+                    {c.conflictField && (
+                      <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] space-y-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold text-amber-800 dark:text-amber-300">
+                            Conflict With: {c.conflictField === "IN_TIME" ? "In Time" : "Out Time"}
+                          </span>
+                          <span className="font-mono text-slate-700 dark:text-slate-200">
+                            Current: <strong>{c.currentValue || "--:--"}</strong> → Your Value:{" "}
+                            <strong>{c.requestedValue || "--:--"}</strong>
+                          </span>
+                        </div>
+                        {c.proofLink && (
+                          <div>
+                            <span className="text-slate-500 mr-1">Link of Proof:</span>
+                            <a
+                              href={c.proofLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#293381] dark:text-[#36B4FF] font-semibold underline break-all"
+                            >
+                              {c.proofLink}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="text-slate-600 dark:text-slate-400 italic">
                       Reason: &quot;{c.reason}&quot;
                     </div>

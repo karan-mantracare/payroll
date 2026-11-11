@@ -37,7 +37,11 @@ export interface AttendanceCorrectionInput {
   date: string; // YYYY-MM-DD
   requestedCheckInUtc: string;
   requestedCheckOutUtc: string;
-  reason: string;
+  reason?: string;
+  conflictField?: "IN_TIME" | "OUT_TIME";
+  currentValue?: string;
+  requestedValue?: string;
+  proofLink?: string;
 }
 
 export interface ManualAdjustmentInput {
@@ -706,7 +710,24 @@ export async function requestAttendanceCorrection(
     throw new Error("EMPLOYEE_NOT_FOUND: Active employee profile required to submit corrections.");
   }
 
-  if (!input.reason || input.reason.trim().length === 0) {
+  if (!input.date) {
+    throw new Error("DATE_REQUIRED: Target attendance date is required.");
+  }
+
+  const conflictLabel =
+    input.conflictField === "IN_TIME"
+      ? "In Time"
+      : input.conflictField === "OUT_TIME"
+      ? "Out Time"
+      : null;
+
+  const trimmedReason =
+    input.reason?.trim() ||
+    (conflictLabel && input.requestedValue
+      ? `Report Attendance conflict on ${conflictLabel} (Current: ${input.currentValue || "--:--"} → Your Value: ${input.requestedValue})`
+      : "");
+
+  if (!trimmedReason) {
     throw new Error("REASON_REQUIRED: A valid reason is required for attendance correction.");
   }
 
@@ -732,7 +753,11 @@ export async function requestAttendanceCorrection(
     requestedDate: input.date,
     requestedCheckInUtc: input.requestedCheckInUtc,
     requestedCheckOutUtc: input.requestedCheckOutUtc,
-    reason: input.reason.trim(),
+    conflictField: input.conflictField || null,
+    currentValue: input.currentValue?.trim() || null,
+    requestedValue: input.requestedValue?.trim() || null,
+    proofLink: input.proofLink?.trim() || null,
+    reason: trimmedReason,
     status: "PENDING",
     createdAt: now,
     updatedAt: now,
@@ -748,9 +773,13 @@ export async function requestAttendanceCorrection(
       employeeId: employee.id,
       employeeCode: employee.employeeCode,
       date: input.date,
+      conflictField: input.conflictField || null,
+      currentValue: input.currentValue || null,
+      requestedValue: input.requestedValue || null,
+      proofLink: input.proofLink || null,
       requestedCheckInUtc: input.requestedCheckInUtc,
       requestedCheckOutUtc: input.requestedCheckOutUtc,
-      reason: input.reason.trim(),
+      reason: trimmedReason,
     },
     ipAddress: meta?.ipAddress,
     userAgent: meta?.userAgent,
@@ -761,7 +790,11 @@ export async function requestAttendanceCorrection(
     employeeId: employee.id,
     date: input.date,
     status: "PENDING",
-    reason: input.reason,
+    reason: trimmedReason,
+    conflictField: input.conflictField || null,
+    currentValue: input.currentValue || null,
+    requestedValue: input.requestedValue || null,
+    proofLink: input.proofLink || null,
   };
 }
 
@@ -800,27 +833,52 @@ export async function reviewAttendanceCorrection(
   const now = Date.now();
 
   if (input.status === "APPROVED") {
-    const checkInDate = new Date(req.requestedCheckInUtc);
-    const checkOutDate = new Date(req.requestedCheckOutUtc);
-    const totalDurationMinutes = Math.max(0, Math.floor((checkOutDate.getTime() - checkInDate.getTime()) / 60000));
-    const netWorkMinutes = Math.max(0, totalDurationMinutes > 300 ? totalDurationMinutes - 60 : totalDurationMinutes);
-
     const shift = await getEmployeeShiftForDate(req.employeeId, req.requestedDate);
-    let finalStatus = netWorkMinutes >= 240 ? "PRESENT" : "HALF_DAY";
+    const breakMinutes = shift?.breakDurationMinutes ?? 60;
 
+    let existingRecord: typeof attendanceRecords.$inferSelect | null = null;
     if (req.attendanceRecordId) {
+      const existingRows = await db
+        .select()
+        .from(attendanceRecords)
+        .where(eq(attendanceRecords.id, req.attendanceRecordId))
+        .limit(1);
+      existingRecord = existingRows[0] || null;
+    }
+
+    const finalCheckInUtc =
+      req.conflictField === "OUT_TIME" && existingRecord?.checkInTimeUtc
+        ? existingRecord.checkInTimeUtc
+        : req.requestedCheckInUtc;
+    const finalCheckOutUtc =
+      req.conflictField === "IN_TIME" && existingRecord
+        ? existingRecord.checkOutTimeUtc
+        : req.requestedCheckOutUtc;
+
+    let netWorkMinutes = existingRecord?.totalWorkMinutes || 0;
+    let finalStatus = existingRecord?.status || "PRESENT";
+
+    if (finalCheckInUtc && finalCheckOutUtc) {
+      const checkInDate = new Date(finalCheckInUtc);
+      const checkOutDate = new Date(finalCheckOutUtc);
+      const totalDurationMinutes = Math.max(0, Math.floor((checkOutDate.getTime() - checkInDate.getTime()) / 60000));
+      netWorkMinutes = Math.max(0, totalDurationMinutes > 300 ? totalDurationMinutes - breakMinutes : totalDurationMinutes);
+      finalStatus = netWorkMinutes >= 240 ? "PRESENT" : "HALF_DAY";
+    }
+
+    if (existingRecord) {
       await db
         .update(attendanceRecords)
         .set({
-          checkInTimeUtc: req.requestedCheckInUtc,
-          checkOutTimeUtc: req.requestedCheckOutUtc,
+          checkInTimeUtc: finalCheckInUtc,
+          checkOutTimeUtc: finalCheckOutUtc,
           totalWorkMinutes: netWorkMinutes,
           status: finalStatus,
           source: "MANUAL_ADJUSTMENT",
           notes: `Regularized via correction approval: ${req.reason}`,
           updatedAt: now,
         })
-        .where(eq(attendanceRecords.id, req.attendanceRecordId));
+        .where(eq(attendanceRecords.id, existingRecord.id));
     } else {
       const newRecId = `att_${randomUUID()}`;
       await db.insert(attendanceRecords).values({
@@ -828,8 +886,8 @@ export async function reviewAttendanceCorrection(
         employeeId: req.employeeId,
         date: req.requestedDate,
         shiftId: shift?.shiftId || null,
-        checkInTimeUtc: req.requestedCheckInUtc,
-        checkOutTimeUtc: req.requestedCheckOutUtc,
+        checkInTimeUtc: finalCheckInUtc,
+        checkOutTimeUtc: finalCheckOutUtc,
         totalWorkMinutes: netWorkMinutes,
         status: finalStatus,
         lateMinutes: 0,

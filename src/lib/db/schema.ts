@@ -301,6 +301,10 @@ export const attendanceCorrectionRequests = sqliteTable("attendance_correction_r
   requestedDate: text("requested_date").notNull(), // YYYY-MM-DD
   requestedCheckInUtc: text("requested_check_in_utc").notNull(),
   requestedCheckOutUtc: text("requested_check_out_utc").notNull(),
+  conflictField: text("conflict_field"), // IN_TIME | OUT_TIME
+  currentValue: text("current_value"),
+  requestedValue: text("requested_value"),
+  proofLink: text("proof_link"),
   reason: text("reason").notNull(),
   status: text("status").notNull().default("PENDING"), // PENDING, APPROVED, REJECTED
   reviewedByUserId: text("reviewed_by_user_id").references(() => users.id),
