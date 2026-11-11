@@ -553,7 +553,12 @@ export default function EmployeeAttendancePage() {
                         {formatTime(rec.checkInTimeUtc)}
                       </td>
                       <td className="px-4 py-3 font-mono text-slate-800">
-                        {formatTime(rec.checkOutTimeUtc)}
+                        <div>{formatTime(rec.checkOutTimeUtc)}</div>
+                        {(rec.source === "AUTO_CHECKOUT" || rec.notes?.includes("Auto-checked out")) && (
+                          <span className="inline-block mt-0.5 text-[10px] font-sans font-semibold text-indigo-600 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">
+                            Auto (Shift End)
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 font-medium text-slate-700">
                         {rec.totalWorkMinutes ? `${hours}h ${mins}m` : "--"}

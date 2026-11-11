@@ -448,6 +448,11 @@ export default function AdminAttendancePage() {
                     </td>
                     <td className="px-4 py-3 font-mono">
                       <div>{formatUtcTime(r.checkOutTimeUtc)}</div>
+                      {(r.source === "AUTO_CHECKOUT" || r.notes?.includes("Auto-checked out")) && (
+                        <span className="block text-[10px] font-sans font-semibold text-indigo-600">
+                          Auto (Shift End)
+                        </span>
+                      )}
                       {r.earlyExitMinutes > 0 && (
                         <span className="text-[10px] text-rose-500 font-sans font-semibold">
                           -{r.earlyExitMinutes}m early

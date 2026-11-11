@@ -10,7 +10,7 @@ import {
   teams,
   shifts,
 } from "../db/schema";
-import { eq, and, or, gte, lte, desc, inArray } from "drizzle-orm";
+import { eq, and, or, gte, lte, desc, inArray, isNull, isNotNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { SessionContext } from "../permissions/types";
 import { auditLogger } from "../audit/logger";
@@ -64,6 +64,182 @@ function getUtcTimeMinutes(isoStr: string): number {
   return d.getUTCHours() * 60 + d.getUTCMinutes();
 }
 
+const SHIFT_TIMEZONE_OFFSET_MINUTES = 330; // Asia/Kolkata (+05:30)
+const AUTO_CHECKOUT_GRACE_MS = 30 * 60 * 1000; // Wait 30 mins after shift end before auto-closing
+const AUTO_CHECKOUT_NOTE_PREFIX = "Auto-checked out at shift end";
+
+/**
+ * Computes the UTC timestamp when a shift ends for a given YYYY-MM-DD attendance date.
+ * Handles overnight shifts (closing on date + 1 day) and late check-ins occurring after shift end.
+ */
+function computeAutoCheckOutUtc(
+  dateStr: string,
+  checkInTimeUtc: string,
+  shiftStartTime: string,
+  shiftEndTime: string,
+  isOvernight: boolean
+): Date | null {
+  const parts = dateStr.split("-").map(Number);
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return null;
+  const [year, month, day] = parts;
+
+  const startMins = parseTimeToMinutes(shiftStartTime || "09:00");
+  const endMins = parseTimeToMinutes(shiftEndTime || "18:00");
+  const overnight = Boolean(isOvernight) || endMins <= startMins;
+  const dayOffsetMs = overnight ? 86400000 : 0;
+
+  const baseUtcMs = Date.UTC(year, month - 1, day);
+  const shiftEndMs = baseUtcMs + dayOffsetMs + (endMins - SHIFT_TIMEZONE_OFFSET_MINUTES) * 60 * 1000;
+  const endOfDayMs = baseUtcMs + (23 * 60 + 59 - SHIFT_TIMEZONE_OFFSET_MINUTES) * 60 * 1000;
+  const checkInMs = new Date(checkInTimeUtc).getTime();
+
+  // If check-in occurred after scheduled shift end, wait for end of day and clamp >= checkInMs
+  const targetMs = checkInMs >= shiftEndMs ? Math.max(checkInMs, endOfDayMs) : shiftEndMs;
+  return new Date(targetMs);
+}
+
+/**
+ * Automatically closes open attendance records whose shift end (+ grace window) has elapsed.
+ */
+export async function reconcileAutoCheckOuts(employeeId?: string, now = new Date()): Promise<number> {
+  const openConditions: any[] = [
+    isNotNull(attendanceRecords.checkInTimeUtc),
+    isNull(attendanceRecords.checkOutTimeUtc),
+  ];
+  if (employeeId) {
+    openConditions.push(eq(attendanceRecords.employeeId, employeeId));
+  }
+
+  const openRecords = await db
+    .select()
+    .from(attendanceRecords)
+    .where(and(...openConditions));
+
+  if (openRecords.length === 0) return 0;
+
+  const allShifts = await db.select().from(shifts);
+  const shiftMap = new Map(allShifts.map((s) => [s.id, s]));
+  let closedCount = 0;
+
+  for (const record of openRecords) {
+    if (!record.checkInTimeUtc) continue;
+
+    let shiftInfo: {
+      startTime: string;
+      endTime: string;
+      breakDurationMinutes: number;
+      isOvernight: boolean;
+    } | null = null;
+
+    if (record.shiftId && shiftMap.has(record.shiftId)) {
+      const s = shiftMap.get(record.shiftId)!;
+      shiftInfo = {
+        startTime: s.startTime,
+        endTime: s.endTime,
+        breakDurationMinutes: s.breakDurationMinutes,
+        isOvernight: s.isOvernight,
+      };
+    } else {
+      const resolvedShift = await getEmployeeShiftForDate(record.employeeId, record.date);
+      if (resolvedShift && "startTime" in resolvedShift) {
+        shiftInfo = {
+          startTime: resolvedShift.startTime,
+          endTime: resolvedShift.endTime,
+          breakDurationMinutes: resolvedShift.breakDurationMinutes,
+          isOvernight: resolvedShift.isOvernight,
+        };
+      }
+    }
+
+    const startTime = shiftInfo?.startTime || "09:00";
+    const endTime = shiftInfo?.endTime || "18:00";
+    const breakMinutes = shiftInfo?.breakDurationMinutes ?? 60;
+    const isOvernight = shiftInfo?.isOvernight ?? false;
+
+    const targetCheckOutDate = computeAutoCheckOutUtc(
+      record.date,
+      record.checkInTimeUtc,
+      startTime,
+      endTime,
+      isOvernight
+    );
+    if (!targetCheckOutDate) continue;
+    if (now.getTime() < targetCheckOutDate.getTime() + AUTO_CHECKOUT_GRACE_MS) {
+      continue;
+    }
+
+    const checkInMs = new Date(record.checkInTimeUtc).getTime();
+    const totalDurationMinutes = Math.max(
+      0,
+      Math.floor((targetCheckOutDate.getTime() - checkInMs) / (1000 * 60))
+    );
+    const netWorkMinutes = Math.max(
+      0,
+      totalDurationMinutes - (totalDurationMinutes > 300 ? breakMinutes : 0)
+    );
+
+    let finalStatus = record.status;
+    if (netWorkMinutes < 240) {
+      finalStatus = "HALF_DAY";
+    } else if (record.lateMinutes > 0) {
+      finalStatus = "LATE";
+    } else {
+      finalStatus = "PRESENT";
+    }
+
+    const checkOutUtc = targetCheckOutDate.toISOString();
+    const autoNote = `${AUTO_CHECKOUT_NOTE_PREFIX} (${endTime})`;
+    const combinedNotes = record.notes ? `${record.notes} | ${autoNote}` : autoNote;
+    const updatedAt = Date.now();
+
+    const updated = await db
+      .update(attendanceRecords)
+      .set({
+        checkOutTimeUtc: checkOutUtc,
+        totalWorkMinutes: netWorkMinutes,
+        earlyExitMinutes: 0,
+        status: finalStatus,
+        source: "AUTO_CHECKOUT",
+        notes: combinedNotes,
+        updatedAt,
+      })
+      .where(and(eq(attendanceRecords.id, record.id), isNull(attendanceRecords.checkOutTimeUtc)))
+      .returning({ id: attendanceRecords.id });
+
+    if (updated.length > 0) {
+      await db.insert(attendanceEvents).values({
+        id: `evt_${randomUUID()}`,
+        attendanceRecordId: record.id,
+        employeeId: record.employeeId,
+        eventType: "CHECK_OUT",
+        timestampUtc: checkOutUtc,
+        source: "AUTO_CHECKOUT",
+        createdAt: updatedAt,
+      });
+
+      await auditLogger.logAuditEvent({
+        actorUserId: "SYSTEM",
+        actorEmployeeId: record.employeeId,
+        action: "ATTENDANCE_AUTO_CHECK_OUT",
+        targetEntity: "attendance_records",
+        targetId: record.id,
+        changes: {
+          date: record.date,
+          checkInTimeUtc: record.checkInTimeUtc,
+          checkOutTimeUtc: checkOutUtc,
+          totalWorkMinutes: netWorkMinutes,
+          status: finalStatus,
+          shiftEndTime: endTime,
+        },
+      });
+
+      closedCount++;
+    }
+  }
+
+  return closedCount;
+}
+
 /**
  * Records an employee check-in event.
  * Enforces anti-duplicate check-in protection, records exact UTC timestamp,
@@ -97,6 +273,8 @@ export async function recordCheckIn(
   const dateStr = timestamp.toISOString().split("T")[0]; // YYYY-MM-DD
   const timestampUtc = timestamp.toISOString();
   const now = Date.now();
+
+  await reconcileAutoCheckOuts(employee.id, timestamp);
 
   // 1. Anti-Duplicate Check-in Protection
   const existingRecords = await db
@@ -374,6 +552,8 @@ export async function getAttendanceRecords(
     employeeId?: string;
   } = {}
 ) {
+  await reconcileAutoCheckOuts();
+
   const conditions: any[] = [];
 
   if (filters.date) {
@@ -476,6 +656,8 @@ export async function getTodayAttendanceStatus(session: SessionContext, employee
   const employee = await resolveEmployee(targetId);
   if (!employee) return null;
 
+  await reconcileAutoCheckOuts(employee.id);
+
   const todayStr = new Date().toISOString().split("T")[0];
   const shift = await getEmployeeShiftForDate(employee.id, todayStr);
 
@@ -505,6 +687,8 @@ export async function getTodayAttendanceStatus(session: SessionContext, employee
     totalWorkMinutes: record?.totalWorkMinutes || 0,
     lateMinutes: record?.lateMinutes || 0,
     earlyExitMinutes: record?.earlyExitMinutes || 0,
+    source: record?.source || null,
+    notes: record?.notes || null,
     shift,
   };
 }
