@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { validateEncryptionConfig } from "@/lib/security/crypto";
 import { checkStartupReadiness } from "@/lib/db/readiness";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const encConfig = validateEncryptionConfig();
   const dbReadiness = await checkStartupReadiness().catch(() => ({
