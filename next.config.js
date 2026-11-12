@@ -2,7 +2,10 @@
 const nextConfig = {
   output: "standalone",
   basePath: "/payroll",
-  serverExternalPackages: ["puppeteer"],
+  serverExternalPackages: ["puppeteer", "@libsql/client", "libsql"],
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/@libsql/linux-x64-musl/**/*"],
+  },
   reactStrictMode: true,
   poweredByHeader: false,
   async redirects() {

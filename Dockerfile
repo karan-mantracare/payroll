@@ -54,6 +54,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/data ./data
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@libsql/linux-x64-musl ./node_modules/@libsql/linux-x64-musl
 
 RUN mkdir -p /app/.storage/documents && chown -R nextjs:nodejs /app/.storage
 
