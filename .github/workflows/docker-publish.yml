@@ -61,5 +61,5 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            bunker.mantracare.com/lovable/payrol:1.1
+            bunker.mantracare.com/lovable/payrol:1.2
             bunker.mantracare.com/lovable/payrol:${{ github.sha }}
