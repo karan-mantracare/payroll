@@ -71,21 +71,21 @@ export default function EmployeeShiftsPage() {
       const endStr = toYmd(sunday);
 
       // 1. Fetch weekly calendar
-      const calRes = await fetch(`/payrol/api/shifts/assignments?startDate=${startStr}&endDate=${endStr}`);
+      const calRes = await fetch(`/payroll/api/shifts/assignments?startDate=${startStr}&endDate=${endStr}`);
       const calData = await calRes.json();
       if (calRes.ok && calData.calendar) {
         setWeekCalendar(calData.calendar);
       }
 
       // 2. Fetch today's status to get active shift
-      const statusRes = await fetch("/payrol/api/attendance/status");
+      const statusRes = await fetch("/payroll/api/attendance/status");
       const statusData = await statusRes.json();
       if (statusRes.ok && statusData.status?.shift) {
         setActiveShift(statusData.status.shift);
       }
 
       // 3. Fetch org shifts for policy visibility
-      const shiftsRes = await fetch("/payrol/api/shifts");
+      const shiftsRes = await fetch("/payroll/api/shifts");
       const shiftsData = await shiftsRes.json();
       if (shiftsRes.ok && shiftsData.shifts) {
         setAllOrgShifts(shiftsData.shifts);
@@ -96,7 +96,7 @@ export default function EmployeeShiftsPage() {
       }
 
       // 4. Fetch employee schedule change requests
-      const reqRes = await fetch("/payrol/api/shifts/change-requests");
+      const reqRes = await fetch("/payroll/api/shifts/change-requests");
       const reqData = await reqRes.json();
       if (reqRes.ok && reqData.requests) {
         setChangeRequests(reqData.requests);
@@ -146,7 +146,7 @@ export default function EmployeeShiftsPage() {
       setError(null);
       setSuccessMsg(null);
 
-      const res = await fetch("/payrol/api/shifts/change-requests", {
+      const res = await fetch("/payroll/api/shifts/change-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(changeForm),

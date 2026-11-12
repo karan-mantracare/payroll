@@ -11,13 +11,13 @@ export default function RootRedirector() {
     if (loading) return;
 
     if (status === "unauthenticated" || !user) {
-      window.location.replace("/payrol/login");
+      window.location.replace("/payroll/login");
     } else if (canAccessAdmin) {
-      window.location.replace("/payrol/admin");
+      window.location.replace("/payroll/admin");
     } else if (canAccessEmployee) {
-      window.location.replace("/payrol/dash");
+      window.location.replace("/payroll/dash");
     } else {
-      window.location.replace("/payrol/login");
+      window.location.replace("/payroll/login");
     }
   }, [user, status, loading, canAccessAdmin, canAccessEmployee]);
 

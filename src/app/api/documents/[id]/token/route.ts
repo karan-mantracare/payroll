@@ -19,7 +19,7 @@ export async function POST(
       success: true,
       token: result.token,
       expiresInSeconds: result.expiresInSeconds,
-      downloadUrl: `/payrol/api/documents/${id}/download?token=${result.token}`,
+      downloadUrl: `/payroll/api/documents/${id}/download?token=${result.token}`,
     });
   } catch (err: any) {
     const status = err.message.includes("SCOPE_VIOLATION") || err.message.includes("UNAUTHORIZED")

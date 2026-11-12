@@ -74,7 +74,7 @@ export default function AdminAttendancePage() {
       if (date) q.set("date", date);
       if (statusFilter) q.set("status", statusFilter);
 
-      const res = await fetch(`/payrol/api/attendance?${q.toString()}`);
+      const res = await fetch(`/payroll/api/attendance?${q.toString()}`);
       if (!res.ok) throw new Error("Failed to load attendance");
       const data = await res.json();
       const list = data.records || [];
@@ -102,7 +102,7 @@ export default function AdminAttendancePage() {
   const fetchCorrections = useCallback(async () => {
     setLoadingCorrections(true);
     try {
-      const res = await fetch("/payrol/api/attendance/corrections");
+      const res = await fetch("/payroll/api/attendance/corrections");
       if (res.ok) {
         const data = await res.json();
         const list = data.requests || [];
@@ -133,7 +133,7 @@ export default function AdminAttendancePage() {
       const checkInUtc = `${adjustForm.date}T${adjustForm.checkInTime}:00.000Z`;
       const checkOutUtc = `${adjustForm.date}T${adjustForm.checkOutTime}:00.000Z`;
 
-      const res = await fetch("/payrol/api/attendance/adjust", {
+      const res = await fetch("/payroll/api/attendance/adjust", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -173,7 +173,7 @@ export default function AdminAttendancePage() {
     setImportResult(null);
 
     try {
-      const res = await fetch("/payrol/api/attendance/import", {
+      const res = await fetch("/payroll/api/attendance/import", {
         method: "POST",
         headers: { "Content-Type": "text/csv" },
         body: importCsvText,
@@ -211,7 +211,7 @@ export default function AdminAttendancePage() {
     }
 
     try {
-      const res = await fetch(`/payrol/api/attendance/corrections/${requestId}`, {
+      const res = await fetch(`/payroll/api/attendance/corrections/${requestId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -63,8 +63,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const isLoginPage = pathname === "/login" || pathname === "/payrol/login";
-  const isRootPath = pathname === "/" || pathname === "/payrol" || pathname === "";
+  const isLoginPage = pathname === "/login" || pathname === "/payroll/login";
+  const isRootPath = pathname === "/" || pathname === "/payroll" || pathname === "";
 
   const checkSession = useCallback(async (force = false) => {
     const now = Date.now();
@@ -114,7 +114,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
     inFlightSessionCheck = (async (): Promise<AuthUser | null> => {
       try {
-        const res = await fetch("/payrol/api/auth/me", {
+        const res = await fetch("/payroll/api/auth/me", {
           signal: controller.signal,
           headers: { "Cache-Control": "no-cache" },
         });
@@ -240,20 +240,20 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
     if (status === "unauthenticated") {
       if (!isLoginPage && !isRootPath) {
-        window.location.href = "/payrol/login";
+        window.location.href = "/payroll/login";
       }
     }
   }, [status, isLoginPage, isRootPath]);
 
   const logout = async () => {
     try {
-      await fetch("/payrol/api/auth/logout", { method: "POST" });
+      await fetch("/payroll/api/auth/logout", { method: "POST" });
     } catch {}
     cachedClientUser = null;
     lastSessionValidatedAt = 0;
     setUser(null);
     setStatus("unauthenticated");
-    window.location.href = "/payrol/login";
+    window.location.href = "/payroll/login";
   };
 
   const hasPermission = (permission: string): boolean => {

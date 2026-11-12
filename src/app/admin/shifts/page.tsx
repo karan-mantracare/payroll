@@ -70,7 +70,7 @@ export default function AdminShiftsPage() {
   const fetchShifts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/payrol/api/shifts");
+      const res = await fetch("/payroll/api/shifts");
       if (!res.ok) throw new Error("Failed to load shifts");
       const data = await res.json();
       setShifts(data.shifts || []);
@@ -86,7 +86,7 @@ export default function AdminShiftsPage() {
 
   const fetchChangeRequests = useCallback(async () => {
     try {
-      const res = await fetch("/payrol/api/shifts/change-requests");
+      const res = await fetch("/payroll/api/shifts/change-requests");
       if (res.ok) {
         const data = await res.json();
         setChangeRequests(data.requests || []);
@@ -110,7 +110,7 @@ export default function AdminShiftsPage() {
     }
     try {
       setReviewingId(id);
-      const res = await fetch(`/payrol/api/shifts/change-requests/${id}`, {
+      const res = await fetch(`/payroll/api/shifts/change-requests/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, rejectionReason }),
@@ -133,7 +133,7 @@ export default function AdminShiftsPage() {
     setCreateError(null);
 
     try {
-      const res = await fetch("/payrol/api/shifts", {
+      const res = await fetch("/payroll/api/shifts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(createForm),
@@ -181,7 +181,7 @@ export default function AdminShiftsPage() {
     setEditError(null);
 
     try {
-      const res = await fetch("/payrol/api/shifts", {
+      const res = await fetch("/payroll/api/shifts", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editForm),
@@ -205,7 +205,7 @@ export default function AdminShiftsPage() {
     setAssignError(null);
 
     try {
-      const res = await fetch("/payrol/api/shifts/assignments", {
+      const res = await fetch("/payroll/api/shifts/assignments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

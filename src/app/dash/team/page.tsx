@@ -38,7 +38,7 @@ export default function EmployeeTeamPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch("/payrol/api/dash/team")
+    fetch("/payroll/api/dash/team")
       .then(async (res) => {
         if (!res.ok) {
           const errData = await res.json();

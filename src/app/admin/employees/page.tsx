@@ -71,7 +71,7 @@ export default function AdminEmployeesPage() {
       if (sortBy) query.set("sortBy", sortBy);
       if (sortOrder) query.set("sortOrder", sortOrder);
 
-      const res = await fetch(`/payrol/api/employees?${query.toString()}`);
+      const res = await fetch(`/payroll/api/employees?${query.toString()}`);
       if (!res.ok) throw new Error("Failed to load employees");
       const json = await res.json();
 
@@ -104,7 +104,7 @@ export default function AdminEmployeesPage() {
     setCreateError(null);
 
     try {
-      const res = await fetch("/payrol/api/employees", {
+      const res = await fetch("/payroll/api/employees", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(createForm),
@@ -172,7 +172,7 @@ export default function AdminEmployeesPage() {
 
         <div className="flex items-center gap-3 self-start sm:self-auto">
           <a
-            href={`/payrol/api/employees/export${selectedDept ? `?departmentId=${selectedDept}` : ""}`}
+            href={`/payroll/api/employees/export${selectedDept ? `?departmentId=${selectedDept}` : ""}`}
             download
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 font-medium text-sm transition shadow-sm"
           >

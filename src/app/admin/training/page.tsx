@@ -196,7 +196,7 @@ export default function AdminTrainingPage() {
     if (!selectedSubmission || !trackingModule) return;
     setSubmittingReview(true);
     try {
-      const res = await fetch("/payrol/api/training/progress", {
+      const res = await fetch("/payroll/api/training/progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -280,7 +280,7 @@ export default function AdminTrainingPage() {
     setTrackerFilter("ALL");
 
     try {
-      const res = await fetch(`/payrol/api/training/responses?moduleId=${mod.id}`);
+      const res = await fetch(`/payroll/api/training/responses?moduleId=${mod.id}`);
       if (res.ok) {
         const data = await res.json();
         setTrackerAnalytics(data.analytics || null);
@@ -342,7 +342,7 @@ export default function AdminTrainingPage() {
   const fetchModules = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/payrol/api/training/modules");
+      const res = await fetch("/payroll/api/training/modules");
       if (res.ok) {
         const json = await res.json();
         setModules(json.modules || []);
@@ -434,7 +434,7 @@ export default function AdminTrainingPage() {
 
     setSavingModule(true);
     try {
-      const res = await fetch("/payrol/api/training/modules", {
+      const res = await fetch("/payroll/api/training/modules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -474,7 +474,7 @@ export default function AdminTrainingPage() {
     if (!confirm(`Are you sure you want to delete module "${title}"?`)) return;
 
     try {
-      const res = await fetch(`/payrol/api/training/modules?id=${id}`, {
+      const res = await fetch(`/payroll/api/training/modules?id=${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -515,7 +515,7 @@ export default function AdminTrainingPage() {
     setSubmittingTest(true);
 
     try {
-      const res = await fetch("/payrol/api/training/progress", {
+      const res = await fetch("/payroll/api/training/progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

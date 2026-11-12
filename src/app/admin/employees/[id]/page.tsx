@@ -119,7 +119,7 @@ export default function EmployeeDetailPage({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/payrol/api/employees/${id}`);
+      const res = await fetch(`/payroll/api/employees/${id}`);
       if (!res.ok) {
         if (res.status === 404) throw new Error("Employee not found or outside your data scope.");
         throw new Error("Failed to load employee details.");
@@ -158,7 +158,7 @@ export default function EmployeeDetailPage({
   const fetchHierarchy = async () => {
     setHierarchyLoading(true);
     try {
-      const res = await fetch(`/payrol/api/hierarchy/${id}`);
+      const res = await fetch(`/payroll/api/hierarchy/${id}`);
       if (res.ok) {
         const json = await res.json();
         setHierarchyData(json);
@@ -176,7 +176,7 @@ export default function EmployeeDetailPage({
 
   const fetchManagerCandidates = async () => {
     try {
-      const res = await fetch(`/payrol/api/employees?pageSize=100&status=ACTIVE`);
+      const res = await fetch(`/payroll/api/employees?pageSize=100&status=ACTIVE`);
       if (res.ok) {
         const json = await res.json();
         // Exclude current employee
@@ -219,7 +219,7 @@ export default function EmployeeDetailPage({
 
     setValidatingManager(true);
     try {
-      const res = await fetch("/payrol/api/hierarchy/validate", {
+      const res = await fetch("/payroll/api/hierarchy/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -247,7 +247,7 @@ export default function EmployeeDetailPage({
     setManagerError(null);
 
     try {
-      const res = await fetch(`/payrol/api/hierarchy/${id}/change-manager`, {
+      const res = await fetch(`/payroll/api/hierarchy/${id}/change-manager`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -281,7 +281,7 @@ export default function EmployeeDetailPage({
     setEditError(null);
 
     try {
-      const res = await fetch(`/payrol/api/employees/${id}`, {
+      const res = await fetch(`/payroll/api/employees/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -315,7 +315,7 @@ export default function EmployeeDetailPage({
     setStatusError(null);
 
     try {
-      const res = await fetch(`/payrol/api/employees/${id}/status`, {
+      const res = await fetch(`/payroll/api/employees/${id}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

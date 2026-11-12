@@ -36,7 +36,7 @@ export default function AppError({
             Retry
           </button>
           <a
-            href="/payrol/login"
+            href="/payroll/login"
             className="inline-flex items-center px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold transition"
           >
             Go to Login

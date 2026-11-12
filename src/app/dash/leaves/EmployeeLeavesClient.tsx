@@ -83,8 +83,8 @@ export default function EmployeeLeavesPage() {
   const loadData = useCallback(async () => {
     try {
       const [leaveRes, holidayRes] = await Promise.all([
-        fetch("/payrol/api/leaves/requests", { cache: "no-store" }),
-        fetch("/payrol/api/holidays", { cache: "no-store" }),
+        fetch("/payroll/api/leaves/requests", { cache: "no-store" }),
+        fetch("/payroll/api/holidays", { cache: "no-store" }),
       ]);
 
       if (leaveRes.ok) {
@@ -144,7 +144,7 @@ export default function EmployeeLeavesPage() {
 
     setSubmittingMode(mode);
     try {
-      const res = await fetch("/payrol/api/leaves/requests", {
+      const res = await fetch("/payroll/api/leaves/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -182,7 +182,7 @@ export default function EmployeeLeavesPage() {
     setActionId(requestId);
     setErrorMsg(null);
     try {
-      const res = await fetch("/payrol/api/leaves/requests", {
+      const res = await fetch("/payroll/api/leaves/requests", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId, action }),

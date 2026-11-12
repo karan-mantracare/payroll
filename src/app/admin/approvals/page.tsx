@@ -34,7 +34,7 @@ export default function AdminApprovalsPage() {
 
   const loadRequests = useCallback(async () => {
     try {
-      const res = await fetch("/payrol/api/profile/change-requests?scope=all", { cache: "no-store" });
+      const res = await fetch("/payroll/api/profile/change-requests?scope=all", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setRequests(Array.isArray(data.requests) ? data.requests : []);
@@ -54,7 +54,7 @@ export default function AdminApprovalsPage() {
     setProcessingId(requestId);
     setFeedback(null);
     try {
-      const res = await fetch("/payrol/api/profile/change-requests", {
+      const res = await fetch("/payroll/api/profile/change-requests", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId, action }),

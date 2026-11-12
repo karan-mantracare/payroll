@@ -13,7 +13,7 @@ export function BrandLogo({ className = "", size = "md", compact = false }: Bran
     return (
       <div className={`flex items-center justify-center shrink-0 ${className}`} title="MantraCare">
         <img
-          src="/payrol/favicon.png"
+          src="/payroll/favicon.png"
           alt="MantraCare"
           className={`${boxSize} object-contain rounded-lg shadow-sm`}
         />
@@ -27,7 +27,7 @@ export function BrandLogo({ className = "", size = "md", compact = false }: Bran
   return (
     <div className={`flex items-center shrink-0 ${className}`}>
       <img
-        src="/payrol/mantracare-logo.png"
+        src="/payroll/mantracare-logo.png"
         alt="MantraCare"
         width={pixelHeight * 3.1}
         height={pixelHeight}

@@ -66,7 +66,7 @@ export default function DocumentVault({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/payrol/api/employees/${employeeId}/documents`);
+      const res = await fetch(`/payroll/api/employees/${employeeId}/documents`);
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Failed to load documents");
@@ -102,7 +102,7 @@ export default function DocumentVault({
         formData.append("replacesDocumentId", replacesDocId);
       }
 
-      const res = await fetch(`/payrol/api/employees/${employeeId}/documents`, {
+      const res = await fetch(`/payroll/api/employees/${employeeId}/documents`, {
         method: "POST",
         body: formData,
       });
@@ -125,7 +125,7 @@ export default function DocumentVault({
 
   const handleDownload = async (docId: string, docName: string) => {
     try {
-      const tokenRes = await fetch(`/payrol/api/documents/${docId}/token`, {
+      const tokenRes = await fetch(`/payroll/api/documents/${docId}/token`, {
         method: "POST",
       });
       if (!tokenRes.ok) throw new Error("Could not authorize download");
@@ -134,7 +134,7 @@ export default function DocumentVault({
       // Trigger download
       window.open(tokenData.downloadUrl, "_blank");
     } catch {
-      window.open(`/payrol/api/documents/${docId}/download`, "_blank");
+      window.open(`/payroll/api/documents/${docId}/download`, "_blank");
     }
   };
 
@@ -148,7 +148,7 @@ export default function DocumentVault({
 
     setSubmittingVerify(true);
     try {
-      const res = await fetch(`/payrol/api/documents/${verifyingDoc.id}/verify`, {
+      const res = await fetch(`/payroll/api/documents/${verifyingDoc.id}/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

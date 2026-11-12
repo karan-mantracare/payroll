@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
-  basePath: "/payrol",
+  basePath: "/payroll",
   serverExternalPackages: ["puppeteer"],
   reactStrictMode: true,
   poweredByHeader: false,
@@ -9,7 +9,7 @@ const nextConfig = {
     return [
       {
         source: "/",
-        destination: "/payrol/login",
+        destination: "/payroll/login",
         basePath: false,
         permanent: false,
       },

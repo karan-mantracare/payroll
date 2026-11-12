@@ -114,7 +114,7 @@ export default function AdminLeavesPage() {
   const fetchLeaveQuotas = useCallback(async () => {
     setLoadingEmployees(true);
     try {
-      const res = await fetch("/payrol/api/leaves/quotas");
+      const res = await fetch("/payroll/api/leaves/quotas");
       if (res.ok) {
         const json = await res.json();
         setEmployees(json.employees || []);
@@ -129,7 +129,7 @@ export default function AdminLeavesPage() {
   const fetchHolidays = useCallback(async () => {
     setLoadingHolidays(true);
     try {
-      const res = await fetch("/payrol/api/holidays");
+      const res = await fetch("/payroll/api/holidays");
       if (res.ok) {
         const json = await res.json();
         setHolidays(json.holidays || []);
@@ -143,7 +143,7 @@ export default function AdminLeavesPage() {
 
   const fetchLeaveRequests = useCallback(async () => {
     try {
-      const res = await fetch("/payrol/api/leaves/requests?scope=all", { cache: "no-store" });
+      const res = await fetch("/payroll/api/leaves/requests?scope=all", { cache: "no-store" });
       if (res.ok) {
         const json = await res.json();
         setLeaveRequests((json.requests || []).filter((r: AdminLeaveRequest) => r.status !== "DRAFT"));
@@ -162,7 +162,7 @@ export default function AdminLeavesPage() {
   const handleReviewLeaveRequest = async (requestId: string, action: "APPROVE" | "REJECT") => {
     setReviewingLeaveId(requestId);
     try {
-      const res = await fetch("/payrol/api/leaves/requests", {
+      const res = await fetch("/payroll/api/leaves/requests", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId, action }),
@@ -246,7 +246,7 @@ export default function AdminLeavesPage() {
 
     setSavingQuotas(true);
     try {
-      const res = await fetch("/payrol/api/leaves/quotas", {
+      const res = await fetch("/payroll/api/leaves/quotas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates }),
@@ -282,7 +282,7 @@ export default function AdminLeavesPage() {
         };
       });
 
-      const res = await fetch("/payrol/api/leaves/quotas", {
+      const res = await fetch("/payroll/api/leaves/quotas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates }),
@@ -309,7 +309,7 @@ export default function AdminLeavesPage() {
     e.preventDefault();
     setAddingHoliday(true);
     try {
-      const res = await fetch("/payrol/api/holidays", {
+      const res = await fetch("/payroll/api/holidays", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newHoliday),
@@ -341,7 +341,7 @@ export default function AdminLeavesPage() {
     }
 
     try {
-      const res = await fetch(`/payrol/api/holidays?id=${id}`, {
+      const res = await fetch(`/payroll/api/holidays?id=${id}`, {
         method: "DELETE",
       });
 
@@ -415,7 +415,7 @@ export default function AdminLeavesPage() {
     if (uploadPreview.length === 0) return;
     setImportingHolidays(true);
     try {
-      const res = await fetch("/payrol/api/holidays", {
+      const res = await fetch("/payroll/api/holidays", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ holidays: uploadPreview }),

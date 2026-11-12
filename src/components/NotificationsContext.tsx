@@ -51,7 +51,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
   const refreshNotifications = useCallback(async () => {
     try {
-      const res = await fetch("/payrol/api/notifications", {
+      const res = await fetch("/payroll/api/notifications", {
         method: "GET",
         cache: "no-store",
       });
@@ -101,7 +101,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
     setIsUpdating(true);
     try {
-      const res = await fetch("/payrol/api/notifications", {
+      const res = await fetch("/payroll/api/notifications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notificationId }),
@@ -133,7 +133,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
     setIsUpdating(true);
     try {
-      const res = await fetch("/payrol/api/notifications", {
+      const res = await fetch("/payroll/api/notifications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ markAll: true }),

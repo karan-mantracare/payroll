@@ -105,8 +105,8 @@ export default function EmployeeTrainingPage() {
     setLoading(true);
     try {
       const [modRes, progRes] = await Promise.all([
-        fetch("/payrol/api/training/modules"),
-        fetch("/payrol/api/training/progress"),
+        fetch("/payroll/api/training/modules"),
+        fetch("/payroll/api/training/progress"),
       ]);
 
       if (modRes.ok) {
@@ -169,7 +169,7 @@ export default function EmployeeTrainingPage() {
     setCurrentVideoPercent(percent);
 
     try {
-      const res = await fetch("/payrol/api/training/progress", {
+      const res = await fetch("/payroll/api/training/progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -198,7 +198,7 @@ export default function EmployeeTrainingPage() {
   const handleCompleteAllVideos = async () => {
     if (!activeModule) return;
     for (const v of activeModule.videos) {
-      await fetch("/payrol/api/training/progress", {
+      await fetch("/payroll/api/training/progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -210,7 +210,7 @@ export default function EmployeeTrainingPage() {
       });
     }
     // Refresh progress
-    const res = await fetch(`/payrol/api/training/progress?moduleId=${activeModule.id}`);
+    const res = await fetch(`/payroll/api/training/progress?moduleId=${activeModule.id}`);
     if (res.ok) {
       const data = await res.json();
       if (data.progress) {
@@ -228,7 +228,7 @@ export default function EmployeeTrainingPage() {
     if (!activeModule) return;
     setSubmittingTest(true);
     try {
-      const res = await fetch("/payrol/api/training/progress", {
+      const res = await fetch("/payroll/api/training/progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

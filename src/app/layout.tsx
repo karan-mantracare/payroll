@@ -6,9 +6,9 @@ export const metadata: Metadata = {
   title: "MantraCare HRMS & Payroll",
   description: "Enterprise HRMS & Payroll inside the MantraCare Programs Ecosystem",
   icons: {
-    icon: "/payrol/favicon.ico",
-    shortcut: "/payrol/favicon.png",
-    apple: "/payrol/favicon.png",
+    icon: "/payroll/favicon.ico",
+    shortcut: "/payroll/favicon.png",
+    apple: "/payroll/favicon.png",
   },
 };
 

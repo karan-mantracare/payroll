@@ -260,14 +260,14 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
         <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-center shrink-0">
           <div
             className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 group relative"
-            title="Programs Mount: /payrol"
+            title="Programs Mount: /payroll"
           >
             <Server className="w-4 h-4 text-[#293381]" />
             <div
               role="tooltip"
               className="absolute left-full ml-3 px-2 py-1 bg-[#293381] text-white text-[11px] font-mono rounded-md shadow-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50"
             >
-              /payrol
+              /payroll
             </div>
           </div>
         </div>
@@ -275,7 +275,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
         <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl mt-3 shrink-0">
           <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono flex items-center justify-between">
             <span>Mount:</span>
-            <span className="text-[#293381] dark:text-[#36B4FF] font-bold">/payrol</span>
+            <span className="text-[#293381] dark:text-[#36B4FF] font-bold">/payroll</span>
           </div>
           <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
             MantraCare Ecosystem
@@ -371,7 +371,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
         <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl mt-3 shrink-0">
           <div className="text-[11px] text-slate-500 font-mono flex items-center justify-between">
             <span>Mount:</span>
-            <span className="text-[#293381] font-bold">/payrol</span>
+            <span className="text-[#293381] font-bold">/payroll</span>
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">
             MantraCare Ecosystem

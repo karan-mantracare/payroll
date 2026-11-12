@@ -114,7 +114,7 @@ export default function EmployeeDashboardPage() {
   // Fetch Attendance Status
   const fetchPunchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/payrol/api/attendance/status");
+      const res = await fetch("/payroll/api/attendance/status");
       if (res.ok) {
         const data = await res.json();
         setPunchStatus(data.status);
@@ -136,8 +136,8 @@ export default function EmployeeDashboardPage() {
 
       const isPunchingOut = Boolean(punchStatus?.isCheckedIn);
       const endpoint = isPunchingOut
-        ? "/payrol/api/attendance/check-out"
-        : "/payrol/api/attendance/check-in";
+        ? "/payroll/api/attendance/check-out"
+        : "/payroll/api/attendance/check-in";
 
       const res = await fetch(endpoint, {
         method: "POST",

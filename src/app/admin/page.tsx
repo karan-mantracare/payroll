@@ -89,7 +89,7 @@ export default function AdminDashboardPage() {
   const [employeeCount, setEmployeeCount] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch("/payrol/api/employees")
+    fetch("/payroll/api/employees")
       .then((res) => res.json())
       .then((data) => {
         if (data.total !== undefined) setEmployeeCount(data.total);

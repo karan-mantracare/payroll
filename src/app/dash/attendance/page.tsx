@@ -71,7 +71,7 @@ export default function EmployeeAttendancePage() {
   const fetchStatus = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetch("/payrol/api/attendance/status");
+      const res = await fetch("/payroll/api/attendance/status");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load status");
       setTodayStatus(data.status);
@@ -91,7 +91,7 @@ export default function EmployeeAttendancePage() {
       const lastDay = new Date(year, month, 0).getDate();
       const end = `${selectedMonth}-${String(lastDay).padStart(2, "0")}`;
 
-      const res = await fetch(`/payrol/api/attendance?startDate=${start}&endDate=${end}`);
+      const res = await fetch(`/payroll/api/attendance?startDate=${start}&endDate=${end}`);
       const data = await res.json();
       if (res.ok && data.records) {
         setMonthlyRecords(data.records);
@@ -106,7 +106,7 @@ export default function EmployeeAttendancePage() {
   // Fetch correction requests
   const fetchCorrections = useCallback(async () => {
     try {
-      const res = await fetch("/payrol/api/attendance/corrections");
+      const res = await fetch("/payroll/api/attendance/corrections");
       const data = await res.json();
       if (res.ok && data.requests) {
         setRegRequests(data.requests);
@@ -128,7 +128,7 @@ export default function EmployeeAttendancePage() {
       setActionLoading(true);
       setError(null);
       setSuccessMsg(null);
-      const res = await fetch("/payrol/api/attendance/check-in", {
+      const res = await fetch("/payroll/api/attendance/check-in", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source: "WEB" }),
@@ -151,7 +151,7 @@ export default function EmployeeAttendancePage() {
       setActionLoading(true);
       setError(null);
       setSuccessMsg(null);
-      const res = await fetch("/payrol/api/attendance/check-out", {
+      const res = await fetch("/payroll/api/attendance/check-out", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source: "WEB" }),
@@ -178,7 +178,7 @@ export default function EmployeeAttendancePage() {
     try {
       setSubmittingReg(true);
       setError(null);
-      const res = await fetch("/payrol/api/attendance/corrections", {
+      const res = await fetch("/payroll/api/attendance/corrections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -259,7 +259,7 @@ export default function EmployeeAttendancePage() {
           ? localDateTimeToUtcIso(reportDate, reportYourValue)
           : matchedReportRecord?.checkOutTimeUtc || localDateTimeToUtcIso(reportDate, "18:00");
 
-      const res = await fetch("/payrol/api/attendance/corrections", {
+      const res = await fetch("/payroll/api/attendance/corrections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

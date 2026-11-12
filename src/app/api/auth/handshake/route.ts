@@ -5,7 +5,7 @@ export async function POST() {
     {
       error: "Programs Platform SSO token handshake has been decommissioned in favor of direct authentication.",
       code: "SSO_DECOMMISSIONED",
-      loginUrl: "/payrol/login",
+      loginUrl: "/payroll/login",
     },
     { status: 410 }
   );

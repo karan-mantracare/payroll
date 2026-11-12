@@ -48,7 +48,7 @@ export default function SensitiveFinancialCard({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/payrol/api/employees/${employeeId}/sensitive`);
+      const res = await fetch(`/payroll/api/employees/${employeeId}/sensitive`);
       if (!res.ok) {
         const json = await res.json();
         throw new Error(json.error || "Failed to load sensitive details");
@@ -99,7 +99,7 @@ export default function SensitiveFinancialCard({
       if (editForm.taxIdentifier) payload.taxIdentifier = editForm.taxIdentifier;
       if (editForm.compensationEffectiveDate) payload.compensationEffectiveDate = editForm.compensationEffectiveDate;
 
-      const res = await fetch(`/payrol/api/employees/${employeeId}/sensitive`, {
+      const res = await fetch(`/payroll/api/employees/${employeeId}/sensitive`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

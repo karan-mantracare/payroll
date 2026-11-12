@@ -8,7 +8,7 @@ export async function downloadLetterheadPdf(
   payload: Record<string, unknown>,
   fileName: string
 ): Promise<void> {
-  const res = await fetch("/payrol/api/payroll/payslip-pdf", {
+  const res = await fetch("/payroll/api/payroll/payslip-pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...payload, fileName }),
@@ -158,7 +158,7 @@ export function PayslipLetterheadModal({
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1.5">
                 <img
-                  src="/payrol/mantracare-logo.png"
+                  src="/payroll/mantracare-logo.png"
                   alt="MantraCare"
                   data-testid="letterhead-company-logo"
                   className="h-9 sm:h-10 w-auto object-contain"

@@ -79,7 +79,7 @@ export default function LoginPage() {
     if (user) {
       const perms = Array.isArray(user.permissions) ? user.permissions : [];
       const canAdmin = Boolean(user.isSuperAdmin) || perms.includes("portal.admin.access");
-      window.location.replace(canAdmin ? "/payrol/admin" : "/payrol/dash");
+      window.location.replace(canAdmin ? "/payroll/admin" : "/payroll/dash");
     }
   }, [user]);
 
@@ -121,7 +121,7 @@ export default function LoginPage() {
     setResetSuccess(null);
 
     try {
-      const res = await fetch("/payrol/api/auth/reset-password", {
+      const res = await fetch("/payroll/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "request", email: resetEmail.trim() }),
@@ -154,7 +154,7 @@ export default function LoginPage() {
     setResetSuccess(null);
 
     try {
-      const res = await fetch("/payrol/api/auth/reset-password", {
+      const res = await fetch("/payroll/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -209,7 +209,7 @@ export default function LoginPage() {
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-      const res = await fetch("/payrol/api/auth/login", {
+      const res = await fetch("/payroll/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: cleanEmail, password }),
@@ -281,7 +281,7 @@ export default function LoginPage() {
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-      const res = await fetch("/payrol/api/auth/verify-otp", {
+      const res = await fetch("/payroll/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -313,7 +313,7 @@ export default function LoginPage() {
 
       // Success: Route directly to assigned portal
       setLoginState("authenticated");
-      const targetUrl = data.redirectUrl || "/payrol/dash";
+      const targetUrl = data.redirectUrl || "/payroll/dash";
       window.location.replace(targetUrl);
     } catch (err: any) {
       clearTimeout(timeout);

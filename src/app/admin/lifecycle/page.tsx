@@ -53,7 +53,7 @@ export default function AdminLifecyclePage() {
 
   const loadRequests = useCallback(async () => {
     try {
-      const res = await fetch("/payrol/api/lifecycle/requests?scope=all", { cache: "no-store" });
+      const res = await fetch("/payroll/api/lifecycle/requests?scope=all", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setRequests(Array.isArray(data.requests) ? data.requests : []);
@@ -73,7 +73,7 @@ export default function AdminLifecyclePage() {
     setProcessingId(requestId);
     setFeedback(null);
     try {
-      const res = await fetch("/payrol/api/lifecycle/requests", {
+      const res = await fetch("/payroll/api/lifecycle/requests", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId, action }),

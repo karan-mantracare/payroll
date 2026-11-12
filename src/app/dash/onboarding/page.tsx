@@ -131,7 +131,7 @@ export default function EmployeeOnboardingPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const res = await fetch("/payrol/api/lifecycle/requests", { cache: "no-store" });
+      const res = await fetch("/payroll/api/lifecycle/requests", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setProfile(data.profile || null);
@@ -211,7 +211,7 @@ export default function EmployeeOnboardingPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch("/payrol/api/lifecycle/requests", {
+      const res = await fetch("/payroll/api/lifecycle/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -259,7 +259,7 @@ export default function EmployeeOnboardingPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch("/payrol/api/lifecycle/requests", {
+      const res = await fetch("/payroll/api/lifecycle/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -294,7 +294,7 @@ export default function EmployeeOnboardingPage() {
     setWithdrawingId(requestId);
     setBanner(null);
     try {
-      const res = await fetch("/payrol/api/lifecycle/requests", {
+      const res = await fetch("/payroll/api/lifecycle/requests", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId, action: "WITHDRAW" }),

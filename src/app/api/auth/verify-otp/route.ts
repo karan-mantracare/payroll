@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       httpOnly: true,
       secure: isProduction,
       sameSite: "lax",
-      path: "/payrol",
+      path: "/payroll",
       maxAge,
     });
 

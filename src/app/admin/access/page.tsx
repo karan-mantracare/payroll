@@ -13,7 +13,7 @@ export default function AdminAccessPage() {
 
   const fetchAuditLogs = () => {
     setLoading(true);
-    fetch("/payrol/api/audit")
+    fetch("/payroll/api/audit")
       .then((res) => res.json())
       .then((data) => {
         setAuditData(data);

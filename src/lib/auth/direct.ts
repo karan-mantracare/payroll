@@ -493,7 +493,7 @@ export async function verifyLoginOtp(params: {
     }
 
     // Determine authorized destination
-    const redirectUrl = canAccessAdmin ? "/payrol/admin" : "/payrol/dash";
+    const redirectUrl = canAccessAdmin ? "/payroll/admin" : "/payroll/dash";
 
     // 10. Mint authenticated server session
     const tokenHash = hashOtp(challengeToken);

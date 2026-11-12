@@ -81,9 +81,9 @@ export default function EmployeeProfilePage() {
 
   const loadAll = useCallback(async () => {
     try {
-      const requestsPromise = fetch("/payrol/api/profile/change-requests", { cache: "no-store" });
+      const requestsPromise = fetch("/payroll/api/profile/change-requests", { cache: "no-store" });
       const empPromise = user?.employeeId
-        ? fetch(`/payrol/api/employees/${user.employeeId}`, { cache: "no-store" })
+        ? fetch(`/payroll/api/employees/${user.employeeId}`, { cache: "no-store" })
         : Promise.resolve(null);
 
       const [empRes, reqRes] = await Promise.all([empPromise, requestsPromise]);
@@ -167,7 +167,7 @@ export default function EmployeeProfilePage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch("/payrol/api/profile/change-requests", {
+      const res = await fetch("/payroll/api/profile/change-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -200,7 +200,7 @@ export default function EmployeeProfilePage() {
     setWithdrawingId(requestId);
     setBanner(null);
     try {
-      const res = await fetch("/payrol/api/profile/change-requests", {
+      const res = await fetch("/payroll/api/profile/change-requests", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId, action: "WITHDRAW" }),
