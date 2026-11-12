@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   basePath: "/payrol",
+  serverExternalPackages: ["puppeteer"],
   reactStrictMode: true,
   poweredByHeader: false,
   async redirects() {

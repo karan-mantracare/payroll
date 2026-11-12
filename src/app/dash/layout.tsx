@@ -5,6 +5,7 @@ import { useAuth } from "@/components/AuthGate";
 import { Navbar } from "@/components/Navbar";
 import { Sidebar } from "@/components/Sidebar";
 import { SidebarProvider } from "@/components/SidebarContext";
+import { NotificationsProvider } from "@/components/NotificationsContext";
 import { ShieldAlert, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
@@ -50,7 +51,8 @@ export default function EmployeeLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SidebarProvider>
+    <NotificationsProvider>
+      <SidebarProvider>
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 flex transition-colors">
         <Sidebar
           type="dash"
@@ -70,6 +72,7 @@ export default function EmployeeLayout({ children }: { children: ReactNode }) {
           </main>
         </div>
       </div>
-    </SidebarProvider>
+      </SidebarProvider>
+    </NotificationsProvider>
   );
 }

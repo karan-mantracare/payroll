@@ -1,10 +1,15 @@
 import { db } from "../db/client";
-import { shifts, shiftAssignments, shiftHistory, employees, users } from "../db/schema";
+import { shifts, shiftAssignments, shiftHistory, shiftChangeRequests, employees, users } from "../db/schema";
 import { eq, and, or, desc, inArray, gte, lte, ne } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { SessionContext } from "../permissions/types";
 import { auditLogger } from "../audit/logger";
 import { resolveEmployee, verifyHierarchyScopeAccess } from "../hierarchy/service";
+import {
+  createNotification,
+  notifyAdmins,
+  resolveUserIdForEmployee,
+} from "../notifications/service";
 
 export interface CreateShiftInput {
   name: string;
@@ -233,90 +238,19 @@ export async function assignShiftToEmployee(
   }
 
   const targetShift = shiftRows[0];
-  const now = Date.now();
-
-  // Find currently active assignment
-  const currentAssignments = await db
-    .select()
-    .from(shiftAssignments)
-    .where(
-      and(
-        eq(shiftAssignments.employeeId, employee.id),
-        or(
-          eq(shiftAssignments.endDate, ""),
-          // @ts-ignore
-          eq(shiftAssignments.endDate, null),
-          gte(shiftAssignments.endDate, input.startDate)
-        )
-      )
-    );
-
-  const prevShiftId = currentAssignments.length > 0 ? currentAssignments[0].shiftId : null;
-
-  // Close previous assignment
-  for (const prev of currentAssignments) {
-    await db
-      .update(shiftAssignments)
-      .set({ endDate: input.startDate, updatedAt: now })
-      .where(eq(shiftAssignments.id, prev.id));
-  }
-
-  const assignmentId = `sa_${randomUUID()}`;
   const patternDays = input.patternDays || ["MON", "TUE", "WED", "THU", "FRI"];
 
-  await db.insert(shiftAssignments).values({
-    id: assignmentId,
-    employeeId: employee.id,
-    shiftId: targetShift.id,
-    startDate: input.startDate,
-    endDate: input.endDate || null,
-    patternDays: JSON.stringify(patternDays),
-    assignedByUserId: session.userId,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  // Record history
-  await db.insert(shiftHistory).values({
-    id: `sh_${randomUUID()}`,
-    employeeId: employee.id,
-    previousShiftId: prevShiftId,
-    newShiftId: targetShift.id,
-    effectiveDate: input.startDate,
-    reason: input.reason || "Shift assignment updated by HR",
-    changedByUserId: session.userId,
-    createdAt: now,
-  });
-
-  // Log audit
-  await auditLogger.logAuditEvent({
-    actorUserId: session.userId,
-    actorEmployeeId: session.employeeId,
-    action: "SHIFT_ASSIGNED",
-    targetEntity: "shift_assignments",
-    targetId: assignmentId,
-    changes: {
-      employeeId: employee.id,
-      employeeCode: employee.employeeCode,
-      shiftCode: targetShift.code,
-      shiftName: targetShift.name,
-      startDate: input.startDate,
-      endDate: input.endDate || null,
-      patternDays,
-    },
-    ipAddress: meta?.ipAddress,
-    userAgent: meta?.userAgent,
-  });
-
-  return {
-    assignmentId,
-    employeeId: employee.id,
-    shiftId: targetShift.id,
-    shiftCode: targetShift.code,
-    shiftName: targetShift.name,
-    startDate: input.startDate,
+  return applyShiftAssignment(
+    session.userId,
+    session.employeeId,
+    employee,
+    targetShift,
+    input.startDate,
+    input.endDate,
     patternDays,
-  };
+    input.reason || "Shift assignment updated by HR",
+    meta
+  );
 }
 
 /**
@@ -425,5 +359,422 @@ export async function getEmployeeShiftCalendar(
   }
 
   return schedule;
+}
+
+export interface ShiftChangeRequestInput {
+  requestedShiftId: string;
+  effectiveDate: string; // YYYY-MM-DD
+  endDate?: string;
+  requestedPatternDays?: string[];
+  reason: string;
+}
+
+async function applyShiftAssignment(
+  actorUserId: string,
+  actorEmployeeId: string | undefined,
+  employee: { id: string; employeeCode: string },
+  targetShift: typeof shifts.$inferSelect,
+  startDate: string,
+  endDate: string | null | undefined,
+  patternDays: string[],
+  reason: string,
+  meta?: { ipAddress?: string; userAgent?: string }
+) {
+  const now = Date.now();
+  const currentAssignments = await db
+    .select()
+    .from(shiftAssignments)
+    .where(
+      and(
+        eq(shiftAssignments.employeeId, employee.id),
+        or(
+          eq(shiftAssignments.endDate, ""),
+          // @ts-ignore
+          eq(shiftAssignments.endDate, null),
+          gte(shiftAssignments.endDate, startDate)
+        )
+      )
+    );
+
+  const prevShiftId = currentAssignments.length > 0 ? currentAssignments[0].shiftId : null;
+
+  for (const prev of currentAssignments) {
+    await db
+      .update(shiftAssignments)
+      .set({ endDate: startDate, updatedAt: now })
+      .where(eq(shiftAssignments.id, prev.id));
+  }
+
+  const assignmentId = `sa_${randomUUID()}`;
+  await db.insert(shiftAssignments).values({
+    id: assignmentId,
+    employeeId: employee.id,
+    shiftId: targetShift.id,
+    startDate,
+    endDate: endDate || null,
+    patternDays: JSON.stringify(patternDays),
+    assignedByUserId: actorUserId,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await db.insert(shiftHistory).values({
+    id: `sh_${randomUUID()}`,
+    employeeId: employee.id,
+    previousShiftId: prevShiftId,
+    newShiftId: targetShift.id,
+    effectiveDate: startDate,
+    reason,
+    changedByUserId: actorUserId,
+    createdAt: now,
+  });
+
+  await auditLogger.logAuditEvent({
+    actorUserId,
+    actorEmployeeId,
+    action: "SHIFT_ASSIGNED",
+    targetEntity: "shift_assignments",
+    targetId: assignmentId,
+    changes: {
+      employeeId: employee.id,
+      employeeCode: employee.employeeCode,
+      shiftCode: targetShift.code,
+      shiftName: targetShift.name,
+      startDate,
+      endDate: endDate || null,
+      patternDays,
+    },
+    ipAddress: meta?.ipAddress,
+    userAgent: meta?.userAgent,
+  });
+
+  return {
+    assignmentId,
+    employeeId: employee.id,
+    shiftId: targetShift.id,
+    shiftCode: targetShift.code,
+    shiftName: targetShift.name,
+    startDate,
+    patternDays,
+  };
+}
+
+/**
+ * Submits a schedule/shift change request on behalf of the active employee.
+ */
+export async function requestShiftChange(
+  session: SessionContext,
+  input: ShiftChangeRequestInput,
+  meta?: { ipAddress?: string; userAgent?: string }
+) {
+  const employee = await resolveEmployee(session.employeeId || session.userId);
+  if (!employee) {
+    throw new Error("EMPLOYEE_NOT_FOUND: Active employee profile required to request a schedule change.");
+  }
+
+  if (!input.requestedShiftId) {
+    throw new Error("SHIFT_REQUIRED: Please select a requested shift.");
+  }
+  if (!input.effectiveDate || !/^\d{4}-\d{2}-\d{2}$/.test(input.effectiveDate)) {
+    throw new Error("INVALID_DATE: Effective date must be in YYYY-MM-DD format.");
+  }
+  if (input.endDate && input.endDate < input.effectiveDate) {
+    throw new Error("INVALID_DATE_RANGE: End date cannot be earlier than effective date.");
+  }
+  if (!input.reason || input.reason.trim().length === 0) {
+    throw new Error("REASON_REQUIRED: Please provide a reason for the schedule change request.");
+  }
+
+  const targetShiftRows = await db
+    .select()
+    .from(shifts)
+    .where(eq(shifts.id, input.requestedShiftId))
+    .limit(1);
+
+  if (targetShiftRows.length === 0) {
+    throw new Error("SHIFT_NOT_FOUND: Requested shift does not exist.");
+  }
+  const targetShift = targetShiftRows[0];
+
+  const currentShift = await getEmployeeShiftForDate(employee.id, input.effectiveDate);
+  const patternDays =
+    input.requestedPatternDays && input.requestedPatternDays.length > 0
+      ? input.requestedPatternDays
+      : ["MON", "TUE", "WED", "THU", "FRI"];
+
+  const requestId = `scr_${randomUUID()}`;
+  const now = Date.now();
+
+  await db.insert(shiftChangeRequests).values({
+    id: requestId,
+    employeeId: employee.id,
+    currentShiftId: currentShift?.shiftId || null,
+    requestedShiftId: targetShift.id,
+    effectiveDate: input.effectiveDate,
+    endDate: input.endDate || null,
+    requestedPatternDays: JSON.stringify(patternDays),
+    reason: input.reason.trim(),
+    status: "PENDING",
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await auditLogger.logAuditEvent({
+    actorUserId: session.userId,
+    actorEmployeeId: session.employeeId,
+    action: "SHIFT_CHANGE_REQUESTED",
+    targetEntity: "shift_change_requests",
+    targetId: requestId,
+    changes: {
+      employeeId: employee.id,
+      employeeCode: employee.employeeCode,
+      currentShiftId: currentShift?.shiftId || null,
+      requestedShiftId: targetShift.id,
+      requestedShiftName: targetShift.name,
+      effectiveDate: input.effectiveDate,
+      endDate: input.endDate || null,
+      patternDays,
+      reason: input.reason.trim(),
+    },
+    ipAddress: meta?.ipAddress,
+    userAgent: meta?.userAgent,
+  });
+
+  try {
+    await notifyAdmins({
+      title: `Shift Schedule Request (${employee.employeeCode})`,
+      message: `${employee.employeeCode} requested ${targetShift.name} effective ${input.effectiveDate}.`,
+      category: "SHIFT",
+      actionUrl: "/admin/shifts",
+      excludeUserId: session.userId,
+    });
+  } catch (err) {
+    console.warn("Non-fatal notification dispatch failure:", err);
+  }
+
+  return {
+    id: requestId,
+    employeeId: employee.id,
+    requestedShiftId: targetShift.id,
+    requestedShiftName: targetShift.name,
+    effectiveDate: input.effectiveDate,
+    endDate: input.endDate || null,
+    patternDays,
+    status: "PENDING",
+    reason: input.reason.trim(),
+  };
+}
+
+/**
+ * Lists schedule change requests according to caller scope.
+ */
+export async function getShiftChangeRequests(session: SessionContext) {
+  const canManageAll =
+    session.isSuperAdmin ||
+    session.roles.includes("SUPER_ADMIN") ||
+    session.roles.includes("ADMIN") ||
+    session.roles.includes("HR_MANAGER") ||
+    session.effectivePermissions.includes("admin.shifts.manage") ||
+    session.effectivePermissions.includes("dash.team_approvals.manage");
+
+  const allShifts = await db.select().from(shifts);
+  const shiftMap = new Map(allShifts.map((s) => [s.id, s]));
+
+  const baseQuery = db
+    .select({
+      id: shiftChangeRequests.id,
+      employeeId: shiftChangeRequests.employeeId,
+      employeeCode: employees.employeeCode,
+      employeeName: users.name,
+      departmentId: employees.departmentId,
+      teamId: employees.teamId,
+      managerId: employees.managerId,
+      currentShiftId: shiftChangeRequests.currentShiftId,
+      requestedShiftId: shiftChangeRequests.requestedShiftId,
+      effectiveDate: shiftChangeRequests.effectiveDate,
+      endDate: shiftChangeRequests.endDate,
+      requestedPatternDays: shiftChangeRequests.requestedPatternDays,
+      reason: shiftChangeRequests.reason,
+      status: shiftChangeRequests.status,
+      rejectionReason: shiftChangeRequests.rejectionReason,
+      reviewedAt: shiftChangeRequests.reviewedAt,
+      createdAt: shiftChangeRequests.createdAt,
+    })
+    .from(shiftChangeRequests)
+    .innerJoin(employees, eq(shiftChangeRequests.employeeId, employees.id))
+    .innerJoin(users, eq(employees.userId, users.id))
+    .orderBy(desc(shiftChangeRequests.createdAt));
+
+  let rows: any[];
+  if (
+    canManageAll &&
+    (session.isSuperAdmin ||
+      session.roles.includes("SUPER_ADMIN") ||
+      session.widestScope === "ORGANIZATION")
+  ) {
+    rows = await baseQuery;
+  } else if (canManageAll && session.widestScope === "DEPARTMENT") {
+    rows = await baseQuery.where(inArray(employees.departmentId, session.managedDepartmentIds));
+  } else if (canManageAll && session.widestScope === "TEAM") {
+    rows = await baseQuery.where(inArray(employees.teamId, session.managedTeamIds));
+  } else if (canManageAll && session.widestScope === "DIRECT_REPORTS") {
+    rows = await baseQuery.where(
+      or(
+        inArray(employees.id, session.directReportIds),
+        eq(employees.managerId, session.employeeId || "")
+      )
+    );
+  } else {
+    rows = await baseQuery.where(
+      or(
+        eq(shiftChangeRequests.employeeId, session.employeeId || ""),
+        eq(employees.employeeCode, session.employeeId || "")
+      )
+    );
+  }
+
+  return rows.map((r) => {
+    const curShift = r.currentShiftId ? shiftMap.get(r.currentShiftId) : null;
+    const reqShift = shiftMap.get(r.requestedShiftId) || null;
+    let patternDays: string[] = [];
+    try {
+      patternDays = JSON.parse(r.requestedPatternDays || "[]");
+    } catch {
+      patternDays = ["MON", "TUE", "WED", "THU", "FRI"];
+    }
+    return {
+      ...r,
+      patternDays,
+      currentShiftName: curShift?.name || "Current Shift",
+      currentShiftTimings: curShift ? `${curShift.startTime} - ${curShift.endTime}` : null,
+      requestedShiftName: reqShift?.name || "Requested Shift",
+      requestedShiftCode: reqShift?.code || "",
+      requestedShiftTimings: reqShift ? `${reqShift.startTime} - ${reqShift.endTime}` : "",
+    };
+  });
+}
+
+/**
+ * Approves or rejects a schedule change request.
+ * On approval, automatically assigns the requested shift & working day pattern to the employee.
+ */
+export async function reviewShiftChangeRequest(
+  session: SessionContext,
+  requestId: string,
+  input: { status: "APPROVED" | "REJECTED"; rejectionReason?: string },
+  meta?: { ipAddress?: string; userAgent?: string }
+) {
+  const canManage =
+    session.isSuperAdmin ||
+    session.roles.includes("SUPER_ADMIN") ||
+    session.roles.includes("ADMIN") ||
+    session.roles.includes("HR_MANAGER") ||
+    session.effectivePermissions.includes("admin.shifts.manage") ||
+    session.effectivePermissions.includes("dash.team_approvals.manage");
+
+  if (!canManage) {
+    throw new Error("UNAUTHORIZED: Insufficient permissions to review schedule change requests.");
+  }
+
+  const rows = await db
+    .select()
+    .from(shiftChangeRequests)
+    .where(eq(shiftChangeRequests.id, requestId))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error("REQUEST_NOT_FOUND: Schedule change request not found.");
+  }
+
+  const reqRow = rows[0];
+  if (reqRow.status !== "PENDING") {
+    throw new Error(`ALREADY_REVIEWED: Request has already been ${reqRow.status.toLowerCase()}.`);
+  }
+
+  const employee = await resolveEmployee(reqRow.employeeId);
+  if (!employee) {
+    throw new Error("EMPLOYEE_NOT_FOUND: Target employee record does not exist.");
+  }
+
+  await verifyHierarchyScopeAccess(session, employee);
+
+  const now = Date.now();
+  if (input.status === "APPROVED") {
+    const targetShiftRows = await db
+      .select()
+      .from(shifts)
+      .where(eq(shifts.id, reqRow.requestedShiftId))
+      .limit(1);
+
+    if (targetShiftRows.length === 0) {
+      throw new Error("SHIFT_NOT_FOUND: Requested shift no longer exists.");
+    }
+
+    let patternDays: string[] = ["MON", "TUE", "WED", "THU", "FRI"];
+    try {
+      patternDays = JSON.parse(reqRow.requestedPatternDays || "[]");
+    } catch {
+      // keep default
+    }
+
+    await applyShiftAssignment(
+      session.userId,
+      session.employeeId,
+      employee,
+      targetShiftRows[0],
+      reqRow.effectiveDate,
+      reqRow.endDate,
+      patternDays,
+      `Approved schedule change request: ${reqRow.reason}`,
+      meta
+    );
+  }
+
+  await db
+    .update(shiftChangeRequests)
+    .set({
+      status: input.status,
+      reviewedByUserId: session.userId,
+      reviewedAt: now,
+      rejectionReason: input.status === "REJECTED" ? input.rejectionReason || "Declined by HR" : null,
+      updatedAt: now,
+    })
+    .where(eq(shiftChangeRequests.id, reqRow.id));
+
+  await auditLogger.logAuditEvent({
+    actorUserId: session.userId,
+    actorEmployeeId: session.employeeId,
+    action: "SHIFT_CHANGE_REVIEWED",
+    targetEntity: "shift_change_requests",
+    targetId: reqRow.id,
+    changes: {
+      employeeId: reqRow.employeeId,
+      decision: input.status,
+      rejectionReason: input.rejectionReason || null,
+    },
+    ipAddress: meta?.ipAddress,
+    userAgent: meta?.userAgent,
+  });
+
+  try {
+    const recipientUserId = await resolveUserIdForEmployee(reqRow.employeeId);
+    if (recipientUserId) {
+      await createNotification({
+        recipientUserId,
+        title: `Schedule Change Request ${input.status === "APPROVED" ? "Approved" : "Rejected"}`,
+        message: `Your shift change request effective ${reqRow.effectiveDate} was ${input.status.toLowerCase()}.`,
+        category: "SHIFT",
+        actionUrl: "/dash/shifts",
+      });
+    }
+  } catch (err) {
+    console.warn("Non-fatal notification dispatch failure:", err);
+  }
+
+  return {
+    id: reqRow.id,
+    status: input.status,
+    reviewedByUserId: session.userId,
+  };
 }
 

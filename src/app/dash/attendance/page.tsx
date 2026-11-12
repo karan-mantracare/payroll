@@ -57,6 +57,7 @@ export default function EmployeeAttendancePage() {
   const [reportConflictWith, setReportConflictWith] = useState<"IN_TIME" | "OUT_TIME">("IN_TIME");
   const [reportYourValue, setReportYourValue] = useState("09:00");
   const [reportProofLink, setReportProofLink] = useState("");
+  const [reportReason, setReportReason] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
 
   // Keep live clock updated
@@ -228,6 +229,7 @@ export default function EmployeeAttendancePage() {
     setReportConflictWith(defaultConflict);
     setReportYourValue(defaultConflict === "IN_TIME" ? "09:00" : "18:00");
     setReportProofLink("");
+    setReportReason("");
     setError(null);
     setShowReportModal(true);
   };
@@ -268,6 +270,7 @@ export default function EmployeeAttendancePage() {
           currentValue: currentReportValue,
           requestedValue: reportYourValue,
           proofLink: reportProofLink.trim(),
+          reason: reportReason.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -275,6 +278,7 @@ export default function EmployeeAttendancePage() {
 
       setShowReportModal(false);
       setReportProofLink("");
+      setReportReason("");
       setSuccessMsg("Attendance conflict report submitted for HR review.");
       await fetchCorrections();
     } catch (err: any) {
@@ -701,14 +705,25 @@ export default function EmployeeAttendancePage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => openReportModal(rec, rec.checkOutTimeUtc ? "OUT_TIME" : "IN_TIME")}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition"
-                        >
-                          <Flag className="w-3 h-3" />
-                          Report Attendance
-                        </button>
+                        <div className="relative inline-flex items-center justify-end group">
+                          <button
+                            type="button"
+                            onClick={() => openReportModal(rec, rec.checkOutTimeUtc ? "OUT_TIME" : "IN_TIME")}
+                            aria-label="Report Attendance"
+                            title="Report Attendance"
+                            data-testid={`report-attendance-icon-${rec.date}`}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition focus:outline-none focus:ring-2 focus:ring-amber-400"
+                          >
+                            <Flag className="w-3.5 h-3.5" />
+                          </button>
+                          <div
+                            role="tooltip"
+                            className="pointer-events-none absolute bottom-full right-0 mb-1.5 px-2.5 py-1 rounded-md bg-[#293381] text-white text-[11px] font-semibold whitespace-nowrap shadow-lg opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150 z-30"
+                          >
+                            Report Attendance
+                            <span className="absolute top-full right-3 border-4 border-transparent border-t-[#293381]" />
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -904,6 +919,20 @@ export default function EmployeeAttendancePage() {
                     required
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Reason / Explanation <span className="font-normal text-slate-400">(Optional)</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  placeholder="Explain why there is a conflict (e.g., biometric machine missed punch, field visit, manager approved remote check-in)..."
+                  data-testid="report-attendance-reason"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                />
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">

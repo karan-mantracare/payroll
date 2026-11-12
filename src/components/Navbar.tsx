@@ -1,5 +1,7 @@
 "use client";
 
+import { NotificationBell } from "@/components/NotificationBell";
+
 import React, { useEffect, useState } from "react";
 import { useAuth } from "./AuthGate";
 import { PortalSwitcher } from "./PortalSwitcher";
@@ -73,6 +75,9 @@ export function Navbar({ portal, onToggleMobileMenu, isMobileMenuOpen }: NavbarP
         >
           {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-[#293381]" />}
         </button>
+
+        {/* Notifications Bell (Next to Mode Selection) */}
+        <NotificationBell portal={portal} />
 
         {/* User Profile & Role Info */}
         <div className="flex items-center gap-3 pl-2 border-l border-slate-200 dark:border-slate-800">

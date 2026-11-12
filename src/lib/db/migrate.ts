@@ -388,6 +388,25 @@ export async function runMigrations(options?: RunMigrationsOptions) {
   `);
 
   await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS shift_change_requests (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL REFERENCES employees(id),
+      current_shift_id TEXT REFERENCES shifts(id),
+      requested_shift_id TEXT NOT NULL REFERENCES shifts(id),
+      effective_date TEXT NOT NULL,
+      end_date TEXT,
+      requested_pattern_days TEXT NOT NULL DEFAULT '["MON","TUE","WED","THU","FRI"]',
+      reason TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      reviewed_by_user_id TEXT REFERENCES users(id),
+      reviewed_at INTEGER,
+      rejection_reason TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
+
+  await rawClient.execute(`
     CREATE TABLE IF NOT EXISTS attendance_records (
       id TEXT PRIMARY KEY,
       employee_id TEXT NOT NULL REFERENCES employees(id),
@@ -558,6 +577,26 @@ export async function runMigrations(options?: RunMigrationsOptions) {
   );
 
   await recordMigrationVersion("006", "performance_and_security_indexes");
+
+  await rawClient.execute(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      recipient_user_id TEXT NOT NULL REFERENCES users(id),
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'GENERAL',
+      action_url TEXT,
+      is_read INTEGER NOT NULL DEFAULT 0,
+      read_at INTEGER,
+      created_at INTEGER NOT NULL
+    );
+  `);
+
+  await rawClient.execute(
+    "CREATE INDEX IF NOT EXISTS idx_notifications_recipient_created ON notifications(recipient_user_id, created_at);"
+  );
+
+  await recordMigrationVersion("007", "user_notifications_center");
 
   console.log("Turso schema migration completed successfully with full version audit trail.");
 }

@@ -21,6 +21,9 @@ export default function AdminShiftsPage() {
   const { user } = useAuth();
   const [shifts, setShifts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [changeRequests, setChangeRequests] = useState<any[]>([]);
+  const [showRequestsModal, setShowRequestsModal] = useState(false);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   // Create Shift Modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -81,9 +84,48 @@ export default function AdminShiftsPage() {
     }
   }, [assignForm.shiftId]);
 
+  const fetchChangeRequests = useCallback(async () => {
+    try {
+      const res = await fetch("/payrol/api/shifts/change-requests");
+      if (res.ok) {
+        const data = await res.json();
+        setChangeRequests(data.requests || []);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     fetchShifts();
-  }, [fetchShifts]);
+    fetchChangeRequests();
+  }, [fetchShifts, fetchChangeRequests]);
+
+  const handleReviewChangeRequest = async (id: string, status: "APPROVED" | "REJECTED") => {
+    let rejectionReason: string | undefined;
+    if (status === "REJECTED") {
+      const input = prompt("Enter reason for declining this schedule change request:");
+      if (!input) return;
+      rejectionReason = input;
+    }
+    try {
+      setReviewingId(id);
+      const res = await fetch(`/payrol/api/shifts/change-requests/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, rejectionReason }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Review failed");
+      }
+      await fetchChangeRequests();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setReviewingId(null);
+    }
+  };
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,7 +264,23 @@ export default function AdminShiftsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+          <button
+            onClick={() => {
+              fetchChangeRequests();
+              setShowRequestsModal(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 font-semibold text-xs transition shadow-sm relative"
+          >
+            <RefreshCw className="w-4 h-4 text-amber-500" />
+            Schedule Change Requests
+            {changeRequests.filter((r) => r.status === "PENDING").length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold">
+                {changeRequests.filter((r) => r.status === "PENDING").length}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => setShowAssignModal(true)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 font-semibold text-xs transition shadow-sm"
@@ -684,6 +742,96 @@ export default function AdminShiftsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Change Requests Modal */}
+      {showRequestsModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl p-6 shadow-xl space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-[#293381] dark:text-white flex items-center gap-2">
+                <RefreshCw className="w-5 h-5 text-[#36B4FF]" />
+                Employee Schedule Change Requests
+              </h3>
+              <button
+                onClick={() => setShowRequestsModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-3 flex-1 pr-1">
+              {changeRequests.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400">
+                  No schedule change requests found.
+                </div>
+              ) : (
+                changeRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <span className="font-bold text-slate-900 dark:text-white mr-2">
+                          {req.employeeName}
+                        </span>
+                        <span className="font-mono text-[#36B4FF]">({req.employeeCode})</span>
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-500">
+                        Effective: {req.effectiveDate}
+                        {req.endDate ? ` → ${req.endDate}` : ""}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold text-[#293381] dark:text-white">
+                        {req.currentShiftName} → {req.requestedShiftName} ({req.requestedShiftTimings})
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        Days: {(req.patternDays || []).join(", ")}
+                      </span>
+                    </div>
+
+                    <div className="text-slate-600 dark:text-slate-400 italic">
+                      Reason: &quot;{req.reason}&quot;
+                    </div>
+
+                    {req.status === "PENDING" ? (
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          onClick={() => handleReviewChangeRequest(req.id, "REJECTED")}
+                          disabled={reviewingId === req.id}
+                          className="px-3 py-1.5 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold transition"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          onClick={() => handleReviewChangeRequest(req.id, "APPROVED")}
+                          disabled={reviewingId === req.id}
+                          className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition shadow-sm"
+                        >
+                          Approve & Apply Schedule
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-right">
+                        <span
+                          className={`font-bold text-[11px] uppercase ${
+                            req.status === "APPROVED" ? "text-emerald-600" : "text-rose-600"
+                          }`}
+                        >
+                          {req.status}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -16,6 +16,11 @@ import { SessionContext } from "../permissions/types";
 import { auditLogger } from "../audit/logger";
 import { resolveEmployee, verifyHierarchyScopeAccess } from "../hierarchy/service";
 import { getEmployeeShiftForDate } from "../shifts/service";
+import {
+  createNotification,
+  notifyAdmins,
+  resolveUserIdForEmployee,
+} from "../notifications/service";
 
 export interface CheckInInput {
   timestampUtc?: string; // ISO 8601 UTC
@@ -69,7 +74,7 @@ function getUtcTimeMinutes(isoStr: string): number {
 }
 
 const SHIFT_TIMEZONE_OFFSET_MINUTES = 330; // Asia/Kolkata (+05:30)
-const AUTO_CHECKOUT_GRACE_MS = 30 * 60 * 1000; // Wait 30 mins after shift end before auto-closing
+const AUTO_CHECKOUT_GRACE_MS = 5 * 60 * 60 * 1000; // Wait 5 hours after shift end (e.g. 18:00 -> 23:00) before auto-closing
 const AUTO_CHECKOUT_NOTE_PREFIX = "Auto-checked out at shift end";
 
 /**
@@ -785,6 +790,18 @@ export async function requestAttendanceCorrection(
     userAgent: meta?.userAgent,
   });
 
+  try {
+    await notifyAdmins({
+      title: `Attendance Report Submitted (${employee.employeeCode})`,
+      message: `${employee.employeeCode} reported an attendance conflict on ${input.date}${input.conflictField ? ` (${input.conflictField})` : ""}.`,
+      category: "ATTENDANCE",
+      actionUrl: "/admin/attendance",
+      excludeUserId: session.userId,
+    });
+  } catch (err) {
+    console.warn("Non-fatal notification dispatch failure:", err);
+  }
+
   return {
     id: requestId,
     employeeId: employee.id,
@@ -927,6 +944,21 @@ export async function reviewAttendanceCorrection(
     ipAddress: meta?.ipAddress,
     userAgent: meta?.userAgent,
   });
+
+  try {
+    const recipientUserId = await resolveUserIdForEmployee(req.employeeId);
+    if (recipientUserId) {
+      await createNotification({
+        recipientUserId,
+        title: `Attendance Report ${input.status === "APPROVED" ? "Approved" : "Rejected"}`,
+        message: `Your attendance conflict report for ${req.requestedDate} was ${input.status.toLowerCase()}.`,
+        category: "ATTENDANCE",
+        actionUrl: "/dash/attendance",
+      });
+    }
+  } catch (err) {
+    console.warn("Non-fatal notification dispatch failure:", err);
+  }
 
   return {
     id: req.id,

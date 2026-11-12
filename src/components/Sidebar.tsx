@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "./AuthGate";
 import { useSidebar } from "./SidebarContext";
+import { useNotifications } from "./NotificationsContext";
 import { BrandLogo } from "./BrandLogo";
 import {
   LayoutDashboard,
@@ -22,6 +23,7 @@ import {
   User,
   Users2,
   Inbox,
+  Bell,
   PanelLeftClose,
   PanelLeftOpen,
   X,
@@ -46,6 +48,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { name: "Training Management", href: "/admin/training", icon: GraduationCap },
   { name: "Payroll Management", href: "/admin/payroll", icon: CreditCard, badge: "Confidential" },
   { name: "Approvals & Requests", href: "/admin/approvals", icon: CheckSquare },
+  { name: "Notifications", href: "/admin/notifications", icon: Bell },
   { name: "Reports & Analytics", href: "/admin/reports", icon: BarChart3 },
   { name: "Org Settings", href: "/admin/settings", icon: Sliders },
   { name: "Access & Admin", href: "/admin/access", icon: ShieldAlert },
@@ -61,6 +64,7 @@ const DASH_NAV_ITEMS: NavItem[] = [
   { name: "Onboarding & JML", href: "/dash/onboarding", icon: GitFork },
   { name: "My Training", href: "/dash/training", icon: GraduationCap },
   { name: "My Requests", href: "/dash/requests", icon: Inbox },
+  { name: "Notifications", href: "/dash/notifications", icon: Bell },
   {
     name: "My Team",
     href: "/dash/team",
@@ -87,6 +91,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { hasPermission } = useAuth();
   const { isCollapsed, toggleCollapsed } = useSidebar();
+  const { unreadCount } = useNotifications();
 
   const items = type === "admin" ? ADMIN_NAV_ITEMS : DASH_NAV_ITEMS;
 
@@ -132,7 +137,9 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
       {/* Module Section Label */}
       {!isCollapsed && (
         <div className="px-2 pt-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-[#293381] dark:text-[#36B4FF]">
-          {type === "admin" ? "Admin Modules (12)" : "Employee Modules (11)"}
+          {type === "admin"
+            ? `Admin Modules (${visibleItems.length})`
+            : `Employee Modules (${visibleItems.length})`}
         </div>
       )}
 
@@ -149,6 +156,13 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
               : pathname.startsWith(item.href);
 
           const Icon = item.icon;
+          const isNotificationsItem = item.href.endsWith("/notifications");
+          const hasUnreadNotifications = isNotificationsItem && unreadCount > 0;
+          const badgeText = hasUnreadNotifications
+            ? unreadCount > 99
+              ? "99+"
+              : String(unreadCount)
+            : item.badge;
 
           if (isCollapsed) {
             // Collapsed: Icon-only with accessible floating hover tooltip
@@ -157,7 +171,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
                 <Link
                   href={item.href}
                   prefetch={false}
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                  className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
                     isActive
                       ? "bg-[#293381] text-white shadow-sm shadow-[#293381]/25"
                       : "text-[#293381] dark:text-slate-300 hover:bg-[#EBF7FF] dark:hover:bg-slate-800 hover:text-[#293381]"
@@ -169,6 +183,12 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
                       isActive ? "text-white" : "text-[#293381] dark:text-slate-300"
                     }`}
                   />
+                  {hasUnreadNotifications && (
+                    <span
+                      className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900"
+                      aria-hidden="true"
+                    />
+                  )}
                 </Link>
 
                 {/* Floating Tooltip */}
@@ -177,9 +197,15 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
                   className="absolute left-full ml-3 px-2.5 py-1.5 bg-[#293381] text-white text-xs font-semibold rounded-lg shadow-xl whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150 z-50 flex items-center gap-2 border border-slate-700/30"
                 >
                   <span>{item.name}</span>
-                  {item.badge && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-[#36B4FF] text-[#293381]">
-                      {item.badge}
+                  {badgeText && (
+                    <span
+                      className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                        hasUnreadNotifications
+                          ? "bg-rose-500 text-white"
+                          : "bg-[#36B4FF] text-[#293381]"
+                      }`}
+                    >
+                      {badgeText}
                     </span>
                   )}
                   {/* Tooltip triangle caret */}
@@ -195,6 +221,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
               key={item.href}
               href={item.href}
               prefetch={false}
+              data-testid={isNotificationsItem ? "sidebar-notifications-link" : undefined}
               className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
                 isActive
                   ? "bg-[#293381] text-white shadow-sm shadow-[#293381]/20"
@@ -209,15 +236,18 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
                 />
                 <span className="truncate">{item.name}</span>
               </div>
-              {item.badge && (
+              {badgeText && (
                 <span
+                  data-testid={isNotificationsItem ? "sidebar-notifications-unread-badge" : undefined}
                   className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold shrink-0 ml-1.5 uppercase ${
-                    isActive
-                      ? "bg-white/20 text-white"
-                      : "bg-[#36B4FF]/15 text-[#293381] dark:text-[#36B4FF] border border-[#36B4FF]/30"
+                    hasUnreadNotifications
+                      ? "bg-rose-500 text-white rounded-full min-w-[18px] text-center"
+                      : isActive
+                        ? "bg-white/20 text-white"
+                        : "bg-[#36B4FF]/15 text-[#293381] dark:text-[#36B4FF] border border-[#36B4FF]/30"
                   }`}
                 >
-                  {item.badge}
+                  {badgeText}
                 </span>
               )}
             </Link>
@@ -279,7 +309,9 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
         </div>
 
         <div className="px-2 pt-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-[#293381] dark:text-[#36B4FF]">
-          {type === "admin" ? "Admin Modules (12)" : "Employee Modules (11)"}
+          {type === "admin"
+            ? `Admin Modules (${visibleItems.length})`
+            : `Employee Modules (${visibleItems.length})`}
         </div>
 
         <nav className="flex-1 overflow-y-auto space-y-1 pt-2">
@@ -290,6 +322,13 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
                 : pathname.startsWith(item.href);
 
             const Icon = item.icon;
+            const isNotificationsItem = item.href.endsWith("/notifications");
+            const hasUnreadNotifications = isNotificationsItem && unreadCount > 0;
+            const badgeText = hasUnreadNotifications
+              ? unreadCount > 99
+                ? "99+"
+                : String(unreadCount)
+              : item.badge;
 
             return (
               <Link
@@ -311,15 +350,17 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
                   />
                   <span className="truncate">{item.name}</span>
                 </div>
-                {item.badge && (
+                {badgeText && (
                   <span
                     className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold shrink-0 ml-1.5 uppercase ${
-                      isActive
-                        ? "bg-white/20 text-white"
-                        : "bg-[#36B4FF]/15 text-[#293381] border border-[#36B4FF]/30"
+                      hasUnreadNotifications
+                        ? "bg-rose-500 text-white rounded-full min-w-[18px] text-center"
+                        : isActive
+                          ? "bg-white/20 text-white"
+                          : "bg-[#36B4FF]/15 text-[#293381] border border-[#36B4FF]/30"
                     }`}
                   >
-                    {item.badge}
+                    {badgeText}
                   </span>
                 )}
               </Link>

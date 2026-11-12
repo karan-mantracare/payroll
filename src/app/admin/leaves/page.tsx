@@ -44,6 +44,19 @@ interface HolidayItem {
   description?: string;
 }
 
+interface AdminLeaveRequest {
+  id: string;
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  absenceType: "PRIVILEGE_LEAVE" | "CASUAL_LEAVE" | "SICK_LEAVE";
+  reason: string;
+  status: "DRAFT" | "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+}
+
 export default function AdminLeavesPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"leave" | "holiday">("leave");
@@ -91,6 +104,10 @@ export default function AdminLeavesPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [importingHolidays, setImportingHolidays] = useState(false);
 
+  // Leave Applications Queue State
+  const [leaveRequests, setLeaveRequests] = useState<AdminLeaveRequest[]>([]);
+  const [reviewingLeaveId, setReviewingLeaveId] = useState<string | null>(null);
+
   // ==========================================
   // FETCH DATA
   // ==========================================
@@ -124,10 +141,47 @@ export default function AdminLeavesPage() {
     }
   }, []);
 
+  const fetchLeaveRequests = useCallback(async () => {
+    try {
+      const res = await fetch("/payrol/api/leaves/requests?scope=all", { cache: "no-store" });
+      if (res.ok) {
+        const json = await res.json();
+        setLeaveRequests((json.requests || []).filter((r: AdminLeaveRequest) => r.status !== "DRAFT"));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     fetchLeaveQuotas();
     fetchHolidays();
-  }, [fetchLeaveQuotas, fetchHolidays]);
+    fetchLeaveRequests();
+  }, [fetchLeaveQuotas, fetchHolidays, fetchLeaveRequests]);
+
+  const handleReviewLeaveRequest = async (requestId: string, action: "APPROVE" | "REJECT") => {
+    setReviewingLeaveId(requestId);
+    try {
+      const res = await fetch("/payrol/api/leaves/requests", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId, action }),
+      });
+      if (res.ok) {
+        setQuotaToast(
+          action === "APPROVE"
+            ? "Leave application approved."
+            : "Leave application rejected."
+        );
+        setTimeout(() => setQuotaToast(null), 3000);
+        await fetchLeaveRequests();
+      }
+    } catch {
+      // ignore
+    } finally {
+      setReviewingLeaveId(null);
+    }
+  };
 
   // ==========================================
   // LEAVE ACTIONS
@@ -719,6 +773,94 @@ export default function AdminLeavesPage() {
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Employee Leave Applications Review Queue */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-card overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-[#293381] dark:text-white">
+                  Employee Leave Applications
+                </h2>
+                <p className="text-[11px] text-slate-500">
+                  Review submitted leave requests from employees across the organization.
+                </p>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                {leaveRequests.filter((r) => r.status === "PENDING").length} Pending
+              </span>
+            </div>
+
+            {leaveRequests.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-400">
+                No employee leave applications submitted yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      <th className="py-3 px-4">Employee</th>
+                      <th className="py-3 px-4">Absence Type</th>
+                      <th className="py-3 px-4">Dates</th>
+                      <th className="py-3 px-4">Reason</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Review</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {leaveRequests.map((req) => (
+                      <tr key={req.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                        <td className="py-3 px-4 font-semibold text-slate-900 dark:text-white">
+                          <div>{req.employeeName}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{req.employeeCode}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 rounded bg-sky-50 text-[#293381] border border-sky-200 text-[10px] font-bold">
+                            {req.absenceType.replace("_", " ")}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-300">
+                          {req.startDate} → {req.endDate} ({req.totalDays}d)
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-xs truncate">
+                          {req.reason || "—"}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-700">
+                            {req.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right space-x-2">
+                          {req.status === "PENDING" ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={reviewingLeaveId === req.id}
+                                onClick={() => void handleReviewLeaveRequest(req.id, "APPROVE")}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold disabled:opacity-50"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                disabled={reviewingLeaveId === req.id}
+                                onClick={() => void handleReviewLeaveRequest(req.id, "REJECT")}
+                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold disabled:opacity-50"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">Reviewed</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

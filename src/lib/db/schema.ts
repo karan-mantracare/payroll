@@ -254,6 +254,30 @@ export const shiftHistory = sqliteTable("shift_history", {
   createdAt: integer("created_at").notNull(),
 });
 
+// 7e-bis. Employee Shift / Schedule Change Requests
+export const shiftChangeRequests = sqliteTable("shift_change_requests", {
+  id: text("id").primaryKey(),
+  employeeId: text("employee_id")
+    .notNull()
+    .references(() => employees.id),
+  currentShiftId: text("current_shift_id").references(() => shifts.id),
+  requestedShiftId: text("requested_shift_id")
+    .notNull()
+    .references(() => shifts.id),
+  effectiveDate: text("effective_date").notNull(), // YYYY-MM-DD
+  endDate: text("end_date"), // Optional YYYY-MM-DD
+  requestedPatternDays: text("requested_pattern_days")
+    .notNull()
+    .default('["MON","TUE","WED","THU","FRI"]'),
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("PENDING"), // PENDING, APPROVED, REJECTED
+  reviewedByUserId: text("reviewed_by_user_id").references(() => users.id),
+  reviewedAt: integer("reviewed_at"),
+  rejectionReason: text("rejection_reason"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
 // 7f. Daily Attendance Records
 export const attendanceRecords = sqliteTable("attendance_records", {
   id: text("id").primaryKey(),
@@ -421,6 +445,21 @@ export const passwordResetTokens = sqliteTable("password_reset_tokens", {
   tokenHash: text("token_hash").notNull().unique(),
   expiresAt: integer("expires_at").notNull(),
   isUsed: integer("is_used").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+});
+
+// 17. User Notifications
+export const notifications = sqliteTable("notifications", {
+  id: text("id").primaryKey(),
+  recipientUserId: text("recipient_user_id")
+    .notNull()
+    .references(() => users.id),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  category: text("category").notNull().default("GENERAL"), // GENERAL | ATTENDANCE | SHIFT | LEAVE | PAYROLL | TRAINING | SYSTEM
+  actionUrl: text("action_url"),
+  isRead: integer("is_read").notNull().default(0), // 0 = Unread, 1 = Read
+  readAt: integer("read_at"),
   createdAt: integer("created_at").notNull(),
 });
 

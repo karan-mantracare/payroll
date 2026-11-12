@@ -3,10 +3,38 @@ name: Build and Push Docker Image to Harbor
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
+  migrate-staging-db:
+    name: Apply Staging Schema Migrations (Turso)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Dependencies
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
+        run: npm ci
+
+      - name: Run Turso Staging Migrations
+        if: ${{ secrets.TURSO_STAGING_DATABASE_URL != '' && secrets.TURSO_STAGING_AUTH_TOKEN != '' }}
+        env:
+          PAYROLL_DB_ENV: staging
+          TURSO_STAGING_DATABASE_URL: ${{ secrets.TURSO_STAGING_DATABASE_URL }}
+          TURSO_STAGING_AUTH_TOKEN: ${{ secrets.TURSO_STAGING_AUTH_TOKEN }}
+        run: npm run db:migrate
+
   build-and-push:
     name: Build & Push Container to bunker.mantracare.com
+    needs: migrate-staging-db
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -31,4 +59,3 @@ jobs:
           tags: |
             bunker.mantracare.com/lovable/payrol:1.0
             bunker.mantracare.com/lovable/payrol:${{ github.sha }}
-

@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  PayslipLetterheadModal,
+  downloadLetterheadPdf,
+} from "@/components/PayslipLetterhead";
+
 import React, { useState } from "react";
 import {
   CreditCard,
@@ -64,41 +69,35 @@ const MONTHLY_PAYROLLS: MonthlyPayrollCycle[] = [
 export default function AdminPayrollPage() {
   const [selectedCycle, setSelectedCycle] = useState<MonthlyPayrollCycle | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [downloadingMonth, setDownloadingMonth] = useState<string | null>(null);
 
-  const handleDownload = (cycle: MonthlyPayrollCycle) => {
-    const summary = `================================================================================
-                           MANTRACARE HRMS
-                  ORGANIZATION MONTHLY PAYROLL REPORT
-================================================================================
-Payroll Cycle     : ${cycle.month}
-Pay Period        : ${cycle.period}
-Disbursement Date : ${cycle.disbursedOn}
-Status            : ${cycle.status}
-Eligible Employees: ${cycle.headcount}
-
-FINANCIAL SUMMARY:
---------------------------------------------------------------------------------
-Total Gross Pay   : ${cycle.totalGross}
-Total Deductions  : ${cycle.totalDeductions}
-Total Net Disbursed: ${cycle.totalNet}
-Currency          : INR (₹)
-Disbursement Mode : Direct Bank NEFT / RTGS
-================================================================================
-Generated securely by MantraCare HRMS Admin Portal.
-================================================================================`;
-
-    const blob = new Blob([summary], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Payroll-Summary-${cycle.month.replace(/\s+/g, "-")}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    setNotification(`Monthly payroll report for ${cycle.month} downloaded successfully.`);
-    setTimeout(() => setNotification(null), 4000);
+  const handleDownload = async (cycle: MonthlyPayrollCycle) => {
+    setDownloadingMonth(cycle.month);
+    try {
+      await downloadLetterheadPdf(
+        {
+          kind: "admin",
+          title: `Monthly Payroll — ${cycle.month}`,
+          subtitle: cycle.period,
+          documentTag: "CORPORATE PAYROLL STATEMENT",
+          payrollCycle: cycle.month,
+          headcount: cycle.headcount,
+          disbursedDate: cycle.disbursedOn,
+          status: cycle.status,
+          totalGross: cycle.totalGross,
+          totalDeductions: cycle.totalDeductions,
+          totalNet: cycle.totalNet,
+        },
+        `Payroll-Summary-${cycle.month.replace(/\s+/g, "-")}`
+      );
+      setNotification(`Monthly payroll PDF for ${cycle.month} downloaded successfully.`);
+      setTimeout(() => setNotification(null), 4000);
+    } catch (err: any) {
+      setNotification(err?.message || `Failed to download payroll PDF for ${cycle.month}.`);
+      setTimeout(() => setNotification(null), 4000);
+    } finally {
+      setDownloadingMonth(null);
+    }
   };
 
   return (
@@ -213,92 +212,49 @@ Generated securely by MantraCare HRMS Admin Portal.
 
       {/* Admin Statement Modal */}
       {selectedCycle && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-[#293381] text-white p-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center">
-                  <Building2 className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold tracking-tight">MantraCare HRMS — Monthly Payroll</h2>
-                  <p className="text-xs text-white/80">{selectedCycle.period}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedCycle(null)}
-                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
+        <PayslipLetterheadModal
+          title={`Monthly Payroll — ${selectedCycle.month}`}
+          subtitle={selectedCycle.period}
+          documentTag="CORPORATE PAYROLL STATEMENT"
+          onClose={() => setSelectedCycle(null)}
+          onDownloadPdf={() => handleDownload(selectedCycle)}
+          isDownloading={downloadingMonth === selectedCycle.month}
+          downloadLabel="Download PDF"
+        >
+          <div className="letterhead-grid-2 grid grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+            <div>
+              <span className="text-slate-400 block text-[10px] uppercase font-semibold">Payroll Cycle</span>
+              <span className="font-semibold text-slate-800">{selectedCycle.month}</span>
             </div>
-
-            <div className="p-6 space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/50">
-                <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-semibold">Payroll Cycle</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-100">{selectedCycle.month}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-semibold">Eligible Headcount</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-100">{selectedCycle.headcount} Employees</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-semibold">Disbursed Date</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-100">{selectedCycle.disbursedOn}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-semibold">Disbursement Status</span>
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">{selectedCycle.status}</span>
-                </div>
-              </div>
-
-              <div className="border border-slate-200 dark:border-slate-700 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
-                <div className="p-3 flex justify-between">
-                  <span className="text-slate-600 dark:text-slate-300">Total Gross Pay</span>
-                  <span className="font-mono font-medium text-slate-900 dark:text-white">{selectedCycle.totalGross}</span>
-                </div>
-                <div className="p-3 flex justify-between">
-                  <span className="text-slate-600 dark:text-slate-300">Total Statutory Deductions (PF, TDS, PT)</span>
-                  <span className="font-mono font-medium text-rose-600 dark:text-rose-400">{selectedCycle.totalDeductions}</span>
-                </div>
-                <div className="p-3 flex justify-between bg-slate-50/70 dark:bg-slate-800/50 font-bold">
-                  <span className="text-slate-800 dark:text-slate-100">Total Net Disbursed</span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400">{selectedCycle.totalNet}</span>
-                </div>
-              </div>
+            <div>
+              <span className="text-slate-400 block text-[10px] uppercase font-semibold">Eligible Headcount</span>
+              <span className="font-semibold text-slate-800">{selectedCycle.headcount} Employees</span>
             </div>
-
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 text-xs font-semibold rounded-lg transition"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print</span>
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedCycle(null)}
-                  className="px-3 py-1.5 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownload(selectedCycle)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#293381] hover:bg-[#1F2664] text-white text-xs font-semibold rounded-lg transition shadow-sm"
-                >
-                  <Download className="w-3.5 h-3.5 text-white" />
-                  <span className="text-white">Download</span>
-                </button>
-              </div>
+            <div>
+              <span className="text-slate-400 block text-[10px] uppercase font-semibold">Disbursed Date</span>
+              <span className="font-semibold text-slate-800">{selectedCycle.disbursedOn}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[10px] uppercase font-semibold">Disbursement Status</span>
+              <span className="font-semibold text-emerald-600">{selectedCycle.status}</span>
             </div>
           </div>
-        </div>
+
+          <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 text-xs">
+            <div className="p-3 flex justify-between">
+              <span className="text-slate-600">Total Gross Pay</span>
+              <span className="font-mono font-medium text-slate-900">{selectedCycle.totalGross}</span>
+            </div>
+            <div className="p-3 flex justify-between">
+              <span className="text-slate-600">Total Statutory Deductions (PF, TDS, PT)</span>
+              <span className="font-mono font-medium text-rose-600">{selectedCycle.totalDeductions}</span>
+            </div>
+            <div className="p-3 flex justify-between bg-slate-50 font-bold">
+              <span className="text-slate-800">Total Net Disbursed</span>
+              <span className="font-mono text-emerald-600">{selectedCycle.totalNet}</span>
+            </div>
+          </div>
+        </PayslipLetterheadModal>
       )}
     </div>
   );
