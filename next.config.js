@@ -16,6 +16,12 @@ const nextConfig = {
         basePath: false,
         permanent: false,
       },
+      {
+        source: "/payroll",
+        destination: "/payroll/login",
+        basePath: false,
+        permanent: false,
+      },
     ];
   },
   async headers() {

@@ -239,11 +239,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
     if (status === "loading") return;
 
     if (status === "unauthenticated") {
-      if (!isLoginPage && !isRootPath) {
-        window.location.href = "/payroll/login";
+      if (!isLoginPage) {
+        window.location.replace("/payroll/login");
       }
     }
-  }, [status, isLoginPage, isRootPath]);
+  }, [status, isLoginPage]);
 
   const logout = async () => {
     try {
