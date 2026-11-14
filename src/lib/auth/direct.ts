@@ -19,7 +19,7 @@ import { generateCorrelationId, logSecureError } from "../security/safe-logger";
 
 const MAX_FAILED_ATTEMPTS = parseInt(process.env.ACCOUNT_LOCKOUT_MAX_ATTEMPTS || "5", 10);
 const LOCKOUT_DURATION_MS = parseInt(process.env.ACCOUNT_LOCKOUT_DURATION_MINUTES || "15", 10) * 60 * 1000;
-const OTP_TTL_MS = parseInt(process.env.OTP_EXPIRY_SECONDS || "300", 10) * 1000;
+const OTP_TTL_MS = parseInt(process.env.OTP_EXPIRY_SECONDS || "900", 10) * 1000;
 const OTP_MAX_ATTEMPTS = parseInt(process.env.OTP_MAX_ATTEMPTS || "5", 10);
 
 export interface DirectAuthResult {
@@ -291,12 +291,31 @@ export async function initiateLoginChallenge(
 
     // 3. Dispatch OTP via pluggable delivery provider ONLY AFTER persistence confirmed
     const provider = getOtpDeliveryProvider();
-    await provider.sendOtp({
+    const delivery = await provider.sendOtp({
       email: user.email,
       otp,
       challengeId,
       userName: user.name,
+      expiryMinutes: "15 min",
+      companyName: "Mantra Group",
     });
+
+    if (!delivery.success) {
+      logSecureError(
+        "initiateLoginChallenge.deliveryFailed",
+        new Error(delivery.error || "OTP delivery failed"),
+        { userId: user.id, provider: delivery.provider },
+        correlationId
+      );
+      if (!isStaticDevOtpAllowed()) {
+        return {
+          success: false,
+          code: "OTP_DELIVERY_FAILED",
+          error: "Unable to dispatch verification email. Please try again or contact support.",
+          correlationId,
+        };
+      }
+    }
 
     return {
       success: true,

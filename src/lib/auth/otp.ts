@@ -5,6 +5,8 @@ export interface SendOtpParams {
   otp: string;
   challengeId: string;
   userName?: string;
+  expiryMinutes?: string;
+  companyName?: string;
 }
 
 export interface OtpDeliveryResult {
@@ -20,7 +22,7 @@ export interface OtpDeliveryProvider {
 }
 
 /**
- * Console delivery provider for development environments.
+ * Console delivery provider for development/test environments.
  * Logs OTP dispatch event without exposing sensitive values in production.
  */
 export class ConsoleOtpDeliveryProvider implements OtpDeliveryProvider {
@@ -29,9 +31,8 @@ export class ConsoleOtpDeliveryProvider implements OtpDeliveryProvider {
   async sendOtp(params: SendOtpParams): Promise<OtpDeliveryResult> {
     if (process.env.NODE_ENV !== "production") {
       // In dev mode, we log dispatch metadata for developer convenience
-      // (The actual secret OTP value is not exposed in production logs)
       console.log(
-        `[OTP Console Delivery] Challenge ${params.challengeId} dispatched to ${maskEmail(params.email)}.`
+        `[OTP Console Delivery] Challenge ${params.challengeId} dispatched to ${maskEmail(params.email)}. (OTP: ${params.otp})`
       );
     }
     return {
@@ -43,44 +44,115 @@ export class ConsoleOtpDeliveryProvider implements OtpDeliveryProvider {
 }
 
 /**
- * Future pluggable Email OTP delivery provider.
- * When SMTP/SendGrid/SES is configured, this delivers the email.
- * Defaults to a safe unconfigured state.
+ * MantraCare Notify API delivery provider for OTP emails.
+ * Dispatches via POST https://api-notify.mantracare.com/api/v1/notifications/trigger
+ * Authorization: Bearer <NOTIFY_EMAIL_TOKEN>
+ *
+ * Payload:
+ * {
+ *   "trigger": "OTP Email",
+ *   "recipients": [ "<Employee Email>" ],
+ *   "payload": {
+ *     "company_name": "Mantra Group",
+ *     "expiry_minutes": "15 min",
+ *     "name": "<Employee Name>",
+ *     "otp": "<6 digit OTP>"
+ *   }
+ * }
  */
 export class EmailOtpDeliveryProvider implements OtpDeliveryProvider {
   name = "EmailDeliveryProvider";
 
   async sendOtp(params: SendOtpParams): Promise<OtpDeliveryResult> {
-    const hasSmtpConfigured = !!(
-      process.env.SMTP_HOST ||
-      process.env.SENDGRID_API_KEY ||
-      process.env.AWS_SES_REGION
-    );
+    const token = process.env.NOTIFY_EMAIL_TOKEN?.trim();
+    const endpoint =
+      process.env.NOTIFY_API_URL?.trim() ||
+      "https://api-notify.mantracare.com/api/v1/notifications/trigger";
 
-    if (!hasSmtpConfigured) {
+    if (!token) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(
+          `[OTP Delivery] NOTIFY_EMAIL_TOKEN is not configured; falling back to Console Delivery.`
+        );
+        return new ConsoleOtpDeliveryProvider().sendOtp(params);
+      }
       return {
         success: false,
         provider: this.name,
-        error: "Production email OTP service is not configured. Email delivery unavailable.",
+        error: "NOTIFY_EMAIL_TOKEN is not configured in environment variables. Email delivery unavailable.",
       };
     }
 
-    // Future email integration logic here (e.g. nodemailer, @sendgrid/mail, etc.)
-    return {
-      success: true,
-      provider: this.name,
-      messageId: `email_msg_${randomBytes(8).toString("hex")}`,
-    };
+    try {
+      const recipientEmail = params.email.trim();
+      const payload = {
+        trigger: "OTP Email",
+        recipients: [recipientEmail],
+        payload: {
+          company_name: params.companyName || "Mantra Group",
+          expiry_minutes: params.expiryMinutes || "15 min",
+          name: params.userName || "Employee",
+          otp: params.otp,
+        },
+      };
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        console.error(
+          `[OTP Delivery] MantraCare Notify API error HTTP ${response.status}: ${errorText}`
+        );
+        return {
+          success: false,
+          provider: this.name,
+          error: `Notify API responded with HTTP ${response.status}: ${errorText || response.statusText}`,
+        };
+      }
+
+      const resData = await response.json().catch(() => null);
+      if (process.env.NODE_ENV !== "production") {
+        console.log(
+          `[OTP Delivery] Successfully dispatched OTP email to ${maskEmail(recipientEmail)} via MantraCare Notify API.`
+        );
+      }
+
+      return {
+        success: true,
+        provider: this.name,
+        messageId: resData?.id || resData?.messageId || `notify_${randomBytes(8).toString("hex")}`,
+      };
+    } catch (err: any) {
+      console.error("[OTP Delivery] Network error dispatching OTP email:", err?.message);
+      return {
+        success: false,
+        provider: this.name,
+        error: err?.message || "Network error while connecting to MantraCare Notify API",
+      };
+    }
   }
 }
 
-let activeOtpProvider: OtpDeliveryProvider = new ConsoleOtpDeliveryProvider();
+let activeOtpProvider: OtpDeliveryProvider =
+  process.env.NODE_ENV === "test"
+    ? new ConsoleOtpDeliveryProvider()
+    : new EmailOtpDeliveryProvider();
 
 export function setOtpDeliveryProvider(provider: OtpDeliveryProvider) {
   activeOtpProvider = provider;
 }
 
 export function getOtpDeliveryProvider(): OtpDeliveryProvider {
+  if (process.env.NODE_ENV === "test" && activeOtpProvider.name === "EmailDeliveryProvider") {
+    return new ConsoleOtpDeliveryProvider();
+  }
   return activeOtpProvider;
 }
 

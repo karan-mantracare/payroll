@@ -59,8 +59,8 @@ export default function LoginPage() {
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
 
-  // 5-minute Countdown Timer (300 seconds)
-  const [timeLeft, setTimeLeft] = useState(300);
+  // 15-minute Countdown Timer (900 seconds)
+  const [timeLeft, setTimeLeft] = useState(900);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -86,7 +86,6 @@ export default function LoginPage() {
   // Start countdown when entering OTP step
   useEffect(() => {
     if (step === "otp") {
-      setTimeLeft(300);
       if (timerRef.current) clearInterval(timerRef.current);
 
       timerRef.current = setInterval(() => {
@@ -241,6 +240,12 @@ export default function LoginPage() {
       setEmailMasked(data.emailMasked || cleanEmail);
       setIsDevStaticEnabled(Boolean(data.isDevStaticEnabled));
       setPassword(""); // Clear password from memory once challenge received
+      if (data.expiresAt) {
+        const remainingSeconds = Math.max(0, Math.floor((data.expiresAt - Date.now()) / 1000));
+        setTimeLeft(remainingSeconds > 0 ? remainingSeconds : 900);
+      } else {
+        setTimeLeft(900);
+      }
       setStep("otp");
       setLoginState("awaiting_otp");
       setError(null);

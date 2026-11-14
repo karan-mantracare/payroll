@@ -102,6 +102,9 @@ Open [http://localhost:3000/payroll](http://localhost:3000/payroll).
 | `PAYROLL_ACTIVE_KEY_VERSION` | Yes | Active encryption key version (e.g. `v1`) |
 | `PAYROLL_ENCRYPTION_KEY_V1` | Yes | Static 64-character hex string (`openssl rand -hex 32`) |
 | `SESSION_SECRET` | Yes | Static secret for signing sessions/OTPs (`openssl rand -hex 32`) |
+| `NOTIFY_EMAIL_TOKEN` | Required for OTP emails | MantraCare Notify API Bearer token for OTP email dispatch |
+| `NOTIFY_API_URL` | Optional | Defaults to `https://api-notify.mantracare.com/api/v1/notifications/trigger` |
+| `OTP_EXPIRY_SECONDS` | Optional | OTP lifetime in seconds (defaults to `900` = 15 minutes) |
 | `PROGRAMS_USER_INFO_ENDPOINT` | Optional | Defaults to `https://api.mantracare.com/user/user-info` |
 
 > **Important**: Keep `PAYROLL_ENCRYPTION_KEY_V1` and `SESSION_SECRET` static across container restarts. Changing `PAYROLL_ENCRYPTION_KEY_V1` without running `npm run db:rotate-keys` makes existing encrypted DB fields unreadable.
@@ -129,9 +132,11 @@ Pushes to `main` trigger [`.github/workflows/docker-publish.yml`](.github/workfl
   - `PAYROLL_ACTIVE_KEY_VERSION=v1`
   - `PAYROLL_ENCRYPTION_KEY_V1`
   - `SESSION_SECRET`
+  - `NOTIFY_EMAIL_TOKEN`
 
 ### Health & Readiness Endpoints
 - `GET /payroll/api/health` — Returns database connectivity and encryption readiness status
 - `GET /payroll/api/readiness` — Returns schema and index verification report
 
 See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for additional deployment and operational details.
+
