@@ -137,11 +137,51 @@ export async function seedDatabase() {
     }
   }
 
-  // 6. Seed Users
+  // 6. Seed Users (Numeric IDs starting from 1)
   const seedUsers = [
     {
-      id: "usr_superadmin",
-      platformUserId: "plt_superadmin",
+      id: "1",
+      platformUserId: "plt_1",
+      name: "Karan Hinduja",
+      email: "karan@mantra.care",
+      role: "SUPER_ADMIN",
+      empId: "EMP-008",
+      title: "Chief Executive Officer & Founder",
+      dept: "dept_hr",
+      team: "team_hr_ops",
+      loc: "loc_delhi",
+      manager: null,
+      hierarchy: "[]",
+      password: "test@2026",
+      basic: 350000,
+      gross: 420000,
+      net: 320000,
+      bankAcc: "987654321008",
+      taxId: "AAAPL0008A",
+    },
+    {
+      id: "2",
+      platformUserId: "plt_2",
+      name: "Admin Mantra",
+      email: "admin@mantra.care",
+      role: "SUPER_ADMIN",
+      empId: "EMP-012",
+      title: "Operations & Payroll Super Administrator",
+      dept: "dept_fin",
+      team: null,
+      loc: "loc_delhi",
+      manager: "EMP-008",
+      hierarchy: '["EMP-008"]',
+      password: "test@2026",
+      basic: 250000,
+      gross: 300000,
+      net: 240000,
+      bankAcc: "987654321012",
+      taxId: "AAAPL0012A",
+    },
+    {
+      id: "3",
+      platformUserId: "plt_3",
       name: "Siddharth SuperAdmin",
       email: "superadmin@mantracare.com",
       role: "SUPER_ADMIN",
@@ -159,8 +199,8 @@ export async function seedDatabase() {
       taxId: "AAAPL0001S",
     },
     {
-      id: "usr_admin",
-      platformUserId: "plt_admin",
+      id: "4",
+      platformUserId: "plt_4",
       name: "Aakash Admin",
       email: "admin@mantracare.com",
       role: "ADMIN",
@@ -178,8 +218,8 @@ export async function seedDatabase() {
       taxId: "AAAPL0002A",
     },
     {
-      id: "usr_hrmanager",
-      platformUserId: "plt_hrmanager",
+      id: "5",
+      platformUserId: "plt_5",
       name: "Meera HR-Manager",
       email: "hrmanager@mantracare.com",
       role: "HR_MANAGER",
@@ -197,8 +237,8 @@ export async function seedDatabase() {
       taxId: "AAAPL0003M",
     },
     {
-      id: "usr_hrexecutive",
-      platformUserId: "plt_hrexecutive",
+      id: "6",
+      platformUserId: "plt_6",
       name: "Kavita HR-Executive",
       email: "hrexecutive@mantracare.com",
       role: "HR_EXECUTIVE",
@@ -216,8 +256,8 @@ export async function seedDatabase() {
       taxId: "AAAPL0004K",
     },
     {
-      id: "usr_teammanager",
-      platformUserId: "plt_teammanager",
+      id: "7",
+      platformUserId: "plt_7",
       name: "Vikram Team-Lead",
       email: "teammanager@mantracare.com",
       role: "TEAM_MANAGER",
@@ -235,8 +275,8 @@ export async function seedDatabase() {
       taxId: "AAAPL0005V",
     },
     {
-      id: "usr_employee",
-      platformUserId: "plt_employee",
+      id: "8",
+      platformUserId: "plt_8",
       name: "Rohan Employee",
       email: "employee@mantracare.com",
       role: "EMPLOYEE",
@@ -245,7 +285,7 @@ export async function seedDatabase() {
       dept: "dept_eng",
       team: "team_fe",
       loc: "loc_blr",
-      manager: "EMP-005", // Reports to Vikram
+      manager: "EMP-005",
       hierarchy: '["EMP-005", "EMP-002", "EMP-001"]',
       basic: 120000,
       gross: 145000,
@@ -254,11 +294,11 @@ export async function seedDatabase() {
       taxId: "AAAPL0006R",
     },
     {
-      id: "usr_multirole",
-      platformUserId: "plt_multirole",
+      id: "9",
+      platformUserId: "plt_9",
       name: "Ananya Multi-Role",
       email: "multirole@mantracare.com",
-      role: "EMPLOYEE", // Will also be assigned TEAM_MANAGER and ADMIN
+      role: "EMPLOYEE",
       empId: "EMP-007",
       title: "Lead Architect & Admin",
       dept: "dept_eng",
@@ -272,30 +312,9 @@ export async function seedDatabase() {
       bankAcc: "987654321007",
       taxId: "AAAPL0007A",
     },
-    // 4 Temporary Logins (Requested for Testing)
     {
-      id: "usr_temp_admin",
-      platformUserId: "plt_temp_admin",
-      name: "Admin Mantra",
-      email: "admin@mantra.care",
-      role: "ADMIN",
-      empId: "EMP-008",
-      title: "Operations & Payroll Administrator",
-      dept: "dept_fin",
-      team: null,
-      loc: "loc_delhi",
-      manager: "EMP-001",
-      hierarchy: '["EMP-001"]',
-      password: "Test@2026",
-      basic: 250000,
-      gross: 300000,
-      net: 240000,
-      bankAcc: "987654321008",
-      taxId: "AAAPL0008A",
-    },
-    {
-      id: "usr_temp_hrm",
-      platformUserId: "plt_temp_hrm",
+      id: "10",
+      platformUserId: "plt_10",
       name: "HRM Mantra",
       email: "hrm@mantra.care",
       role: "HR_MANAGER",
@@ -314,8 +333,8 @@ export async function seedDatabase() {
       taxId: "AAAPL0009H",
     },
     {
-      id: "usr_temp_hrt",
-      platformUserId: "plt_temp_hrt",
+      id: "11",
+      platformUserId: "plt_11",
       name: "HRT Mantra",
       email: "hrt@mantra.care",
       role: "HR_EXECUTIVE",
@@ -334,8 +353,8 @@ export async function seedDatabase() {
       taxId: "AAAPL0010T",
     },
     {
-      id: "usr_temp_emp",
-      platformUserId: "plt_temp_emp",
+      id: "12",
+      platformUserId: "plt_12",
       name: "Employee Mantra",
       email: "emp@mantra.care",
       role: "EMPLOYEE",
@@ -422,15 +441,15 @@ export async function seedDatabase() {
     });
   }
 
-  // Assign multiple roles to usr_multirole (Employee + Team Manager + Admin)
+  // Assign multiple roles to multirole (Employee + Team Manager + Admin)
   await rawClient.execute({
     sql: `INSERT OR REPLACE INTO user_roles (id, user_id, role_key, custom_scope_json, created_at)
-          VALUES ('ur_multirole_tm', 'usr_multirole', 'TEAM_MANAGER', NULL, ?);`,
+          VALUES ('ur_multirole_tm', '9', 'TEAM_MANAGER', NULL, ?);`,
     args: [now],
   });
   await rawClient.execute({
     sql: `INSERT OR REPLACE INTO user_roles (id, user_id, role_key, custom_scope_json, created_at)
-          VALUES ('ur_multirole_admin', 'usr_multirole', 'ADMIN', NULL, ?);`,
+          VALUES ('ur_multirole_admin', '9', 'ADMIN', NULL, ?);`,
     args: [now],
   });
 
@@ -438,7 +457,7 @@ export async function seedDatabase() {
   for (const u of seedUsers) {
     await rawClient.execute({
       sql: `INSERT OR REPLACE INTO shift_assignments (id, employee_id, shift_id, start_date, end_date, pattern_days, assigned_by_user_id, created_at, updated_at)
-            VALUES (?, ?, 'shift_gen', '2026-01-01', NULL, '["MON","TUE","WED","THU","FRI"]', 'usr_admin', ?, ?);`,
+            VALUES (?, ?, 'shift_gen', '2026-01-01', NULL, '["MON","TUE","WED","THU","FRI"]', '2', ?, ?);`,
       args: [`sa_${u.empId}`, u.empId, now, now],
     });
   }

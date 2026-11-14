@@ -23,8 +23,7 @@ import { eq } from "drizzle-orm";
 describe("Direct Email/Password Authentication & Two-Factor OTP Engine", () => {
   beforeAll(async () => {
     process.env.ALLOW_DESTRUCTIVE_SEED = "true";
-    process.env.NODE_ENV = "development";
-    process.env.PAYROLL_DEV_STATIC_OTP_ENABLED = "true";
+    process.env.ALLOW_STAGING_STATIC_OTP = "true";
     await seedDatabase();
   });
 
@@ -52,7 +51,7 @@ describe("Direct Email/Password Authentication & Two-Factor OTP Engine", () => {
       const creds = await db
         .select()
         .from(userCredentials)
-        .where(eq(userCredentials.userId, "usr_admin"));
+        .where(eq(userCredentials.userId, "4"));
       expect(creds[0].failedLoginAttempts).toBe(1);
     });
 
@@ -86,14 +85,14 @@ describe("Direct Email/Password Authentication & Two-Factor OTP Engine", () => {
     });
 
     it("should reject inactive user account", async () => {
-      await rawClient.execute("UPDATE users SET status = 'INACTIVE' WHERE id = 'usr_employee';");
+      await rawClient.execute("UPDATE users SET status = 'INACTIVE' WHERE id = '8';");
 
       const res = await validateCredentials("employee@mantracare.com", "MantraCare@2026!");
       expect(res.success).toBe(false);
       expect(res.code).toBe("ACCOUNT_INACTIVE");
 
       // Restore user
-      await rawClient.execute("UPDATE users SET status = 'ACTIVE' WHERE id = 'usr_employee';");
+      await rawClient.execute("UPDATE users SET status = 'ACTIVE' WHERE id = '8';");
     });
 
     it("should reject login if Employee Master mapping is missing", async () => {
@@ -137,7 +136,7 @@ describe("Direct Email/Password Authentication & Two-Factor OTP Engine", () => {
         .from(otpChallenges)
         .where(eq(otpChallenges.challengeToken, res.challengeToken!));
       expect(row.length).toBe(1);
-      expect(row[0].userId).toBe("usr_admin");
+      expect(row[0].userId).toBe("4");
       expect(row[0].isUsed).toBe(0);
       expect(row[0].attempts).toBe(0);
     });
@@ -157,7 +156,7 @@ describe("Direct Email/Password Authentication & Two-Factor OTP Engine", () => {
 
       expect(verifyRes.success).toBe(true);
       expect(verifyRes.sessionId).toBeDefined();
-      expect(verifyRes.redirectUrl).toBe("/payrol/dash");
+      expect(verifyRes.redirectUrl).toBe("/payroll/dash");
       expect(verifyRes.user?.email).toBe("employee@mantracare.com");
 
       // Ensure challenge is marked as used
@@ -263,7 +262,7 @@ describe("Direct Email/Password Authentication & Two-Factor OTP Engine", () => {
 
       await db.insert(otpChallenges).values({
         id: "otp_test_crypto",
-        userId: "usr_admin",
+        userId: "4",
         challengeToken: token,
         otpHash: hashedOtp,
         expiresAt: now + 300000,
@@ -284,33 +283,33 @@ describe("Direct Email/Password Authentication & Two-Factor OTP Engine", () => {
   });
 
   describe("4. Security & Production Protections", () => {
-    it("should throw a fatal configuration error if PAYROLL_DEV_STATIC_OTP_ENABLED is enabled in production", () => {
+    it("should throw a fatal configuration error if ALLOW_STAGING_STATIC_OTP is enabled in production", () => {
       const origNodeEnv = process.env.NODE_ENV;
-      const origStatic = process.env.PAYROLL_DEV_STATIC_OTP_ENABLED;
+      const origStatic = process.env.ALLOW_STAGING_STATIC_OTP;
 
       try {
         process.env.NODE_ENV = "production";
-        process.env.PAYROLL_DEV_STATIC_OTP_ENABLED = "true";
+        process.env.ALLOW_STAGING_STATIC_OTP = "true";
 
         expect(() => assertValidOtpConfig()).toThrow(
-          /PAYROLL_DEV_STATIC_OTP_ENABLED cannot be enabled in production/
+          /ALLOW_STAGING_STATIC_OTP cannot be enabled in production/
         );
 
         // isStaticDevOtpAllowed must be false
         expect(isStaticDevOtpAllowed()).toBe(false);
       } finally {
         process.env.NODE_ENV = origNodeEnv;
-        process.env.PAYROLL_DEV_STATIC_OTP_ENABLED = origStatic;
+        process.env.ALLOW_STAGING_STATIC_OTP = origStatic;
       }
     });
 
     it("should reject static OTP 123456 in production even if submitted", async () => {
       const origNodeEnv = process.env.NODE_ENV;
-      const origStatic = process.env.PAYROLL_DEV_STATIC_OTP_ENABLED;
+      const origStatic = process.env.ALLOW_STAGING_STATIC_OTP;
 
       try {
         process.env.NODE_ENV = "production";
-        process.env.PAYROLL_DEV_STATIC_OTP_ENABLED = "false";
+        process.env.ALLOW_STAGING_STATIC_OTP = "false";
 
         const challenge = await initiateLoginChallenge("admin@mantracare.com", "MantraCare@2026!");
 
@@ -324,13 +323,13 @@ describe("Direct Email/Password Authentication & Two-Factor OTP Engine", () => {
         expect(res.code).toBe("INVALID_OTP");
       } finally {
         process.env.NODE_ENV = origNodeEnv;
-        process.env.PAYROLL_DEV_STATIC_OTP_ENABLED = origStatic;
+        process.env.ALLOW_STAGING_STATIC_OTP = origStatic;
       }
     });
   });
 
   describe("5. Role-Based Portal Routing & Session Lifecycle", () => {
-    it("should route user with portal.admin.access to /payrol/admin", async () => {
+    it("should route user with portal.admin.access to /payroll/admin", async () => {
       const challenge = await initiateLoginChallenge("admin@mantracare.com", "MantraCare@2026!");
       const res = await verifyLoginOtp({
         challengeToken: challenge.challengeToken!,
@@ -338,10 +337,10 @@ describe("Direct Email/Password Authentication & Two-Factor OTP Engine", () => {
       });
 
       expect(res.success).toBe(true);
-      expect(res.redirectUrl).toBe("/payrol/admin");
+      expect(res.redirectUrl).toBe("/payroll/admin");
     });
 
-    it("should route user with portal.employee.access only to /payrol/dash", async () => {
+    it("should route user with portal.employee.access only to /payroll/dash", async () => {
       const challenge = await initiateLoginChallenge("employee@mantracare.com", "MantraCare@2026!");
       const res = await verifyLoginOtp({
         challengeToken: challenge.challengeToken!,
@@ -349,7 +348,7 @@ describe("Direct Email/Password Authentication & Two-Factor OTP Engine", () => {
       });
 
       expect(res.success).toBe(true);
-      expect(res.redirectUrl).toBe("/payrol/dash");
+      expect(res.redirectUrl).toBe("/payroll/dash");
     });
 
     it("should properly resolve and revoke session context", async () => {

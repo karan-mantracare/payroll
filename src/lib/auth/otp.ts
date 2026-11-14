@@ -178,7 +178,7 @@ export function assertValidOtpConfig(): void {
  * CANNOT be enabled when PAYROLL_DB_ENV === 'production'.
  */
 export function isStaticDevOtpAllowed(): boolean {
-  if (process.env.PAYROLL_DB_ENV === "production") return false;
+  if (process.env.PAYROLL_DB_ENV === "production" || process.env.NODE_ENV === "production") return false;
 
   return process.env.ALLOW_STAGING_STATIC_OTP === "true";
 }

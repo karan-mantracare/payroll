@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, like, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "../db/client";
+import { db, rawClient } from "../db/client";
 import {
   departments,
   employeeStatusHistory,
@@ -14,6 +14,21 @@ import { buildScopeCondition } from "../scope/filter";
 import { logAuditEvent } from "../audit/logger";
 import { generateNextEmployeeId, validateEmployeeId } from "./id-service";
 import { randomUUID } from "node:crypto";
+
+/**
+ * Generates the next sequential numeric user ID (starting from 1).
+ */
+export async function generateNextUserId(): Promise<string> {
+  const res = await rawClient.execute("SELECT MAX(CAST(id AS INTEGER)) as max_id FROM users;");
+  const maxId = res.rows[0]?.max_id;
+  const currentMax =
+    typeof maxId === "number" && !isNaN(maxId) && maxId > 0
+      ? maxId
+      : typeof maxId === "bigint"
+      ? Number(maxId)
+      : 0;
+  return String(currentMax + 1);
+}
 
 // Allowed enums
 export const EmploymentTypeEnum = z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"]);
@@ -332,15 +347,15 @@ export async function createEmployee(
     finalEmployeeCode = await generateNextEmployeeId(input.organizationId);
   }
 
-  // Internal UUID as DB primary key
+  // Numeric user ID (always numeric) and internal UUID for employee
   const employeeUuid = `emp_${randomUUID()}`;
-  const userUuid = `usr_${randomUUID()}`;
+  const userNumericId = await generateNextUserId();
   const now = Date.now();
 
   await db.transaction(async (tx) => {
-    // 1. Create User
+    // 1. Create User with numeric ID
     await tx.insert(users).values({
-      id: userUuid,
+      id: userNumericId,
       platformUserId: `plat_${randomUUID()}`,
       email: input.email.toLowerCase().trim(),
       name: input.name.trim(),
@@ -353,7 +368,7 @@ export async function createEmployee(
     await tx.insert(employees).values({
       id: employeeUuid,
       employeeCode: finalEmployeeCode!,
-      userId: userUuid,
+      userId: userNumericId,
       organizationId: input.organizationId,
       departmentId: input.departmentId,
       locationId: input.locationId,

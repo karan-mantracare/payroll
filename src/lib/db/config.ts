@@ -66,8 +66,8 @@ export function isDisposableDatabase(url: string): boolean {
 export function resolveDatabaseConfig(customEnv?: Record<string, string | undefined>): DatabaseConfig {
   const envSource = customEnv || process.env;
 
-  // If running in standalone Node/CLI scripts and no custom env passed, load env files
-  if (!customEnv && typeof process.loadEnvFile === "function") {
+  // If running in standalone Node/CLI scripts and no custom env passed, load env files (skip in test mode to protect staging DB)
+  if (!customEnv && typeof process.loadEnvFile === "function" && process.env.NODE_ENV !== "test") {
     try {
       process.loadEnvFile(".env.local");
     } catch {
@@ -111,9 +111,13 @@ export function resolveDatabaseConfig(customEnv?: Record<string, string | undefi
       };
     }
 
-    // Default test DB: isolated SQLite
-    const resolvedTestUrl = envSource.TURSO_DATABASE_URL?.trim() || "file:local.db";
-    const resolvedTestToken = envSource.TURSO_AUTH_TOKEN?.trim() || undefined;
+    // Default test DB: isolated SQLite unless TEST_REMOTE=true is explicitly set
+    const resolvedTestUrl =
+      envSource.TEST_REMOTE === "true"
+        ? (envSource.TURSO_STAGING_DATABASE_URL || envSource.TURSO_DATABASE_URL)?.trim() || "file:local.db"
+        : "file:local.db";
+    const resolvedTestToken =
+      envSource.TEST_REMOTE === "true" ? envSource.TURSO_AUTH_TOKEN?.trim() || undefined : undefined;
 
     // Validate that alternate variables (TURSO_DATABASE_URL / TURSO_AUTH_TOKEN) do not point to production
     if (isProductionDestination(resolvedTestUrl, resolvedTestToken, envSource)) {
