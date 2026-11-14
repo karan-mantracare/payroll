@@ -577,7 +577,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   disabled
-                  title="In local development, use 123456."
+                  title={isDevStaticEnabled ? "In local testing mode, use 123456." : "Check your inbox for the 6-digit verification code."}
                   className="text-slate-400 dark:text-slate-600 font-semibold cursor-not-allowed text-[11px]"
                 >
                   Resend Code

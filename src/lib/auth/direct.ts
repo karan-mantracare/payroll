@@ -289,25 +289,35 @@ export async function initiateLoginChallenge(
       };
     }
 
-    // 3. Dispatch OTP via pluggable delivery provider ONLY AFTER persistence confirmed
-    const provider = getOtpDeliveryProvider();
-    const delivery = await provider.sendOtp({
-      email: user.email,
-      otp,
-      challengeId,
-      userName: user.name,
-      expiryMinutes: "15 min",
-      companyName: "Mantra Group",
-    });
+    // 3. Dispatch OTP: If ALLOW_STAGING_STATIC_OTP=true (or dev static OTP enabled),
+    // skip external email dispatch so developers/testers can enter 123456 instantly.
+    // Otherwise, dispatch real 6-digit OTP via the MantraCare Notify API.
+    const staticOtpAllowed = isStaticDevOtpAllowed();
 
-    if (!delivery.success) {
-      logSecureError(
-        "initiateLoginChallenge.deliveryFailed",
-        new Error(delivery.error || "OTP delivery failed"),
-        { userId: user.id, provider: delivery.provider },
-        correlationId
-      );
-      if (!isStaticDevOtpAllowed()) {
+    if (staticOtpAllowed) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log(
+          `[OTP Auth] Static OTP enabled (ALLOW_STAGING_STATIC_OTP=true). Use 123456. Skipping Email API dispatch.`
+        );
+      }
+    } else {
+      const provider = getOtpDeliveryProvider();
+      const delivery = await provider.sendOtp({
+        email: user.email,
+        otp,
+        challengeId,
+        userName: user.name,
+        expiryMinutes: "15 min",
+        companyName: "Mantra Group",
+      });
+
+      if (!delivery.success) {
+        logSecureError(
+          "initiateLoginChallenge.deliveryFailed",
+          new Error(delivery.error || "OTP delivery failed"),
+          { userId: user.id, provider: delivery.provider },
+          correlationId
+        );
         return {
           success: false,
           code: "OTP_DELIVERY_FAILED",
