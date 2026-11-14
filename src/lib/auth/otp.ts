@@ -175,21 +175,14 @@ export function assertValidOtpConfig(): void {
 
 /**
  * Strictly verifies whether static OTP (123456) is permitted.
- * When ALLOW_STAGING_STATIC_OTP=true (in non-production or explicitly allowed staging/local),
- * static OTP 123456 is allowed and email dispatch is skipped.
+ * ONLY when ALLOW_STAGING_STATIC_OTP === "true" is static OTP 123456 allowed.
  * Otherwise, the email API sends the real OTP and only the emailed OTP is accepted.
  * CANNOT be enabled when PAYROLL_DB_ENV === 'production'.
  */
 export function isStaticDevOtpAllowed(): boolean {
   if (process.env.PAYROLL_DB_ENV === "production") return false;
-  if (process.env.NODE_ENV === "production" && process.env.ALLOW_STAGING_STATIC_OTP !== "true") {
-    return false;
-  }
 
-  return (
-    process.env.ALLOW_STAGING_STATIC_OTP === "true" ||
-    process.env.PAYROLL_DEV_STATIC_OTP_ENABLED === "true"
-  );
+  return process.env.ALLOW_STAGING_STATIC_OTP === "true";
 }
 
 /**
