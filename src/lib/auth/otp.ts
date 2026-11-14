@@ -158,17 +158,15 @@ export function getOtpDeliveryProvider(): OtpDeliveryProvider {
 
 /**
  * Asserts that the OTP configuration is secure.
- * Rejects any startup attempt where PAYROLL_DEV_STATIC_OTP_ENABLED is enabled in production.
+ * Rejects any startup attempt where ALLOW_STAGING_STATIC_OTP is enabled in production.
  */
 export function assertValidOtpConfig(): void {
-  const isProd =
-    process.env.PAYROLL_DB_ENV === "production" ||
-    (process.env.NODE_ENV === "production" && process.env.ALLOW_STAGING_STATIC_OTP !== "true");
-  const staticOtpEnabled = process.env.PAYROLL_DEV_STATIC_OTP_ENABLED === "true";
+  const isProd = process.env.PAYROLL_DB_ENV === "production" || process.env.NODE_ENV === "production";
+  const staticOtpEnabled = process.env.ALLOW_STAGING_STATIC_OTP === "true";
 
   if (isProd && staticOtpEnabled) {
     throw new Error(
-      "CRITICAL SECURITY CONFIGURATION ERROR: PAYROLL_DEV_STATIC_OTP_ENABLED cannot be enabled in production environments!"
+      "CRITICAL SECURITY CONFIGURATION ERROR: ALLOW_STAGING_STATIC_OTP cannot be enabled in production environments!"
     );
   }
 }

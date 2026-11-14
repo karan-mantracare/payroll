@@ -20,14 +20,27 @@ export function middleware(request: NextRequest) {
 
   const sessionCookie = request.cookies.get("mc_payroll_session");
 
+  // Helper function to resolve host & protocol behind reverse proxies (e.g. Docker 0.0.0.0:80)
+  const getRedirectUrl = (targetPath: string): URL => {
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const host = forwardedHost || request.headers.get("host");
+    const proto =
+      request.headers.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
+
+    if (host && !host.startsWith("0.0.0.0")) {
+      return new URL(targetPath, `${proto}://${host}`);
+    }
+    return new URL(targetPath, request.url);
+  };
+
   // 2. Unauthenticated root navigation redirects immediately to /payroll/login
   if ((pathname === "/" || pathname === "/payroll" || pathname === "") && !sessionCookie) {
-    return NextResponse.redirect(new URL("/payroll/login", request.url));
+    return NextResponse.redirect(getRedirectUrl("/payroll/login"));
   }
 
   // 3. For protected portal routes, check for the presence of the session cookie
   if (!sessionCookie && (pathname.startsWith("/admin") || pathname.startsWith("/dash"))) {
-    return NextResponse.redirect(new URL("/payroll/login", request.url));
+    return NextResponse.redirect(getRedirectUrl("/payroll/login"));
   }
 
   return NextResponse.next();

@@ -1,32 +1,24 @@
-"use client";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { getSessionContext } from "@/lib/auth/session";
 
-import { useEffect } from "react";
-import { useAuth } from "@/components/AuthGate";
-import { Loader2 } from "lucide-react";
+export default async function RootPage() {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get("mc_payroll_session");
 
-export default function RootRedirector() {
-  const { user, status, loading, canAccessAdmin, canAccessEmployee } = useAuth();
+  if (!sessionCookie) {
+    redirect("/payroll/login");
+  }
 
-  useEffect(() => {
-    if (loading) return;
+  const context = await getSessionContext(sessionCookie.value);
+  if (!context) {
+    redirect("/payroll/login");
+  }
 
-    if (status === "unauthenticated" || !user) {
-      window.location.replace("/payroll/login");
-    } else if (canAccessAdmin) {
-      window.location.replace("/payroll/admin");
-    } else if (canAccessEmployee) {
-      window.location.replace("/payroll/dash");
-    } else {
-      window.location.replace("/payroll/login");
-    }
-  }, [user, status, loading, canAccessAdmin, canAccessEmployee]);
+  if (context.isSuperAdmin || context.effectivePermissions.includes("portal.admin.access")) {
+    redirect("/payroll/admin");
+  }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-950 text-slate-900 dark:text-white">
-      <div className="flex items-center gap-3 text-sm text-slate-500">
-        <Loader2 className="w-5 h-5 animate-spin text-[#293381] dark:text-[#36B4FF]" />
-        <span>Routing to authorized portal...</span>
-      </div>
-    </div>
-  );
+  redirect("/payroll/dash");
 }
+
