@@ -307,7 +307,7 @@ export async function initiateLoginChallenge(
         otp,
         challengeId,
         userName: user.name,
-        expiryMinutes: "15 min",
+        expiryMinutes: "15",
         companyName: "Mantra Group",
       });
 

@@ -54,7 +54,7 @@ export class ConsoleOtpDeliveryProvider implements OtpDeliveryProvider {
  *   "recipients": [ "<Employee Email>" ],
  *   "payload": {
  *     "company_name": "Mantra Group",
- *     "expiry_minutes": "15 min",
+ *     "expiry_minutes": "15",
  *     "name": "<Employee Name>",
  *     "otp": "<6 digit OTP>"
  *   }
@@ -90,7 +90,7 @@ export class EmailOtpDeliveryProvider implements OtpDeliveryProvider {
         recipients: [recipientEmail],
         payload: {
           company_name: params.companyName || "Mantra Group",
-          expiry_minutes: params.expiryMinutes || "15 min",
+          expiry_minutes: params.expiryMinutes ? params.expiryMinutes.replace(/\s*min(utes)?/i, "").trim() : "15",
           name: params.userName || "Employee",
           otp: params.otp,
         },

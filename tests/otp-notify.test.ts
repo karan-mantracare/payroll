@@ -64,7 +64,7 @@ describe("MantraCare Notify API OTP Delivery Provider", () => {
       recipients: ["karan@mantracare.com"],
       payload: {
         company_name: "Mantra Group",
-        expiry_minutes: "15 min",
+        expiry_minutes: "15",
         name: "Karan",
         otp: "482910",
       },
