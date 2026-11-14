@@ -34,8 +34,10 @@ export async function seedDatabase() {
   const now = Date.now();
 
   // Clear transactional/variable tables for test reproducibility
+  await rawClient.execute("PRAGMA foreign_keys = OFF;");
   await rawClient.execute("DELETE FROM audit_logs;");
   await rawClient.execute("DELETE FROM auth_sessions;");
+  await rawClient.execute("DELETE FROM notifications;");
   await rawClient.execute("DELETE FROM used_tokens;");
   await rawClient.execute("DELETE FROM otp_challenges;");
   await rawClient.execute("DELETE FROM password_reset_tokens;");
@@ -43,6 +45,7 @@ export async function seedDatabase() {
   await rawClient.execute("DELETE FROM attendance_events;");
   await rawClient.execute("DELETE FROM attendance_correction_requests;");
   await rawClient.execute("DELETE FROM attendance_records;");
+  await rawClient.execute("DELETE FROM shift_change_requests;");
   await rawClient.execute("DELETE FROM shift_history;");
   await rawClient.execute("DELETE FROM shift_assignments;");
   await rawClient.execute("DELETE FROM shifts;");
@@ -55,6 +58,7 @@ export async function seedDatabase() {
   await rawClient.execute("DELETE FROM employees;");
   await rawClient.execute("DELETE FROM users;");
   await rawClient.execute("DELETE FROM employee_id_configs;");
+  await rawClient.execute("PRAGMA foreign_keys = ON;");
 
   // 1. Organizations
   await rawClient.execute({
