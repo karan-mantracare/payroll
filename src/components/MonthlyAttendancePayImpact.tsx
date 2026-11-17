@@ -23,6 +23,10 @@ import {
   Info,
   Building,
   X,
+  Plus,
+  RotateCcw,
+  Check,
+  ChevronDown,
 } from "lucide-react";
 import {
   AttendanceRecordLike,
@@ -65,6 +69,38 @@ export default function MonthlyAttendancePayImpact({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Filter Popover & Conditions Modal State (Matching User's Reference Portal)
+  const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
+  const [isFieldSettingsOpen, setIsFieldSettingsOpen] = useState<boolean>(false);
+  const [fieldSearchQuery, setFieldSearchQuery] = useState<string>("");
+  const [savedPreset, setSavedPreset] = useState<string>("ALL");
+  const [saveSuccessToast, setSaveSuccessToast] = useState<boolean>(false);
+
+  // Field Operators
+  const [empNameOp, setEmpNameOp] = useState<"contains" | "is" | "starts_with">("contains");
+  const [notesOp, setNotesOp] = useState<"contains" | "does_not_contain">("contains");
+
+  // Enabled fields in Conditions (default to standard 5 fields from user request)
+  const [enabledFields, setEnabledFields] = useState<Record<string, boolean>>({
+    empName: true,
+    date: true,
+    setOff: true,
+    assignedShift: true,
+    notes: true,
+    status: false,
+    payImpact: false,
+  });
+
+  const [tempEnabledFields, setTempEnabledFields] = useState<Record<string, boolean>>({
+    empName: true,
+    date: true,
+    setOff: true,
+    assignedShift: true,
+    notes: true,
+    status: false,
+    payImpact: false,
+  });
+
   // User-requested Filter States:
   // 1. Emp Name
   // 2. Date - Exact, Less Than, Greater Than, Between
@@ -78,6 +114,53 @@ export default function MonthlyAttendancePayImpact({
   const [filterSetOff, setFilterSetOff] = useState<string>("ALL");
   const [filterShift, setFilterShift] = useState<string>("ALL");
   const [filterNotesQuery, setFilterNotesQuery] = useState<string>("");
+
+  const ALL_FIELDS = [
+    { id: "empName", label: "Emp Name", category: "STANDARD" },
+    { id: "date", label: "Date", category: "STANDARD" },
+    { id: "setOff", label: "Set Off", category: "STANDARD" },
+    { id: "assignedShift", label: "Assigned Shift", category: "STANDARD" },
+    { id: "notes", label: "Deduction Rule & Notes", category: "STANDARD" },
+    { id: "status", label: "Status", category: "STANDARD" },
+    { id: "payImpact", label: "Pay Impact", category: "STANDARD" },
+  ];
+
+  const SAVED_PRESETS = [
+    { id: "ALL", label: "All schedules" },
+    { id: "DEDUCTIONS", label: "Deductions Only" },
+    { id: "GRACE_SHORT", label: "Grace & Short Leaves" },
+    { id: "HALF_DAY", label: "Half Day Deductions" },
+    { id: "UNAUTHORIZED", label: "Unauthorized Shifts" },
+  ];
+
+  const applyPreset = (presetId: string) => {
+    setSavedPreset(presetId);
+    if (presetId === "ALL") {
+      resetAllFilters();
+    } else if (presetId === "DEDUCTIONS") {
+      resetAllFilters();
+      setEnabledFields((prev) => ({ ...prev, payImpact: true }));
+      setImpactFilter("DEDUCTIONS");
+    } else if (presetId === "GRACE_SHORT") {
+      resetAllFilters();
+      setEnabledFields((prev) => ({ ...prev, setOff: true }));
+      setFilterSetOff("Short Leave");
+    } else if (presetId === "HALF_DAY") {
+      resetAllFilters();
+      setEnabledFields((prev) => ({ ...prev, setOff: true }));
+      setFilterSetOff("Half Day");
+    } else if (presetId === "UNAUTHORIZED") {
+      resetAllFilters();
+      setEnabledFields((prev) => ({ ...prev, notes: true }));
+      setNotesOp("contains");
+      setFilterNotesQuery("unauthorized shift");
+    }
+  };
+
+  const handleSaveFilters = () => {
+    setSaveSuccessToast(true);
+    setTimeout(() => setSaveSuccessToast(false), 2500);
+  };
 
   // Salary Parameters
   const [monthlySalary, setMonthlySalary] = useState<number>(initialSalary || 50000);
@@ -173,52 +256,70 @@ export default function MonthlyAttendancePayImpact({
   // Filtered Impacts
   const filteredImpacts = useMemo<DayPayImpact[]>(() => {
     return calculatedImpacts.filter((item) => {
-      // 1. Emp Name Filter (matches employee name or employee code)
-      if (filterEmpName.trim()) {
+      // 1. Emp Name Filter
+      if (enabledFields.empName && filterEmpName.trim()) {
         const q = filterEmpName.toLowerCase();
-        const matchesName = item.employeeName?.toLowerCase().includes(q);
-        const matchesCode = item.employeeCode?.toLowerCase().includes(q);
-        if (!matchesName && !matchesCode) return false;
+        const n = (item.employeeName || "").toLowerCase();
+        const c = (item.employeeCode || "").toLowerCase();
+        if (empNameOp === "is") {
+          if (n !== q && c !== q) return false;
+        } else if (empNameOp === "starts_with") {
+          if (!n.startsWith(q) && !c.startsWith(q)) return false;
+        } else {
+          // contains
+          if (!n.includes(q) && !c.includes(q)) return false;
+        }
       }
 
-      // 2. Date Filter (Exact, Less Than, Greater Than, Between)
-      if (filterDateMode === "EXACT" && filterDate1) {
-        if (item.date !== filterDate1) return false;
-      } else if (filterDateMode === "LESS_THAN" && filterDate1) {
-        if (item.date >= filterDate1) return false;
-      } else if (filterDateMode === "GREATER_THAN" && filterDate1) {
-        if (item.date <= filterDate1) return false;
-      } else if (filterDateMode === "BETWEEN") {
-        if (filterDate1 && item.date < filterDate1) return false;
-        if (filterDate2 && item.date > filterDate2) return false;
+      // 2. Date Filter
+      if (enabledFields.date) {
+        if (filterDateMode === "EXACT" && filterDate1) {
+          if (item.date !== filterDate1) return false;
+        } else if (filterDateMode === "LESS_THAN" && filterDate1) {
+          if (item.date >= filterDate1) return false;
+        } else if (filterDateMode === "GREATER_THAN" && filterDate1) {
+          if (item.date <= filterDate1) return false;
+        } else if (filterDateMode === "BETWEEN") {
+          if (filterDate1 && item.date < filterDate1) return false;
+          if (filterDate2 && item.date > filterDate2) return false;
+        }
       }
 
-      // 3. Set Off Filter (Exact Drop down)
-      if (filterSetOff !== "ALL") {
+      // 3. Set Off Filter
+      if (enabledFields.setOff && filterSetOff !== "ALL") {
         if (item.setOff !== filterSetOff) return false;
       }
 
-      // 4. Assigned Shift Filter (Exact Drop down)
-      if (filterShift !== "ALL") {
+      // 4. Assigned Shift Filter
+      if (enabledFields.assignedShift && filterShift !== "ALL") {
         if (item.shiftName !== filterShift) return false;
       }
 
-      // 5. Deduction Rule & Notes Filter (Contains)
-      if (filterNotesQuery.trim()) {
+      // 5. Deduction Rule & Notes Filter
+      if (enabledFields.notes && filterNotesQuery.trim()) {
         const nq = filterNotesQuery.toLowerCase();
         const matchesReason = item.reason?.toLowerCase().includes(nq);
         const matchesNotes = item.notes?.toLowerCase().includes(nq);
-        if (!matchesReason && !matchesNotes) return false;
+        const hasMatch = matchesReason || matchesNotes;
+        if (notesOp === "does_not_contain") {
+          if (hasMatch) return false;
+        } else {
+          if (!hasMatch) return false;
+        }
       }
 
-      // Status Filter
-      if (statusFilter !== "ALL" && item.status !== statusFilter) return false;
+      // Status Filter (if enabled in Conditions)
+      if (enabledFields.status && statusFilter !== "ALL") {
+        if (item.status !== statusFilter) return false;
+      }
 
-      // Pay Impact Filter
-      if (impactFilter === "DEDUCTIONS" && item.deductionAmount === 0) return false;
-      if (impactFilter === "FULL_PAY" && item.impactType !== "FULL_PAY" && item.impactType !== "LATE_COVERED") return false;
-      if (impactFilter === "HALF_DAY" && item.impactType !== "HALF_DAY") return false;
-      if (impactFilter === "FULL_DAY_LOP" && item.impactType !== "FULL_DAY_LOP") return false;
+      // Pay Impact Filter (if enabled in Conditions)
+      if (enabledFields.payImpact && impactFilter !== "ALL") {
+        if (impactFilter === "DEDUCTIONS" && item.deductionAmount === 0) return false;
+        if (impactFilter === "FULL_PAY" && item.impactType !== "FULL_PAY" && item.impactType !== "LATE_COVERED") return false;
+        if (impactFilter === "HALF_DAY" && item.impactType !== "HALF_DAY") return false;
+        if (impactFilter === "FULL_DAY_LOP" && item.impactType !== "FULL_DAY_LOP") return false;
+      }
 
       // Search Query (general search bar)
       if (searchQuery.trim()) {
@@ -237,13 +338,16 @@ export default function MonthlyAttendancePayImpact({
     });
   }, [
     calculatedImpacts,
+    enabledFields,
     filterEmpName,
+    empNameOp,
     filterDateMode,
     filterDate1,
     filterDate2,
     filterSetOff,
     filterShift,
     filterNotesQuery,
+    notesOp,
     statusFilter,
     impactFilter,
     searchQuery,
@@ -252,16 +356,17 @@ export default function MonthlyAttendancePayImpact({
   // Active filter count
   const activeFiltersCount = useMemo(() => {
     let count = 0;
-    if (filterEmpName.trim()) count++;
-    if (filterDateMode !== "ALL" && (filterDate1 || filterDate2)) count++;
-    if (filterSetOff !== "ALL") count++;
-    if (filterShift !== "ALL") count++;
-    if (filterNotesQuery.trim()) count++;
-    if (statusFilter !== "ALL") count++;
-    if (impactFilter !== "ALL") count++;
+    if (enabledFields.empName && filterEmpName.trim()) count++;
+    if (enabledFields.date && filterDateMode !== "ALL" && (filterDate1 || filterDate2)) count++;
+    if (enabledFields.setOff && filterSetOff !== "ALL") count++;
+    if (enabledFields.assignedShift && filterShift !== "ALL") count++;
+    if (enabledFields.notes && filterNotesQuery.trim()) count++;
+    if (enabledFields.status && statusFilter !== "ALL") count++;
+    if (enabledFields.payImpact && impactFilter !== "ALL") count++;
     if (searchQuery.trim()) count++;
     return count;
   }, [
+    enabledFields,
     filterEmpName,
     filterDateMode,
     filterDate1,
@@ -276,15 +381,18 @@ export default function MonthlyAttendancePayImpact({
 
   const resetAllFilters = () => {
     setFilterEmpName("");
+    setEmpNameOp("contains");
     setFilterDateMode("ALL");
     setFilterDate1("");
     setFilterDate2("");
     setFilterSetOff("ALL");
     setFilterShift("ALL");
     setFilterNotesQuery("");
+    setNotesOp("contains");
     setStatusFilter("ALL");
     setImpactFilter("ALL");
     setSearchQuery("");
+    setSavedPreset("ALL");
   };
 
   // Summary Metrics
@@ -414,206 +522,678 @@ export default function MonthlyAttendancePayImpact({
           </div>
         </div>
 
-        {/* Top Action Row: Rates & Export */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5 text-[#293381] dark:text-[#36B4FF]" />
-              Filter Records
-            </span>
-            {activeFiltersCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#293381] text-white dark:bg-[#36B4FF] dark:text-slate-950">
-                {activeFiltersCount} active
+        {/* Top Action Row with Modern Popover Filter System (Matching User Reference) */}
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            {/* Search Input with Popover Filter Pill */}
+            <div className="relative flex-1 max-w-xl">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xs focus-within:border-[#0084c7] focus-within:ring-2 focus-within:ring-[#0084c7]/20 transition">
+                <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFilterOpen(!isFilterOpen);
+                    setIsFieldSettingsOpen(false);
+                  }}
+                  className="px-2.5 py-1 rounded-md text-xs font-semibold border border-[#38bdf8] text-[#0284c7] bg-[#f0f9ff] dark:bg-[#0284c7]/20 dark:text-[#38bdf8] dark:border-[#0284c7]/40 hover:bg-[#e0f2fe] transition flex items-center gap-1.5 shrink-0 select-none cursor-pointer"
+                >
+                  <span>
+                    {savedPreset === "DEDUCTIONS"
+                      ? "Deductions Only"
+                      : savedPreset === "GRACE_SHORT"
+                      ? "Grace & Short Leaves"
+                      : savedPreset === "HALF_DAY"
+                      ? "Half Day Deductions"
+                      : savedPreset === "UNAUTHORIZED"
+                      ? "Unauthorized Shifts"
+                      : activeFiltersCount > 0
+                      ? `${activeFiltersCount} filter${activeFiltersCount > 1 ? "s" : ""} applied`
+                      : "All schedules"}
+                  </span>
+                  <ChevronDown
+                    className={`w-3 h-3 text-[#0284c7] dark:text-[#38bdf8] transition-transform ${
+                      isFilterOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 bg-transparent text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* The Dropdown Popover Modal (Images 3, 4, 5) */}
+              {isFilterOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40 bg-black/10 dark:bg-black/30"
+                    onClick={() => setIsFilterOpen(false)}
+                  />
+                  <div className="absolute top-full left-0 mt-2 z-50 w-full min-w-[580px] max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-fade-in">
+                    <div className="flex flex-col md:flex-row min-h-[320px]">
+                      {/* Left Sidebar: SAVED FILTERS */}
+                      <div className="w-full md:w-48 border-b md:border-b-0 md:border-r border-slate-100 dark:border-slate-800 p-4 bg-slate-50/50 dark:bg-slate-950/20 shrink-0 space-y-1">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                          SAVED FILTERS
+                        </div>
+                        {SAVED_PRESETS.map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => applyPreset(preset.id)}
+                            className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                              savedPreset === preset.id
+                                ? "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#0084c7] dark:text-[#38bdf8] shadow-2xs"
+                                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60"
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Right Panel: CONDITIONS or FILTER FIELD SETTINGS */}
+                      <div className="flex-1 flex flex-col justify-between min-h-[340px]">
+                        {!isFieldSettingsOpen ? (
+                          <>
+                            {/* Normal Conditions View (Images 2, 4) */}
+                            <div className="p-5 space-y-4 max-h-[300px] overflow-y-auto pr-1">
+                              <div className="flex items-center justify-between pb-1">
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                  CONDITIONS
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsFilterOpen(false)}
+                                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+                                  title="Close"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+
+                              {/* Condition 1: Emp Name */}
+                              {enabledFields.empName && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                      Emp Name
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEnabledFields((prev) => ({ ...prev, empName: false }))}
+                                      className="text-slate-400 hover:text-rose-500 text-xs cursor-pointer"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <select
+                                      value={empNameOp}
+                                      onChange={(e) => setEmpNameOp(e.target.value as any)}
+                                      className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0084c7]"
+                                    >
+                                      <option value="contains">Contains</option>
+                                      <option value="is">Is</option>
+                                      <option value="starts_with">Starts with</option>
+                                    </select>
+                                    <input
+                                      type="text"
+                                      placeholder="Value..."
+                                      value={filterEmpName}
+                                      onChange={(e) => setFilterEmpName(e.target.value)}
+                                      className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0084c7]"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Condition 2: Date */}
+                              {enabledFields.date && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                      Date
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEnabledFields((prev) => ({ ...prev, date: false }))}
+                                      className="text-slate-400 hover:text-rose-500 text-xs cursor-pointer"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <select
+                                      value={filterDateMode}
+                                      onChange={(e) => setFilterDateMode(e.target.value as any)}
+                                      className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0084c7]"
+                                    >
+                                      <option value="ALL">All Dates</option>
+                                      <option value="EXACT">Is (Exact)</option>
+                                      <option value="LESS_THAN">Less than (&lt;)</option>
+                                      <option value="GREATER_THAN">Greater than (&gt;)</option>
+                                      <option value="BETWEEN">Between</option>
+                                    </select>
+
+                                    {filterDateMode === "BETWEEN" ? (
+                                      <div className="flex items-center gap-1">
+                                        <input
+                                          type="date"
+                                          value={filterDate1}
+                                          onChange={(e) => setFilterDate1(e.target.value)}
+                                          className="w-1/2 text-[11px] px-1.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0084c7]"
+                                        />
+                                        <span className="text-[10px] text-slate-400">-</span>
+                                        <input
+                                          type="date"
+                                          value={filterDate2}
+                                          onChange={(e) => setFilterDate2(e.target.value)}
+                                          className="w-1/2 text-[11px] px-1.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0084c7]"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <input
+                                        type="date"
+                                        disabled={filterDateMode === "ALL"}
+                                        value={filterDate1}
+                                        onChange={(e) => setFilterDate1(e.target.value)}
+                                        placeholder="Value..."
+                                        className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0084c7] disabled:opacity-50"
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Condition 3: Set Off */}
+                              {enabledFields.setOff && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                      Set Off
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEnabledFields((prev) => ({ ...prev, setOff: false }))}
+                                      className="text-slate-400 hover:text-rose-500 text-xs cursor-pointer"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <select
+                                      disabled
+                                      className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 text-slate-700 dark:text-slate-300"
+                                    >
+                                      <option>Is</option>
+                                    </select>
+                                    <select
+                                      value={filterSetOff}
+                                      onChange={(e) => setFilterSetOff(e.target.value)}
+                                      className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0084c7]"
+                                    >
+                                      <option value="ALL">Value... (All Set-offs)</option>
+                                      <option value="Grace Period">Grace Period</option>
+                                      <option value="Short Leave">Short Leave</option>
+                                      <option value="Leave">Leave</option>
+                                      <option value="Half Day">Half Day</option>
+                                      <option value="Shift Exception">Shift Exception</option>
+                                      <option value="Comp Off">Comp Off</option>
+                                      <option value="None">None (—)</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Condition 4: Assigned Shift */}
+                              {enabledFields.assignedShift && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                      Assigned Shift
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEnabledFields((prev) => ({ ...prev, assignedShift: false }))}
+                                      className="text-slate-400 hover:text-rose-500 text-xs cursor-pointer"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <select
+                                      disabled
+                                      className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 text-slate-700 dark:text-slate-300"
+                                    >
+                                      <option>Is</option>
+                                    </select>
+                                    <select
+                                      value={filterShift}
+                                      onChange={(e) => setFilterShift(e.target.value)}
+                                      className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0084c7]"
+                                    >
+                                      <option value="ALL">Value... (All Shifts)</option>
+                                      {availableShifts.map((s) => (
+                                        <option key={s} value={s}>
+                                          {s}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Condition 5: Deduction Rule & Notes */}
+                              {enabledFields.notes && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                      Deduction Rule & Notes
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEnabledFields((prev) => ({ ...prev, notes: false }))}
+                                      className="text-slate-400 hover:text-rose-500 text-xs cursor-pointer"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <select
+                                      value={notesOp}
+                                      onChange={(e) => setNotesOp(e.target.value as any)}
+                                      className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0084c7]"
+                                    >
+                                      <option value="contains">Contains</option>
+                                      <option value="does_not_contain">Does not contain</option>
+                                    </select>
+                                    <input
+                                      type="text"
+                                      placeholder="Value..."
+                                      value={filterNotesQuery}
+                                      onChange={(e) => setFilterNotesQuery(e.target.value)}
+                                      className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0084c7]"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Condition 6: Status */}
+                              {enabledFields.status && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                      Status
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEnabledFields((prev) => ({ ...prev, status: false }))}
+                                      className="text-slate-400 hover:text-rose-500 text-xs cursor-pointer"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <select
+                                      disabled
+                                      className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 text-slate-700 dark:text-slate-300"
+                                    >
+                                      <option>Is</option>
+                                    </select>
+                                    <select
+                                      value={statusFilter}
+                                      onChange={(e) => setStatusFilter(e.target.value)}
+                                      className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0084c7]"
+                                    >
+                                      <option value="ALL">Value... (All Statuses)</option>
+                                      <option value="PRESENT">PRESENT</option>
+                                      <option value="HALF_DAY">HALF_DAY</option>
+                                      <option value="LATE">LATE</option>
+                                      <option value="ABSENT">ABSENT</option>
+                                      <option value="ON_LEAVE">ON_LEAVE</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Condition 7: Pay Impact */}
+                              {enabledFields.payImpact && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                      Pay Impact
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEnabledFields((prev) => ({ ...prev, payImpact: false }))}
+                                      className="text-slate-400 hover:text-rose-500 text-xs cursor-pointer"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <select
+                                      disabled
+                                      className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 text-slate-700 dark:text-slate-300"
+                                    >
+                                      <option>Is</option>
+                                    </select>
+                                    <select
+                                      value={impactFilter}
+                                      onChange={(e) => setImpactFilter(e.target.value)}
+                                      className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0084c7]"
+                                    >
+                                      <option value="ALL">Value... (All Impacts)</option>
+                                      <option value="DEDUCTIONS">Deductions Only</option>
+                                      <option value="FULL_PAY">Full Pay (100%)</option>
+                                      <option value="HALF_DAY">Half Day (-50%)</option>
+                                      <option value="FULL_DAY_LOP">Full Day LOP (-100%)</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* + Add field link (Images 2, 4) */}
+                              <div className="pt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTempEnabledFields({ ...enabledFields });
+                                    setIsFieldSettingsOpen(true);
+                                  }}
+                                  className="text-xs font-semibold text-[#0084c7] hover:text-[#0073ad] flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>Add field</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Conditions Bottom Footer (Images 2, 4) */}
+                            <div className="border-t border-slate-200 dark:border-slate-800 px-5 py-3 flex items-center justify-between bg-white dark:bg-slate-900 text-xs">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={handleSaveFilters}
+                                  className="text-slate-600 dark:text-slate-400 hover:text-[#0084c7] underline font-medium cursor-pointer"
+                                >
+                                  Save filters
+                                </button>
+                                {saveSuccessToast && (
+                                  <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                                    <Check className="w-3 h-3" /> Filters saved!
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-3">
+                                <button
+                                  type="button"
+                                  onClick={resetAllFilters}
+                                  className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium px-2 py-1 cursor-pointer"
+                                >
+                                  Reset
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsFilterOpen(false)}
+                                  className="bg-[#0084c7] hover:bg-[#0073ad] text-white font-semibold px-4 py-2 rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer transition"
+                                >
+                                  <Search className="w-3.5 h-3.5" />
+                                  <span>Search</span>
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          /* Filter Field Settings Modal (Image 3) */
+                          <div className="p-5 flex-1 flex flex-col justify-between">
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                  FILTER FIELD SETTINGS
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsFieldSettingsOpen(false)}
+                                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+                                  title="Close Settings"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+
+                              {/* Find Field input */}
+                              <div className="relative">
+                                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                  type="text"
+                                  placeholder="Find field"
+                                  value={fieldSearchQuery}
+                                  onChange={(e) => setFieldSearchQuery(e.target.value)}
+                                  className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0084c7]"
+                                />
+                              </div>
+
+                              {/* Standard category */}
+                              <div>
+                                <div className="text-[11px] font-bold text-[#0084c7] uppercase tracking-wider mb-2.5">
+                                  STANDARD
+                                </div>
+                                <div className="grid grid-cols-2 gap-2.5 text-xs">
+                                  {ALL_FIELDS.filter((f) =>
+                                    f.label.toLowerCase().includes(fieldSearchQuery.toLowerCase())
+                                  ).map((field) => (
+                                    <label
+                                      key={field.id}
+                                      className="flex items-center gap-2 text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(tempEnabledFields[field.id])}
+                                        onChange={(e) =>
+                                          setTempEnabledFields((prev) => ({
+                                            ...prev,
+                                            [field.id]: e.target.checked,
+                                          }))
+                                        }
+                                        className="w-4 h-4 text-[#0084c7] rounded border-slate-300 focus:ring-[#0084c7]"
+                                      />
+                                      <span>{field.label}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Field Settings Controls Footer */}
+                            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+                              <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={ALL_FIELDS.every((f) => tempEnabledFields[f.id])}
+                                  onChange={(e) => {
+                                    const val = e.target.checked;
+                                    const updated: Record<string, boolean> = {};
+                                    ALL_FIELDS.forEach((f) => (updated[f.id] = val));
+                                    setTempEnabledFields(updated);
+                                  }}
+                                  className="w-3.5 h-3.5 text-[#0084c7] rounded border-slate-300"
+                                />
+                                <span>select all</span>
+                              </label>
+
+                              <div className="flex items-center gap-2.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTempEnabledFields({
+                                      empName: true,
+                                      date: true,
+                                      setOff: true,
+                                      assignedShift: true,
+                                      notes: true,
+                                      status: false,
+                                      payImpact: false,
+                                    });
+                                  }}
+                                  className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  <span>default</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsFieldSettingsOpen(false)}
+                                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 cursor-pointer font-semibold"
+                                >
+                                  CANCEL
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEnabledFields({ ...tempEnabledFields });
+                                    setIsFieldSettingsOpen(false);
+                                  }}
+                                  className="px-4 py-1.5 rounded-lg bg-[#0084c7] hover:bg-[#0073ad] text-white font-semibold shadow-xs cursor-pointer"
+                                >
+                                  APPLY
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Right Buttons: Rates, Refresh, Export CSV */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Toggle Salary Parameters drawer */}
+              <button
+                type="button"
+                onClick={() => setShowSalaryConfig(!showSalaryConfig)}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition flex items-center gap-1.5 cursor-pointer ${
+                  showSalaryConfig
+                    ? "bg-[#293381] text-white border-[#293381] dark:bg-[#36B4FF] dark:text-slate-950"
+                    : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span>Rates ({summary.dailyRate.toLocaleString("en-IN")}/day)</span>
+              </button>
+
+              {/* Refresh */}
+              <button
+                type="button"
+                onClick={fetchMonthRecords}
+                disabled={loading}
+                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition cursor-pointer"
+                title="Refresh Records"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-[#293381]" : ""}`} />
+              </button>
+
+              {/* Export CSV */}
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                disabled={filteredImpacts.length === 0}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export CSV</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Active Filter Chips Bar (Shown under search bar when conditions are set) */}
+          {activeFiltersCount > 0 && !isFilterOpen && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                Active:
               </span>
-            )}
-            {activeFiltersCount > 0 && (
+              {enabledFields.empName && filterEmpName.trim() && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-[#0084c7] border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 shadow-2xs">
+                  Emp ({empNameOp}): &quot;{filterEmpName}&quot;
+                  <button type="button" onClick={() => setFilterEmpName("")} className="hover:text-rose-500 cursor-pointer">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              )}
+              {enabledFields.date && filterDateMode !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-[#0084c7] border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 shadow-2xs">
+                  Date: {filterDateMode} {filterDate1} {filterDate2 ? `- ${filterDate2}` : ""}
+                  <button type="button" onClick={() => setFilterDateMode("ALL")} className="hover:text-rose-500 cursor-pointer">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              )}
+              {enabledFields.setOff && filterSetOff !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-[#0084c7] border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 shadow-2xs">
+                  Set-off: {filterSetOff}
+                  <button type="button" onClick={() => setFilterSetOff("ALL")} className="hover:text-rose-500 cursor-pointer">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              )}
+              {enabledFields.assignedShift && filterShift !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-[#0084c7] border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 shadow-2xs">
+                  Shift: {filterShift}
+                  <button type="button" onClick={() => setFilterShift("ALL")} className="hover:text-rose-500 cursor-pointer">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              )}
+              {enabledFields.notes && filterNotesQuery.trim() && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-[#0084c7] border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 shadow-2xs">
+                  Rule/Notes ({notesOp}): &quot;{filterNotesQuery}&quot;
+                  <button type="button" onClick={() => setFilterNotesQuery("")} className="hover:text-rose-500 cursor-pointer">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              )}
+              {enabledFields.status && statusFilter !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-[#0084c7] border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 shadow-2xs">
+                  Status: {statusFilter}
+                  <button type="button" onClick={() => setStatusFilter("ALL")} className="hover:text-rose-500 cursor-pointer">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              )}
+              {enabledFields.payImpact && impactFilter !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-[#0084c7] border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 shadow-2xs">
+                  Pay Impact: {impactFilter}
+                  <button type="button" onClick={() => setImpactFilter("ALL")} className="hover:text-rose-500 cursor-pointer">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              )}
               <button
                 type="button"
                 onClick={resetAllFilters}
-                className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 flex items-center gap-1 hover:underline ml-2"
+                className="text-[10px] font-semibold text-rose-500 hover:text-rose-700 ml-1 underline cursor-pointer"
               >
-                <X className="w-3 h-3" />
-                Reset Filters
+                Clear all
               </button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Toggle Salary Parameters drawer */}
-            <button
-              type="button"
-              onClick={() => setShowSalaryConfig(!showSalaryConfig)}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition flex items-center gap-1.5 ${
-                showSalaryConfig
-                  ? "bg-[#293381] text-white border-[#293381] dark:bg-[#36B4FF] dark:text-slate-950"
-                  : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
-              }`}
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>Rates ({summary.dailyRate.toLocaleString("en-IN")}/day)</span>
-            </button>
-
-            {/* Refresh */}
-            <button
-              type="button"
-              onClick={fetchMonthRecords}
-              disabled={loading}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition"
-              title="Refresh Records"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-[#293381]" : ""}`} />
-            </button>
-
-            {/* Export CSV */}
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              disabled={filteredImpacts.length === 0}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 transition flex items-center gap-1.5 disabled:opacity-50"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export CSV</span>
-            </button>
-          </div>
-        </div>
-
-        {/* User-Requested Filters Grid */}
-        <div className="p-3.5 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-slate-200/80 dark:border-slate-700/60 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
-          {/* Filter 1: Emp Name */}
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Emp Name
-            </label>
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Name or code..."
-                value={filterEmpName}
-                onChange={(e) => setFilterEmpName(e.target.value)}
-                className="w-full text-xs pl-8 pr-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#293381]"
-              />
             </div>
-          </div>
-
-          {/* Filter 2: Date - Exact, Less Than, Greater Than, Between */}
-          <div className={filterDateMode === "BETWEEN" ? "sm:col-span-2 lg:col-span-2" : ""}>
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Date ({filterDateMode === "ALL" ? "All" : filterDateMode === "EXACT" ? "Exact" : filterDateMode === "LESS_THAN" ? "<" : filterDateMode === "GREATER_THAN" ? ">" : "Range"})
-            </label>
-            <div className="flex items-center gap-1.5">
-              <select
-                value={filterDateMode}
-                onChange={(e) => setFilterDateMode(e.target.value as any)}
-                className="text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381] shrink-0"
-              >
-                <option value="ALL">All Dates</option>
-                <option value="EXACT">Exact (=)</option>
-                <option value="LESS_THAN">Less Than (&lt;)</option>
-                <option value="GREATER_THAN">Greater Than (&gt;)</option>
-                <option value="BETWEEN">Between</option>
-              </select>
-
-              {filterDateMode === "EXACT" || filterDateMode === "LESS_THAN" || filterDateMode === "GREATER_THAN" ? (
-                <input
-                  type="date"
-                  value={filterDate1}
-                  onChange={(e) => setFilterDate1(e.target.value)}
-                  className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
-                />
-              ) : filterDateMode === "BETWEEN" ? (
-                <div className="flex items-center gap-1 flex-1">
-                  <input
-                    type="date"
-                    value={filterDate1}
-                    onChange={(e) => setFilterDate1(e.target.value)}
-                    className="w-1/2 text-xs px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
-                    placeholder="From"
-                  />
-                  <span className="text-[10px] text-slate-400">to</span>
-                  <input
-                    type="date"
-                    value={filterDate2}
-                    onChange={(e) => setFilterDate2(e.target.value)}
-                    className="w-1/2 text-xs px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
-                    placeholder="To"
-                  />
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          {/* Filter 3: Set Off - Exact (Drop down) */}
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Set Off (Exact)
-            </label>
-            <select
-              value={filterSetOff}
-              onChange={(e) => setFilterSetOff(e.target.value)}
-              className="w-full text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
-            >
-              <option value="ALL">All Set-offs</option>
-              <option value="Grace Period">Grace Period</option>
-              <option value="Short Leave">Short Leave</option>
-              <option value="Leave">Leave</option>
-              <option value="Half Day">Half Day</option>
-              <option value="Shift Exception">Shift Exception</option>
-              <option value="Comp Off">Comp Off</option>
-              <option value="None">None (—)</option>
-            </select>
-          </div>
-
-          {/* Filter 4: Assigned Shift - Exact (Drop down) */}
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Assigned Shift
-            </label>
-            <select
-              value={filterShift}
-              onChange={(e) => setFilterShift(e.target.value)}
-              className="w-full text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
-            >
-              <option value="ALL">All Shifts ({availableShifts.length})</option>
-              {availableShifts.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filter 5: Deduction Rule & Notes - Contains */}
-          <div className={filterDateMode === "BETWEEN" ? "lg:col-span-2" : ""}>
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Deduction Rule & Notes (Contains)
-            </label>
-            <input
-              type="text"
-              placeholder="Contains in rule or notes..."
-              value={filterNotesQuery}
-              onChange={(e) => setFilterNotesQuery(e.target.value)}
-              className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#293381]"
-            />
-          </div>
-
-          {/* Additional Filter: Pay Impact */}
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Pay Impact
-            </label>
-            <select
-              value={impactFilter}
-              onChange={(e) => setImpactFilter(e.target.value)}
-              className="w-full text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
-            >
-              <option value="ALL">All Impacts</option>
-              <option value="DEDUCTIONS">Deductions Only</option>
-              <option value="FULL_PAY">Full Pay (100%)</option>
-              <option value="HALF_DAY">Half Day (-50%)</option>
-              <option value="FULL_DAY_LOP">Full Day LOP (-100%)</option>
-            </select>
-          </div>
+          )}
         </div>
 
         {/* Collapsible Salary Configuration Bar */}
