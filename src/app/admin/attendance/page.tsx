@@ -25,6 +25,7 @@ import {
   Info,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthGate";
+import AttendanceSpreadsheetGrid from "@/components/AttendanceSpreadsheetGrid";
 
 export default function AdminAttendancePage() {
   const { user } = useAuth();
@@ -774,7 +775,7 @@ MC-HRM-002,2026-11-01,08:35,17:35,PRESENT,On time morning`;
       {/* Monthly Attendance Import Modal */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-[#293381]/10 rounded-lg text-[#293381] dark:text-[#36B4FF]">
@@ -896,22 +897,10 @@ MC-HRM-002,2026-11-01,08:35,17:35,PRESENT,On time morning`;
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    {selectedMachine === "PV" ? "Punch Log Data (Paste or Upload)" : "CSV Data (or paste directly)"}
-                  </label>
-                  <span className="text-[11px] text-slate-400 font-mono">
-                    {selectedMachine === "PV"
-                      ? "Format: Employee Code - Time Stamp - Time Zone"
-                      : "Format: EmployeeCode,Date,CheckIn,CheckOut,Status,Notes"}
-                  </span>
-                </div>
-                <textarea
-                  rows={6}
+                <AttendanceSpreadsheetGrid
+                  machine={selectedMachine}
                   value={importCsvText}
-                  onChange={(e) => setImportCsvText(e.target.value)}
-                  className="w-full font-mono text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
-                  placeholder={selectedMachine === "PV" ? PV_TEMPLATE : STANDARD_TEMPLATE}
+                  onChange={setImportCsvText}
                 />
               </div>
 
