@@ -588,7 +588,7 @@ export default function EmployeeDetailPage({
                 : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
             }`}
           >
-            <CalendarDays className="w-3.5 h-3.5" /> Leaves & Offs
+            <CalendarDays className="w-3.5 h-3.5" /> Shift and Offs
           </button>
           <button
             onClick={() => setActiveTab("salary_calculation")}
@@ -1251,7 +1251,7 @@ export default function EmployeeDetailPage({
         />
       )}
 
-      {/* Tab 5: Leaves & Offs */}
+      {/* Tab 5: Shift and Offs */}
       {activeTab === "leaves_offs" && (
         <LeavesAndOffsTab
           employeeId={employee.id}

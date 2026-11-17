@@ -2,15 +2,40 @@
   "EMP-001": {
     "employeeId": "EMP-001",
     "employeeCode": "EMP-001",
-    "workingDaysPerWeek": 5,
+    "workingDaysPerWeek": 6,
     "weekOffCount": 1,
     "weekOffDays": [
-      "Sat"
+      "Sun"
     ],
-    "weekOffException": "Mon",
+    "weekOffException": "None",
     "shortLeaveAllowed": 3,
     "graceTimeMinutes": 30,
-    "updatedAt": 1794903027320,
+    "defaultShiftId": "shift_morn",
+    "allowedShiftId1": "shift_gen",
+    "allowedShiftId2": "shift_aft",
+    "shiftExceptionAllowed": false,
+    "unauthorizedShiftPenalty": "HALF_DAY",
+    "updatedAt": 1794923069622,
+    "updatedBy": "1"
+  },
+  "EMP-005": {
+    "employeeId": "EMP-005",
+    "employeeCode": "EMP-005",
+    "workingDaysPerWeek": 5,
+    "weekOffCount": 2,
+    "weekOffDays": [
+      "Sat",
+      "Sun"
+    ],
+    "weekOffException": "None",
+    "shortLeaveAllowed": 3,
+    "graceTimeMinutes": 30,
+    "defaultShiftId": "shift_gen",
+    "allowedShiftId1": "shift_morn",
+    "allowedShiftId2": "shift_aft",
+    "shiftExceptionAllowed": false,
+    "unauthorizedShiftPenalty": "OFF",
+    "updatedAt": 1794922910710,
     "updatedBy": "1"
   }
 }

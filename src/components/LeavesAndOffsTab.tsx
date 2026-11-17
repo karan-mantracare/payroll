@@ -300,7 +300,7 @@ export default function LeavesAndOffsTab({
         throw new Error(json.error || "Failed to save settings");
       }
 
-      setSuccessMessage("Leaves & Offs policy settings saved successfully.");
+      setSuccessMessage("Shift and Offs policy settings saved successfully.");
       if (json.data?.updatedAt) {
         setLastUpdatedAt(json.data.updatedAt);
       }
@@ -316,7 +316,7 @@ export default function LeavesAndOffsTab({
     return (
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-12 flex flex-col items-center justify-center text-slate-500 shadow-sm">
         <Loader2 className="w-8 h-8 animate-spin text-[#293381] dark:text-[#36B4FF] mb-3" />
-        <p className="text-sm">Loading employee leaves and offs policy...</p>
+        <p className="text-sm">Loading employee shift and offs policy...</p>
       </div>
     );
   }
@@ -349,7 +349,7 @@ export default function LeavesAndOffsTab({
           <div>
             <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <CalendarDays className="w-5 h-5 text-[#293381] dark:text-[#36B4FF]" />
-              Leaves & Offs Policy Configuration
+              Shift and Offs Policy Configuration
             </h2>
             <p className="text-xs text-slate-500 mt-1">
               Configure shift allocation, weekly working schedules, rest days, short leaves, and grace period thresholds for this employee.
