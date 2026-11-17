@@ -1240,20 +1240,42 @@ export async function importMonthlyAttendance(
         empPolicy.allowedShiftId2,
       ].filter(Boolean) as string[];
 
+      const allowedShifts = activeShiftsList.filter((s) => allowedShiftIds.includes(s.id));
+      const graceMins = empPolicy.graceTimeMinutes ?? 30;
+
       // 2. Identify nearest reported shift based on punch check-in time
+      // PRIORITY 1: Match against the employee's ALLOWED shifts first within arrival window
       const checkInLocalMins = getUtcTimeMinutes(checkInUtc);
-      let matchedShift = defaultShift;
-      if (activeShiftsList.length > 0) {
-        let minDiff = Infinity;
+      let matchedShift: any = null;
+      let minAllowedDiff = Infinity;
+
+      for (const s of allowedShifts) {
+        const sMins = parseTimeToMinutes(s.startTime);
+        let diff = Math.abs(checkInLocalMins - sMins);
+        if (diff > 720) diff = 1440 - diff;
+        // If check-in is within 120 mins of an allowed shift start, match that authorized shift
+        if (diff <= 120 && diff < minAllowedDiff) {
+          minAllowedDiff = diff;
+          matchedShift = s;
+        }
+      }
+
+      // PRIORITY 2: If punch is not near any allowed shift, check company-wide shifts (potential unauthorized shift)
+      if (!matchedShift && activeShiftsList.length > 0) {
+        let globalMinDiff = Infinity;
         for (const s of activeShiftsList) {
           const sMins = parseTimeToMinutes(s.startTime);
           let diff = Math.abs(checkInLocalMins - sMins);
           if (diff > 720) diff = 1440 - diff;
-          if (diff < minDiff) {
-            minDiff = diff;
+          if (diff < globalMinDiff) {
+            globalMinDiff = diff;
             matchedShift = s;
           }
         }
+      }
+
+      if (!matchedShift) {
+        matchedShift = defaultShift;
       }
 
       // Check if matched shift is authorized for this employee
@@ -1281,13 +1303,36 @@ export async function importMonthlyAttendance(
         }
       }
 
-      // Lateness calculation against the effective shift
+      // Lateness & Grace Period calculation against the effective shift
       if (effectiveShift && effectiveShift.startTime && !isUnauthorized) {
         const shiftStartMins = parseTimeToMinutes(effectiveShift.startTime);
-        const graceMins = empPolicy.graceTimeMinutes ?? 15;
-        if (checkInLocalMins > shiftStartMins + graceMins) {
+        const shiftEndMins = parseTimeToMinutes(effectiveShift.endTime);
+        const shiftDurationRequired = shiftEndMins > shiftStartMins
+          ? shiftEndMins - shiftStartMins
+          : (1440 - shiftStartMins) + shiftEndMins;
+
+        const isWithinGrace = checkInLocalMins <= shiftStartMins + graceMins;
+        const hasCompletedShiftHours = totalWorkMinutes >= shiftDurationRequired;
+
+        if (isWithinGrace) {
+          // Within grace window (e.g. up to 09:30 on a 09:00 shift)
+          if (hasCompletedShiftHours || totalWorkMinutes >= shiftDurationRequired - 30) {
+            status = "PRESENT";
+          } else if (totalWorkMinutes >= 270) {
+            // Came within grace, but left early
+            status = "HALF_DAY";
+            recordNotes = (recordNotes ? `${recordNotes} | ` : "") + "Left before shift completion - Counted as Half Day";
+          }
+        } else {
+          // Past grace window
           lateMinutes = checkInLocalMins - shiftStartMins;
-          if (!row.status) status = "LATE";
+          if (lateMinutes <= 60 && hasCompletedShiftHours) {
+            // Reported within 1 hour and completed full hours -> covered by Short Leave
+            status = "PRESENT";
+            recordNotes = (recordNotes ? `${recordNotes} | ` : "") + "Late morning reporting covered by Short Leave allowance";
+          } else {
+            status = "LATE";
+          }
         }
       }
 
@@ -1459,6 +1504,7 @@ export async function recalculateAttendance(
     .select({
       id: attendanceRecords.id,
       employeeId: attendanceRecords.employeeId,
+      employeeCode: employees.employeeCode,
       date: attendanceRecords.date,
       shiftId: attendanceRecords.shiftId,
       checkInTimeUtc: attendanceRecords.checkInTimeUtc,
@@ -1468,6 +1514,7 @@ export async function recalculateAttendance(
       notes: attendanceRecords.notes,
     })
     .from(attendanceRecords)
+    .innerJoin(employees, eq(attendanceRecords.employeeId, employees.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined);
 
   let updatedCount = 0;
@@ -1483,6 +1530,7 @@ export async function recalculateAttendance(
     let newStatus = record.status;
     let newNotes = record.notes || "";
     let newWorkMinutes = record.totalWorkMinutes;
+    let newShiftId = record.shiftId;
 
     // Rule 1: Missing either in-time or out-time
     if (!record.checkInTimeUtc || !record.checkOutTimeUtc) {
@@ -1512,7 +1560,7 @@ export async function recalculateAttendance(
         offCount++;
       } else {
         // Rule 3: 4h 30m or more -> check Shift Allocation Policy and Grace
-        const employeePolicy = getEmployeeLeavesOffs(record.employeeId);
+        const employeePolicy = getEmployeeLeavesOffs(record.employeeCode || record.employeeId);
         const graceMinutes = employeePolicy.graceTimeMinutes ?? 30;
 
         const defaultShift =
@@ -1526,60 +1574,116 @@ export async function recalculateAttendance(
           employeePolicy.allowedShiftId2,
         ].filter(Boolean) as string[];
 
-        const effectiveShiftId = record.shiftId || defaultShift?.id;
-        const isShiftAuthorized = effectiveShiftId ? allowedShiftIds.includes(effectiveShiftId) : true;
-        const isExceptionGranted = employeePolicy.shiftExceptionAllowed || newNotes.toLowerCase().includes("exception");
+        const inMins = getUtcTimeMinutes(record.checkInTimeUtc);
+        const allowedShifts = allActiveShifts.filter((s) => allowedShiftIds.includes(s.id));
+        let matchedShift: any = null;
+        let minAllowedDiff = Infinity;
 
-        let isLate = false;
+        // PRIORITY 1: Resolve against ALLOWED shifts within arrival window (120 mins)
+        for (const s of allowedShifts) {
+          const sMins = parseTimeToMinutes(s.startTime);
+          let diff = Math.abs(inMins - sMins);
+          if (diff > 720) diff = 1440 - diff;
+          if (diff <= 120 && diff < minAllowedDiff) {
+            minAllowedDiff = diff;
+            matchedShift = s;
+          }
+        }
+
+        // PRIORITY 2: If punch is not near any allowed shift, resolve to nearest company shift (potential unauthorized shift)
+        if (!matchedShift && allActiveShifts.length > 0) {
+          let globalMinDiff = Infinity;
+          for (const s of allActiveShifts) {
+            const sMins = parseTimeToMinutes(s.startTime);
+            let diff = Math.abs(inMins - sMins);
+            if (diff > 720) diff = 1440 - diff;
+            if (diff < globalMinDiff) {
+              globalMinDiff = diff;
+              matchedShift = s;
+            }
+          }
+        }
+
+        const effectiveShift = matchedShift || defaultShift;
+        const isShiftAuthorized = effectiveShift ? allowedShiftIds.includes(effectiveShift.id) : true;
+        const isExceptionGranted = employeePolicy.shiftExceptionAllowed || newNotes.toLowerCase().includes("exception");
+        newShiftId = effectiveShift?.id || record.shiftId;
+
         if (!isShiftAuthorized && !isExceptionGranted) {
           // Unauthorized shift deduction applied per policy
           if (employeePolicy.unauthorizedShiftPenalty === "HALF_DAY") {
             newStatus = "HALF_DAY";
             if (!newNotes.includes("Unauthorized Shift")) {
-              newNotes = newNotes ? `${newNotes} | Unauthorized Shift - Half Day Deduction applied` : "Unauthorized Shift - Half Day Deduction applied";
+              newNotes = newNotes ? `${newNotes} | Unauthorized Shift: Reported to ${effectiveShift?.name} - Half Day Deduction applied` : `Unauthorized Shift: Reported to ${effectiveShift?.name} - Half Day Deduction applied`;
             }
             halfDayMissingCount++;
           } else {
             newStatus = "ABSENT";
             if (!newNotes.includes("Unauthorized Shift")) {
-              newNotes = newNotes ? `${newNotes} | Unauthorized Shift - Counted as Off per policy` : "Unauthorized Shift - Counted as Off per policy";
+              newNotes = newNotes ? `${newNotes} | Unauthorized Shift: Reported to ${effectiveShift?.name} - Counted as Off per policy` : `Unauthorized Shift: Reported to ${effectiveShift?.name} - Counted as Off per policy`;
             }
             offCount++;
           }
         } else {
-          // Authorized shift or exception granted
-          if (effectiveShiftId) {
-            const shiftList = allActiveShifts.filter((s) => s.id === effectiveShiftId);
-            if (shiftList.length > 0 && shiftList[0].startTime) {
-              const shiftStartMins = parseTimeToMinutes(shiftList[0].startTime);
-              const inMins = getUtcTimeMinutes(record.checkInTimeUtc);
-              if (inMins > shiftStartMins + graceMinutes) {
-                isLate = true;
-              }
-            }
-          }
+          // Authorized shift or exception granted -> Clean any stale unauthorized shift notes
+          newNotes = newNotes
+            .replace(/\s*\|\s*Unauthorized Shift:[^|]+/gi, "")
+            .replace(/Unauthorized Shift:[^|]+/gi, "")
+            .trim();
 
-          if (isLate) {
-            newStatus = "LATE";
-            lateCount++;
+          const shiftStartMins = parseTimeToMinutes(effectiveShift.startTime);
+          const shiftEndMins = parseTimeToMinutes(effectiveShift.endTime);
+          const requiredDuration = shiftEndMins > shiftStartMins
+            ? shiftEndMins - shiftStartMins
+            : (1440 - shiftStartMins) + shiftEndMins;
+
+          const isWithinGrace = inMins <= shiftStartMins + graceMinutes;
+          const hasCompletedShiftHours = newWorkMinutes >= requiredDuration || newWorkMinutes >= 510; // at least 8.5h
+
+          if (isWithinGrace) {
+            // Arrived within grace period (e.g. up to 09:30 on a 09:00 shift)
+            if (hasCompletedShiftHours) {
+              newStatus = "PRESENT";
+              presentCount++;
+            } else if (newWorkMinutes >= 270) {
+              // Came within grace but left early
+              newStatus = "HALF_DAY";
+              if (!newNotes.includes("Left before shift completion")) {
+                newNotes = newNotes ? `${newNotes} | Left before shift completion - Counted as Half Day` : "Left before shift completion - Counted as Half Day";
+              }
+              halfDayMissingCount++;
+            }
           } else {
-            newStatus = "PRESENT";
-            presentCount++;
+            // Arrived past grace period
+            const lateMinutes = inMins - shiftStartMins;
+            if (lateMinutes <= 60 && hasCompletedShiftHours) {
+              // Within 1 hour and completed full hours -> covered by Short Leave
+              newStatus = "PRESENT";
+              if (!newNotes.includes("Short Leave")) {
+                newNotes = newNotes ? `${newNotes} | Late arrival covered by Short Leave allowance` : "Late arrival covered by Short Leave allowance";
+              }
+              presentCount++;
+            } else {
+              newStatus = "LATE";
+              lateCount++;
+            }
           }
         }
       }
     }
 
-    // Update if status, minutes, or notes changed
+    // Update if status, minutes, notes, or shiftId changed
     if (
       newStatus !== record.status ||
       newWorkMinutes !== record.totalWorkMinutes ||
-      newNotes !== record.notes
+      newNotes !== record.notes ||
+      newShiftId !== record.shiftId
     ) {
       await db
         .update(attendanceRecords)
         .set({
           status: newStatus as any,
+          shiftId: newShiftId,
           totalWorkMinutes: newWorkMinutes,
           notes: newNotes,
           updatedAt: now,
