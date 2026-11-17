@@ -388,18 +388,7 @@ export default function LeavesAndOffsTab({
             </div>
           </div>
 
-          {/* 6. Short Leave FYI Policy Card */}
-          <div className="p-4 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 flex items-start gap-3">
-            <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-            <div className="text-xs text-blue-900 dark:text-blue-200 leading-relaxed">
-              <span className="font-semibold block mb-0.5 text-blue-950 dark:text-blue-100">
-                Short Leave Policy Note
-              </span>
-              Allows the employee to report late by 1 hr, without any deduction in pay. After these are exhausted, 1 hr of pay for that day will be deducted.
-            </div>
-          </div>
-
-          {/* 7. Grace Time Allowed */}
+          {/* 6. Grace Time Allowed */}
           <div className="space-y-2 p-4 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800">
             <label className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
               <Clock className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" />
@@ -423,17 +412,6 @@ export default function LeavesAndOffsTab({
                   {min === 0 ? "None" : `${min}m`}
                 </button>
               ))}
-            </div>
-          </div>
-
-          {/* 8. Grace Time FYI Policy Card */}
-          <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 flex items-start gap-3 md:col-span-2">
-            <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <div className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
-              <span className="font-semibold block mb-0.5 text-amber-950 dark:text-amber-100">
-                Grace Period & Work Duration Rule
-              </span>
-              If report time is 9:00 AM and grace period is 30 min, employee can report by 9:30 AM, but must leave by 6:30 PM. Leaving early may result in a Short Leave (if leaving by 5:30 PM) or Half Day (if reporting by 9:30 AM, completing 4 hrs 30 min, and leaving before 5:30 PM).
             </div>
           </div>
         </div>

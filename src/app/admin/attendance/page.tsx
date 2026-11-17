@@ -864,26 +864,6 @@ MC-HRM-002,2026-11-01,08:35,17:35,PRESENT,On time morning`;
                 </select>
               </div>
 
-              {selectedMachine === "PV" && (
-                <div className="p-3 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl text-xs space-y-1.5 text-blue-900 dark:text-blue-200">
-                  <div className="font-bold flex items-center gap-1.5 text-blue-950 dark:text-blue-100">
-                    <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                    Machine 1 - PV Automatic Calculation Rules
-                  </div>
-                  <ul className="list-disc pl-4 space-y-1 text-[11px] text-blue-800 dark:text-blue-300">
-                    <li>
-                      <strong>Punch Mapping</strong>: Earliest punch of the day becomes In-Time. Latest punch becomes Out-Time.
-                    </li>
-                    <li>
-                      <strong>Missing Punch Deduction</strong>: If either In-Time or Out-Time is missing (single punch), the day is marked <em>Entry Missing</em> and counted as <strong>Half Day</strong>.
-                    </li>
-                    <li>
-                      <strong>Under 4.5h Work Deduction</strong>: If both In-Time and Out-Time are present but total duration is less than <strong>4 hrs 30 min</strong>, the day is counted as <strong>Off</strong>.
-                    </li>
-                  </ul>
-                </div>
-              )}
-
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Upload CSV / Text File

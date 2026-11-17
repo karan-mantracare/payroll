@@ -31,11 +31,13 @@ import {
   FileText,
   CreditCard,
   CalendarDays,
+  Calculator,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthGate";
 import DocumentVault from "@/components/DocumentVault";
 import SensitiveFinancialCard from "@/components/SensitiveFinancialCard";
 import LeavesAndOffsTab from "@/components/LeavesAndOffsTab";
+import SalaryCalculationTab from "@/components/SalaryCalculationTab";
 
 interface HierarchyNode {
   id: string;
@@ -62,7 +64,7 @@ export default function EmployeeDetailPage({
   const [employee, setEmployee] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"details" | "hierarchy" | "documents" | "financials" | "leaves_offs">("details");
+  const [activeTab, setActiveTab] = useState<"details" | "hierarchy" | "documents" | "financials" | "leaves_offs" | "salary_calculation">("details");
 
   // Hierarchy Data State
   const [hierarchyData, setHierarchyData] = useState<{
@@ -587,6 +589,16 @@ export default function EmployeeDetailPage({
             }`}
           >
             <CalendarDays className="w-3.5 h-3.5" /> Leaves & Offs
+          </button>
+          <button
+            onClick={() => setActiveTab("salary_calculation")}
+            className={`pb-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5 ${
+              activeTab === "salary_calculation"
+                ? "border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF]"
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+            }`}
+          >
+            <Calculator className="w-3.5 h-3.5" /> Salary Calculation
           </button>
         </div>
       </div>
@@ -1251,6 +1263,14 @@ export default function EmployeeDetailPage({
             user?.permissions?.includes("employee.edit") ||
             user?.permissions?.includes("attendance.manage")
           )}
+        />
+      )}
+
+      {/* Tab 6: Salary Calculation */}
+      {activeTab === "salary_calculation" && (
+        <SalaryCalculationTab
+          employeeId={employee.id}
+          employeeCode={employee.employeeCode}
         />
       )}
     </div>

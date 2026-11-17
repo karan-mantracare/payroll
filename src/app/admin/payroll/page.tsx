@@ -20,7 +20,9 @@ import {
   DollarSign,
   ArrowUpCircle,
   ArrowDownCircle,
+  Calculator,
 } from "lucide-react";
+import SalaryCalculationTab from "@/components/SalaryCalculationTab";
 
 interface MonthlyPayrollCycle {
   month: string;
@@ -67,6 +69,7 @@ const MONTHLY_PAYROLLS: MonthlyPayrollCycle[] = [
 ];
 
 export default function AdminPayrollPage() {
+  const [activeTab, setActiveTab] = useState<"cycles" | "salary_calculation">("cycles");
   const [selectedCycle, setSelectedCycle] = useState<MonthlyPayrollCycle | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [downloadingMonth, setDownloadingMonth] = useState<string | null>(null);
@@ -122,7 +125,35 @@ export default function AdminPayrollPage() {
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4 shadow-sm">
+      {/* Tabs */}
+      <div className="flex items-center gap-6 border-b border-slate-200 dark:border-slate-800">
+        <button
+          onClick={() => setActiveTab("cycles")}
+          className={`pb-2.5 text-xs font-semibold border-b-2 transition flex items-center gap-1.5 ${
+            activeTab === "cycles"
+              ? "border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF]"
+              : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+          }`}
+        >
+          <CreditCard className="w-3.5 h-3.5" /> Payroll Cycles & Disbursements
+        </button>
+        <button
+          onClick={() => setActiveTab("salary_calculation")}
+          className={`pb-2.5 text-xs font-semibold border-b-2 transition flex items-center gap-1.5 ${
+            activeTab === "salary_calculation"
+              ? "border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF]"
+              : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+          }`}
+        >
+          <Calculator className="w-3.5 h-3.5" /> Salary Calculation Rules
+        </button>
+      </div>
+
+      {activeTab === "salary_calculation" ? (
+        <SalaryCalculationTab employeeId="org" />
+      ) : (
+        <>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4 shadow-sm">
         <div className="flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-[#293381] dark:text-[#36B4FF] flex-shrink-0 mt-0.5" />
           <div>
@@ -255,6 +286,8 @@ export default function AdminPayrollPage() {
             </div>
           </div>
         </PayslipLetterheadModal>
+      )}
+        </>
       )}
     </div>
   );
