@@ -106,7 +106,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
   // Desktop sidebar content
   const desktopSidebar = (
     <aside
-      className={`border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 min-h-screen flex flex-col transition-all duration-200 ease-in-out select-none shrink-0 ${
+      className={`border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 h-screen max-h-screen flex flex-col transition-all duration-200 ease-in-out select-none shrink-0 ${
         isCollapsed ? "w-[70px] px-2 py-3" : "w-64 px-3 py-3"
       }`}
     >
@@ -136,7 +136,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
 
       {/* Module Section Label */}
       {!isCollapsed && (
-        <div className="px-2 pt-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-[#293381] dark:text-[#36B4FF]">
+        <div className="px-2 pt-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-[#293381] dark:text-[#36B4FF] shrink-0">
           {type === "admin"
             ? `Admin Modules (${visibleItems.length})`
             : `Employee Modules (${visibleItems.length})`}
@@ -145,7 +145,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
 
       {/* Navigation List */}
       <nav
-        className={`flex-1 overflow-y-auto space-y-1 pt-2 ${
+        className={`flex-1 min-h-0 overflow-y-auto space-y-1 pt-2 pr-0.5 custom-scrollbar ${
           isCollapsed ? "flex flex-col items-center" : ""
         }`}
       >
@@ -257,7 +257,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
 
       {/* Sidebar Footer */}
       {isCollapsed ? (
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-center shrink-0">
+        <div className="pt-3 mt-auto border-t border-slate-100 dark:border-slate-800 flex justify-center shrink-0">
           <div
             className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 group relative"
             title="Programs Mount: /payroll"
@@ -272,7 +272,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
           </div>
         </div>
       ) : (
-        <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl mt-3 shrink-0">
+        <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl mt-auto shrink-0">
           <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono flex items-center justify-between">
             <span>Mount:</span>
             <span className="text-[#293381] dark:text-[#36B4FF] font-bold">/payroll</span>
@@ -314,7 +314,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
             : `Employee Modules (${visibleItems.length})`}
         </div>
 
-        <nav className="flex-1 overflow-y-auto space-y-1 pt-2">
+        <nav className="flex-1 min-h-0 overflow-y-auto space-y-1 pt-2 pr-0.5 custom-scrollbar">
           {visibleItems.map((item) => {
             const isActive =
               item.href === "/admin" || item.href === "/dash"
@@ -368,7 +368,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
           })}
         </nav>
 
-        <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl mt-3 shrink-0">
+        <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl mt-auto shrink-0">
           <div className="text-[11px] text-slate-500 font-mono flex items-center justify-between">
             <span>Mount:</span>
             <span className="text-[#293381] font-bold">/payroll</span>
@@ -383,7 +383,7 @@ export function Sidebar({ type, isOpen, onClose }: SidebarProps) {
 
   return (
     <>
-      <div className="hidden md:block h-full">{desktopSidebar}</div>
+      <div className="hidden md:block sticky top-0 h-screen shrink-0 z-30">{desktopSidebar}</div>
       {isOpen && mobileDrawer}
     </>
   );
