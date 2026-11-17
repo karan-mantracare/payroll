@@ -205,7 +205,12 @@ export default function EmployeeAttendancePage() {
   const formatTime = (iso?: string | null) => {
     if (!iso) return "--:--";
     try {
-      return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+      return new Date(iso).toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Kolkata",
+      });
     } catch {
       return "--:--";
     }

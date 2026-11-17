@@ -7,6 +7,7 @@ export interface PVPunchItem {
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
   timeMs: number; // epoch ms
+  isoUtc: string; // UTC ISO string
 }
 
 export interface ParsedDailyPunchSummary {
@@ -21,7 +22,37 @@ export interface ParsedDailyPunchSummary {
 }
 
 /**
- * Parses timestamp string into normalized date (YYYY-MM-DD), time (HH:mm), and epoch ms.
+ * Resolves timezone offset in minutes from UTC for a given date and timezone string.
+ * Negative number means ahead of UTC (e.g. Asia/Kolkata +05:30 -> -330 min difference UTC - local).
+ */
+export function resolveTimezoneOffsetMinutes(date: Date, tzStr?: string): number {
+  if (!tzStr) return -330; // Default Mantra Care IST: UTC+5:30 -> offset -330 min (UTC is 5h 30m behind IST)
+  const trimmed = tzStr.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === "utc" || lower === "z" || lower === "gmt") return 0;
+  if (lower === "ist" || lower === "asia/kolkata" || lower === "asia/calcutta") return -330;
+
+  // If numeric offset pattern: +05:30, +0530, -04:00, etc.
+  const match = trimmed.match(/^([+-])(\d{1,2}):?(\d{2})?$/);
+  if (match) {
+    const sign = match[1] === "+" ? -1 : 1;
+    const h = parseInt(match[2], 10);
+    const m = match[3] ? parseInt(match[3], 10) : 0;
+    return sign * (h * 60 + m);
+  }
+
+  // Try IANA timezone identifier via Intl
+  try {
+    const utcDate = new Date(date.toLocaleString("en-US", { timeZone: "UTC" }));
+    const tzDate = new Date(date.toLocaleString("en-US", { timeZone: trimmed }));
+    return (utcDate.getTime() - tzDate.getTime()) / 60000;
+  } catch {
+    return -330; // Default fallback to Asia/Kolkata IST
+  }
+}
+
+/**
+ * Parses timestamp string into normalized date (YYYY-MM-DD), time (HH:mm), epoch ms, and UTC ISO string.
  * Supports:
  * - YYYY-MM-DD HH:mm:ss
  * - YYYY-MM-DDTHH:mm:ss
@@ -32,7 +63,7 @@ export interface ParsedDailyPunchSummary {
 export function parsePunchTimestamp(
   rawTimestamp: string,
   rawTimeZone?: string
-): { date: string; time: string; timeMs: number } | null {
+): { date: string; time: string; timeMs: number; isoUtc: string } | null {
   const trimmed = rawTimestamp.trim();
   if (!trimmed) return null;
 
@@ -50,7 +81,7 @@ export function parsePunchTimestamp(
       const pad = (n: number) => String(n).padStart(2, "0");
       const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
       const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      return { date, time, timeMs: d.getTime() };
+      return { date, time, timeMs: d.getTime(), isoUtc: d.toISOString() };
     }
   }
 
@@ -65,6 +96,7 @@ export function parsePunchTimestamp(
         date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
         time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
         timeMs: d.getTime(),
+        isoUtc: d.toISOString(),
       };
     }
     return null;
@@ -113,21 +145,6 @@ export function parsePunchTimestamp(
   }
 
   if (!year || !month || !day || !hours || !minutes) {
-    // Only accept valid ISO formatted fallback if it contains date and time
-    if (trimmed.includes(":") && (trimmed.includes("-") || trimmed.includes("/"))) {
-      const fallbackDate = new Date(trimmed);
-      if (!isNaN(fallbackDate.getTime())) {
-        const pad = (n: number) => String(n).padStart(2, "0");
-        const y = fallbackDate.getFullYear();
-        if (y >= 2020 && y <= 2050) {
-          return {
-            date: `${y}-${pad(fallbackDate.getMonth() + 1)}-${pad(fallbackDate.getDate())}`,
-            time: `${pad(fallbackDate.getHours())}:${pad(fallbackDate.getMinutes())}`,
-            timeMs: fallbackDate.getTime(),
-          };
-        }
-      }
-    }
     return null;
   }
 
@@ -151,25 +168,12 @@ export function parsePunchTimestamp(
   const date = `${year}-${month}-${day}`;
   const time = `${hours}:${minutes}`;
 
-  // Timezone resolution (defaulting to IST +05:30 for Mantra Care if local or unspecified)
-  let tzOffset = "+05:30";
-  if (rawTimeZone) {
-    const tzLower = rawTimeZone.toLowerCase().trim();
-    if (tzLower === "utc" || tzLower === "z") {
-      tzOffset = "Z";
-    } else if (/^[+-]\d{2}:?\d{2}$/.test(rawTimeZone.trim())) {
-      const raw = rawTimeZone.trim();
-      tzOffset = raw.includes(":") ? raw : `${raw.slice(0, 3)}:${raw.slice(3)}`;
-    }
-  }
+  const naiveUtc = new Date(Date.UTC(yNum, mNum - 1, dNum, hNum, minNum, parseInt(seconds, 10)));
+  const offsetMinutes = resolveTimezoneOffsetMinutes(naiveUtc, rawTimeZone);
+  const timeMs = naiveUtc.getTime() + offsetMinutes * 60000;
+  const isoUtc = new Date(timeMs).toISOString();
 
-  const isoString = tzOffset === "Z"
-    ? `${date}T${hours}:${minutes}:${seconds}.000Z`
-    : `${date}T${hours}:${minutes}:${seconds}${tzOffset}`;
-
-  const timeMs = new Date(isoString).getTime();
-
-  return { date, time, timeMs };
+  return { date, time, timeMs, isoUtc };
 }
 
 /**
@@ -256,6 +260,7 @@ export function parseMachinePVRawData(rawText: string): {
       date: parsedTime.date,
       time: parsedTime.time,
       timeMs: parsedTime.timeMs,
+      isoUtc: parsedTime.isoUtc,
     });
   }
 
@@ -291,6 +296,7 @@ export function parseMachinePVRawData(rawText: string): {
         // Either in-time or out-time is missing:
         // Update entry as 'Entry Missing' and count that day as Half Day
         const inTime = firstPunch.time;
+        const inTimeUtc = firstPunch.isoUtc;
         const notes = `Entry Missing (Single punch at ${inTime}) - Counted as Half Day`;
 
         summaries.push({
@@ -307,7 +313,7 @@ export function parseMachinePVRawData(rawText: string): {
         rows.push({
           employeeCode,
           date,
-          checkInTime: inTime,
+          checkInTime: inTimeUtc,
           checkOutTime: undefined,
           status: "HALF_DAY",
           notes,
@@ -316,6 +322,8 @@ export function parseMachinePVRawData(rawText: string): {
         // Both in-time and out-time present
         const inTime = firstPunch.time;
         const outTime = lastPunch.time;
+        const inTimeUtc = firstPunch.isoUtc;
+        const outTimeUtc = lastPunch.isoUtc;
         const durationMinutes = Math.floor(
           (lastPunch.timeMs - firstPunch.timeMs) / (60 * 1000)
         );
@@ -341,8 +349,8 @@ export function parseMachinePVRawData(rawText: string): {
           rows.push({
             employeeCode,
             date,
-            checkInTime: inTime,
-            checkOutTime: outTime,
+            checkInTime: inTimeUtc,
+            checkOutTime: outTimeUtc,
             status: "ABSENT",
             notes,
           });
@@ -364,8 +372,8 @@ export function parseMachinePVRawData(rawText: string): {
           rows.push({
             employeeCode,
             date,
-            checkInTime: inTime,
-            checkOutTime: outTime,
+            checkInTime: inTimeUtc,
+            checkOutTime: outTimeUtc,
             status: "PRESENT",
             notes,
           });

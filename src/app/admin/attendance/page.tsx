@@ -154,8 +154,22 @@ MC-HRM-002,2026-11-01,08:35,17:35,PRESENT,On time morning`;
     setAdjustError(null);
 
     try {
-      const checkInUtc = `${adjustForm.date}T${adjustForm.checkInTime}:00.000Z`;
-      const checkOutUtc = `${adjustForm.date}T${adjustForm.checkOutTime}:00.000Z`;
+      // Convert local time in Asia/Kolkata (+05:30) to true UTC ISO string
+      const toIsoUtc = (dateStr: string, timeStr: string) => {
+        const [h, m] = timeStr.split(":").map(Number);
+        const naiveUtcMs = Date.UTC(
+          parseInt(dateStr.slice(0, 4), 10),
+          parseInt(dateStr.slice(5, 7), 10) - 1,
+          parseInt(dateStr.slice(8, 10), 10),
+          h,
+          m,
+          0
+        );
+        return new Date(naiveUtcMs - 330 * 60 * 1000).toISOString();
+      };
+
+      const checkInUtc = toIsoUtc(adjustForm.date, adjustForm.checkInTime);
+      const checkOutUtc = toIsoUtc(adjustForm.date, adjustForm.checkOutTime);
 
       const res = await fetch("/payroll/api/attendance/adjust", {
         method: "POST",
@@ -331,7 +345,12 @@ MC-HRM-002,2026-11-01,08:35,17:35,PRESENT,On time morning`;
   const formatUtcTime = (isoStr?: string | null) => {
     if (!isoStr) return "--:--";
     const d = new Date(isoStr);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "Asia/Kolkata",
+    });
   };
 
   const formatHours = (mins: number) => {

@@ -67,11 +67,18 @@ function parseTimeToMinutes(timeStr: string): number {
 }
 
 /**
- * Converts a UTC ISO string to time of day minutes in UTC.
+ * Converts a UTC ISO string to time of day minutes in the company/shift timezone (Asia/Kolkata +05:30).
+ * Company shifts are stored in local time (e.g. "09:00", "18:00"), so check-in/out UTC timestamps
+ * must be converted to local minutes before comparison against shift start/end times.
  */
-function getUtcTimeMinutes(isoStr: string): number {
+function getLocalShiftTimeMinutes(isoStr: string, offsetMinutes: number = SHIFT_TIMEZONE_OFFSET_MINUTES): number {
   const d = new Date(isoStr);
-  return d.getUTCHours() * 60 + d.getUTCMinutes();
+  const totalUtcMinutes = d.getUTCHours() * 60 + d.getUTCMinutes();
+  return (totalUtcMinutes + offsetMinutes + 1440) % 1440;
+}
+
+function getUtcTimeMinutes(isoStr: string): number {
+  return getLocalShiftTimeMinutes(isoStr);
 }
 
 const SHIFT_TIMEZONE_OFFSET_MINUTES = 330; // Asia/Kolkata (+05:30)
@@ -1166,7 +1173,17 @@ export async function importMonthlyAttendance(
       if (row.checkInTime.includes("T")) {
         checkInUtc = new Date(row.checkInTime).toISOString();
       } else if (/^([01]\d|2[0-3]):[0-5]\d$/.test(row.checkInTime)) {
-        checkInUtc = `${row.date}T${row.checkInTime}:00.000Z`;
+        // Standard HH:mm format without offset -> resolve against company timezone (Asia/Kolkata +05:30)
+        const naiveUtcMs = Date.UTC(
+          parseInt(row.date.slice(0, 4), 10),
+          parseInt(row.date.slice(5, 7), 10) - 1,
+          parseInt(row.date.slice(8, 10), 10),
+          parseInt(row.checkInTime.slice(0, 2), 10),
+          parseInt(row.checkInTime.slice(3, 5), 10),
+          0
+        );
+        const utcMs = naiveUtcMs - (SHIFT_TIMEZONE_OFFSET_MINUTES * 60 * 1000);
+        checkInUtc = new Date(utcMs).toISOString();
       } else {
         errors.push({ rowNumber, employeeCode: cleanCode, error: `Invalid check-in time format '${row.checkInTime}'.` });
         continue;
@@ -1180,15 +1197,23 @@ export async function importMonthlyAttendance(
           checkOutUtc = new Date(row.checkOutTime).toISOString();
         } else if (/^([01]\d|2[0-3]):[0-5]\d$/.test(row.checkOutTime)) {
           // Check for overnight shift (checkout time numerically before checkin time)
-          const inMins = parseTimeToMinutes(row.checkInTime);
+          const inMins = parseTimeToMinutes(row.checkInTime.includes("T") ? row.checkInTime.slice(11, 16) : row.checkInTime);
           const outMins = parseTimeToMinutes(row.checkOutTime);
-          if (outMins < inMins) {
-            // Next day overnight
-            const nextDayDate = new Date(Date.parse(row.date) + 86400000).toISOString().split("T")[0];
-            checkOutUtc = `${nextDayDate}T${row.checkOutTime}:00.000Z`;
-          } else {
-            checkOutUtc = `${row.date}T${row.checkOutTime}:00.000Z`;
-          }
+          const overnight = outMins < inMins;
+          const targetDateStr = overnight
+            ? new Date(Date.parse(row.date) + 86400000).toISOString().split("T")[0]
+            : row.date;
+
+          const naiveUtcMs = Date.UTC(
+            parseInt(targetDateStr.slice(0, 4), 10),
+            parseInt(targetDateStr.slice(5, 7), 10) - 1,
+            parseInt(targetDateStr.slice(8, 10), 10),
+            parseInt(row.checkOutTime.slice(0, 2), 10),
+            parseInt(row.checkOutTime.slice(3, 5), 10),
+            0
+          );
+          const utcMs = naiveUtcMs - (SHIFT_TIMEZONE_OFFSET_MINUTES * 60 * 1000);
+          checkOutUtc = new Date(utcMs).toISOString();
         }
 
         if (checkOutUtc) {
