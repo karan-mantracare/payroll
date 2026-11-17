@@ -31,6 +31,9 @@ export default function SalaryCalculationTab({
   const [simPunchOut, setSimPunchOut] = useState("17:30");
   const [hasOutPunch, setHasOutPunch] = useState(true);
   const [exhaustedShortLeaves, setExhaustedShortLeaves] = useState(false);
+  const [simUnauthorizedShift, setSimUnauthorizedShift] = useState(false);
+  const [simShiftException, setSimShiftException] = useState(false);
+  const [simPenaltyAction, setSimPenaltyAction] = useState<"OFF" | "HALF_DAY">("OFF");
   const [monthlySalary, setMonthlySalary] = useState(basicSalary || 50000);
   const [standardShiftHours, setStandardShiftHours] = useState(9);
   const [workingDaysInMonth, setWorkingDaysInMonth] = useState(22);
@@ -41,6 +44,20 @@ export default function SalaryCalculationTab({
 
   // Calculate Duration
   const calculateSimulation = () => {
+    // Unauthorized Shift Check
+    if (simUnauthorizedShift && !simShiftException) {
+      const isHalf = simPenaltyAction === "HALF_DAY";
+      return {
+        type: isHalf ? "HALF_DAY" : "OFF",
+        status: isHalf ? "Unauthorized Shift (Half Day LOP)" : "Unauthorized Shift (Full Day LOP)",
+        description: `Employee reported to an unassigned shift without prior supervisor exception. Penalized as ${isHalf ? "Half Day Deduction" : "Full Day Off (Loss of Pay)"}.`,
+        deductionHours: isHalf ? standardShiftHours / 2 : standardShiftHours,
+        deductionAmount: isHalf ? Math.round(dailyRate * 0.5) : dailyRate,
+        netDayPay: isHalf ? Math.round(dailyRate * 0.5) : 0,
+        badgeClass: "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300",
+      };
+    }
+
     if (!hasOutPunch || !simPunchOut) {
       return {
         type: "HALF_DAY",
@@ -165,8 +182,8 @@ export default function SalaryCalculationTab({
           </div>
         </div>
 
-        {/* 3 Core Rule Columns */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {/* 4 Core Rule Columns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Rule 1: Machine 1 - PV Punch Deduction */}
           <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3">
             <div className="flex items-center gap-2">
@@ -264,6 +281,39 @@ export default function SalaryCalculationTab({
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0" />
                 <span>
                   <strong>Leaving Before 5:30 PM</strong>: If 4h 30m completed → <strong>Half Day Deduction</strong>. If &lt; 4h 30m → <strong>Off / Full Day LOP</strong>.
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Rule 4: Unauthorized Shift Protection */}
+          <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                <Clock className="w-4 h-4" />
+              </div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                4. Unauthorized Shift Rule
+              </h3>
+            </div>
+
+            <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+              <li className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
+                <span>
+                  <strong>Allowed Roster</strong>: Employees must punch into their <strong>Default Shift</strong> or either of their <strong>2 Allowed Alternate Shifts</strong>.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0" />
+                <span>
+                  <strong>Unapproved Reporting</strong>: Reporting to an unallocated shift without prior supervisor exception triggers <strong>Full Day Off (LOP)</strong> or <strong>Half Day Deduction</strong>.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                <span>
+                  <strong>Exception Waiver</strong>: When a supervisor or HR grants a shift exception, normal pay calculation is restored.
                 </span>
               </li>
             </ul>
@@ -368,6 +418,41 @@ export default function SalaryCalculationTab({
                   />
                   <span>Short Leaves Exhausted (0 left)</span>
                 </label>
+
+                <label className="flex items-center gap-2 text-xs text-rose-600 dark:text-rose-400 font-semibold cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={simUnauthorizedShift}
+                    onChange={(e) => setSimUnauthorizedShift(e.target.checked)}
+                    className="rounded text-rose-600 focus:ring-rose-500"
+                  />
+                  <span>Reported to Unapproved Shift</span>
+                </label>
+
+                {simUnauthorizedShift && (
+                  <div className="pl-5 space-y-1 pt-1">
+                    <label className="flex items-center gap-2 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={simShiftException}
+                        onChange={(e) => setSimShiftException(e.target.checked)}
+                        className="rounded text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span>Supervisor Exception Granted</span>
+                    </label>
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <span className="text-slate-500">Penalty:</span>
+                      <select
+                        value={simPenaltyAction}
+                        onChange={(e) => setSimPenaltyAction(e.target.value as "OFF" | "HALF_DAY")}
+                        className="rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-1 py-0.5 text-[11px]"
+                      >
+                        <option value="OFF">Full Day LOP (Off)</option>
+                        <option value="HALF_DAY">Half Day Deduction</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

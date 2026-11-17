@@ -12,6 +12,12 @@ export interface EmployeeLeavesOffsSettings {
   weekOffException: "None" | DayOfWeek;
   shortLeaveAllowed: 1 | 2 | 3 | 4 | 5;
   graceTimeMinutes: number;
+  // Shift Allocation & Protection
+  defaultShiftId: string; // Mandatory primary shift
+  allowedShiftId1?: string; // Optional alternate shift 1
+  allowedShiftId2?: string; // Optional alternate shift 2
+  shiftExceptionAllowed: boolean; // Permits supervisor/HR shift exception
+  unauthorizedShiftPenalty: "OFF" | "HALF_DAY"; // Deduction action if reporting to unallocated shift without exception
   updatedAt?: number;
   updatedBy?: string;
 }
@@ -68,6 +74,11 @@ export function getEmployeeLeavesOffs(
     weekOffException: "None",
     shortLeaveAllowed: 2,
     graceTimeMinutes: 30,
+    defaultShiftId: "shift_gen",
+    allowedShiftId1: "",
+    allowedShiftId2: "",
+    shiftExceptionAllowed: false,
+    unauthorizedShiftPenalty: "OFF",
   };
 }
 
@@ -119,6 +130,14 @@ export function saveEmployeeLeavesOffs(
     ? Math.min(120, Math.max(0, Math.round(settings.graceTimeMinutes)))
     : current.graceTimeMinutes;
 
+  const defaultShiftId = settings.defaultShiftId || current.defaultShiftId || "shift_gen";
+  const allowedShiftId1 = settings.allowedShiftId1 !== undefined ? settings.allowedShiftId1 : (current.allowedShiftId1 || "");
+  const allowedShiftId2 = settings.allowedShiftId2 !== undefined ? settings.allowedShiftId2 : (current.allowedShiftId2 || "");
+  const shiftExceptionAllowed = typeof settings.shiftExceptionAllowed === "boolean"
+    ? settings.shiftExceptionAllowed
+    : (current.shiftExceptionAllowed ?? false);
+  const unauthorizedShiftPenalty = settings.unauthorizedShiftPenalty === "HALF_DAY" ? "HALF_DAY" : "OFF";
+
   const updatedRecord: EmployeeLeavesOffsSettings = {
     employeeId,
     employeeCode: employeeCode || current.employeeCode,
@@ -128,6 +147,11 @@ export function saveEmployeeLeavesOffs(
     weekOffException,
     shortLeaveAllowed,
     graceTimeMinutes,
+    defaultShiftId,
+    allowedShiftId1,
+    allowedShiftId2,
+    shiftExceptionAllowed,
+    unauthorizedShiftPenalty,
     updatedAt: Date.now(),
     updatedBy: updatedBy || "system",
   };

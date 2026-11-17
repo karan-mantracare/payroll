@@ -53,11 +53,28 @@ export default function LeavesAndOffsTab({
   const [graceTimeMinutes, setGraceTimeMinutes] = useState<number>(30);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
 
+  // Shift Allocation & Allowed Roster Access
+  const [shiftsList, setShiftsList] = useState<any[]>([]);
+  const [defaultShiftId, setDefaultShiftId] = useState<string>("shift_gen");
+  const [allowedShiftId1, setAllowedShiftId1] = useState<string>("");
+  const [allowedShiftId2, setAllowedShiftId2] = useState<string>("");
+  const [shiftExceptionAllowed, setShiftExceptionAllowed] = useState<boolean>(false);
+  const [unauthorizedShiftPenalty, setUnauthorizedShiftPenalty] = useState<"OFF" | "HALF_DAY">("OFF");
+
   const fetchPolicy = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/payroll/api/employees/${employeeId}/leaves-offs`);
+      const [res, shiftsRes] = await Promise.all([
+        fetch(`/payroll/api/employees/${employeeId}/leaves-offs`),
+        fetch("/payroll/api/shifts"),
+      ]);
+
+      if (shiftsRes.ok) {
+        const shiftsJson = await shiftsRes.json();
+        setShiftsList(shiftsJson.shifts || []);
+      }
+
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.error || "Failed to load leaves and offs settings");
@@ -76,6 +93,12 @@ export default function LeavesAndOffsTab({
         setGraceTimeMinutes(
           typeof json.data.graceTimeMinutes === "number" ? json.data.graceTimeMinutes : 30
         );
+        setDefaultShiftId(json.data.defaultShiftId || "shift_gen");
+        setAllowedShiftId1(json.data.allowedShiftId1 || "");
+        setAllowedShiftId2(json.data.allowedShiftId2 || "");
+        setShiftExceptionAllowed(Boolean(json.data.shiftExceptionAllowed));
+        setUnauthorizedShiftPenalty(json.data.unauthorizedShiftPenalty || "OFF");
+
         if (json.data.updatedAt) {
           setLastUpdatedAt(json.data.updatedAt);
         }
@@ -144,6 +167,11 @@ export default function LeavesAndOffsTab({
         weekOffException,
         shortLeaveAllowed,
         graceTimeMinutes,
+        defaultShiftId,
+        allowedShiftId1,
+        allowedShiftId2,
+        shiftExceptionAllowed,
+        unauthorizedShiftPenalty,
       };
 
       const res = await fetch(`/payroll/api/employees/${employeeId}/leaves-offs`, {
@@ -412,6 +440,122 @@ export default function LeavesAndOffsTab({
                   {min === 0 ? "None" : `${min}m`}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* 7. Shift Allocation & Allowed Roster Access */}
+          <div className="space-y-4 p-5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 md:col-span-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 dark:border-slate-700/80 pb-3">
+              <div>
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" />
+                  Shift Allocation & Allowed Roster Access
+                </label>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Designate the employee's Default Shift and up to 2 approved Alternate Shifts. Reporting to unallocated shifts triggers salary deduction unless exception is authorized.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2 cursor-pointer bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                  <input
+                    type="checkbox"
+                    checked={shiftExceptionAllowed}
+                    onChange={(e) => setShiftExceptionAllowed(e.target.checked)}
+                    className="w-4 h-4 text-[#293381] rounded border-slate-300 focus:ring-[#293381]"
+                  />
+                  <span>Allow Shift Exception</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+              {/* Default Shift */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                  Default Shift <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={defaultShiftId}
+                  onChange={(e) => setDefaultShiftId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs px-3 py-2 text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-[#293381]"
+                >
+                  {shiftsList.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.startTime} - {s.endTime})
+                    </option>
+                  ))}
+                  {shiftsList.length === 0 && (
+                    <option value="shift_gen">General Day Shift (09:00 - 18:00)</option>
+                  )}
+                </select>
+                <span className="text-[10px] text-slate-400 block">Primary everyday reporting shift</span>
+              </div>
+
+              {/* Allowed Alternate Shift 1 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Allowed Alternate Shift 1
+                </label>
+                <select
+                  value={allowedShiftId1}
+                  onChange={(e) => setAllowedShiftId1(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs px-3 py-2 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#293381]"
+                >
+                  <option value="">None (No alternate)</option>
+                  {shiftsList.map((s) => (
+                    <option key={s.id} value={s.id} disabled={s.id === defaultShiftId}>
+                      {s.name} ({s.startTime} - {s.endTime})
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-slate-400 block">Secondary permitted shift</span>
+              </div>
+
+              {/* Allowed Alternate Shift 2 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Allowed Alternate Shift 2
+                </label>
+                <select
+                  value={allowedShiftId2}
+                  onChange={(e) => setAllowedShiftId2(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs px-3 py-2 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#293381]"
+                >
+                  <option value="">None (No alternate)</option>
+                  {shiftsList.map((s) => (
+                    <option key={s.id} value={s.id} disabled={s.id === defaultShiftId || s.id === allowedShiftId1}>
+                      {s.name} ({s.startTime} - {s.endTime})
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-slate-400 block">Tertiary permitted shift</span>
+              </div>
+            </div>
+
+            {/* Unauthorized Shift Deduction Action */}
+            <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 rounded-lg border border-amber-200/70 dark:border-amber-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-amber-900 dark:text-amber-200 block">
+                    Unauthorized Shift Salary Deduction Rule
+                  </span>
+                  <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                    If an employee reports to any shift outside their allowed list without an authorized exception:
+                  </span>
+                </div>
+              </div>
+              <div className="shrink-0 flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">Action:</span>
+                <select
+                  value={unauthorizedShiftPenalty}
+                  onChange={(e) => setUnauthorizedShiftPenalty(e.target.value as "OFF" | "HALF_DAY")}
+                  className="rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-xs px-2.5 py-1.5 text-slate-800 dark:text-slate-200 font-medium focus:outline-none"
+                >
+                  <option value="OFF">Count as Off (Full Day Deduction)</option>
+                  <option value="HALF_DAY">Count as Half Day Deduction</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
