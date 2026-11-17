@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionContext } from "@/lib/auth/session";
 import { getAttendanceRecords } from "@/lib/attendance/service";
+import { getAllEmployeeLeavesOffs } from "@/lib/leaves/employee-leaves-offs";
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,7 +27,9 @@ export async function GET(req: NextRequest) {
       employeeId,
     });
 
-    return NextResponse.json({ success: true, records, count: records.length });
+    const employeePolicies = getAllEmployeeLeavesOffs();
+
+    return NextResponse.json({ success: true, records, count: records.length, employeePolicies });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

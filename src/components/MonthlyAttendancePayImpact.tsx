@@ -34,6 +34,7 @@ import {
   MonthlyPaySummary,
   SetOffType,
   calculateDayPayImpact,
+  calculateBatchDayPayImpacts,
   calculateMonthlyPaySummary,
 } from "@/lib/attendance/pay-impact";
 
@@ -61,6 +62,7 @@ export default function MonthlyAttendancePayImpact({
 
   // Filters & State
   const [records, setRecords] = useState<AttendanceRecordLike[]>([]);
+  const [employeePolicies, setEmployeePolicies] = useState<Record<string, any>>({});
   const [employeesList, setEmployeesList] = useState<{ id: string; code: string; name: string }[]>([]);
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState<string>(employeeId || "");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -227,6 +229,9 @@ export default function MonthlyAttendancePayImpact({
       if (!res.ok) throw new Error("Failed to load monthly attendance records.");
       const data = await res.json();
       setRecords(data.records || []);
+      if (data.employeePolicies) {
+        setEmployeePolicies(data.employeePolicies);
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load monthly attendance.");
     } finally {
@@ -238,16 +243,15 @@ export default function MonthlyAttendancePayImpact({
     fetchMonthRecords();
   }, [fetchMonthRecords]);
 
-  // Compute Day Pay Impacts
+  // Compute Day Pay Impacts with monthly Short Leave quota tracking per employee
   const calculatedImpacts = useMemo<DayPayImpact[]>(() => {
-    return records.map((record) =>
-      calculateDayPayImpact(record, {
-        monthlySalary,
-        workingDaysInMonth,
-        standardShiftHours,
-      })
-    );
-  }, [records, monthlySalary, workingDaysInMonth, standardShiftHours]);
+    return calculateBatchDayPayImpacts(records, {
+      monthlySalary,
+      workingDaysInMonth,
+      standardShiftHours,
+      employeePolicies,
+    });
+  }, [records, monthlySalary, workingDaysInMonth, standardShiftHours, employeePolicies]);
 
   // Distinct available shifts for Assigned Shift dropdown
   const availableShifts = useMemo(() => {

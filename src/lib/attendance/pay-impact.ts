@@ -93,16 +93,20 @@ export interface MonthlyPaySummary {
 
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+export interface CalculateDayPayImpactOptions {
+  monthlySalary?: number;
+  workingDaysInMonth?: number;
+  standardShiftHours?: number;
+  shortLeaveIndex?: number;
+  maxShortLeavesAllowed?: number;
+}
+
 /**
  * Calculates the exact salary impact for a single day's attendance record.
  */
 export function calculateDayPayImpact(
   record: AttendanceRecordLike,
-  options: {
-    monthlySalary?: number;
-    workingDaysInMonth?: number;
-    standardShiftHours?: number;
-  } = {}
+  options: CalculateDayPayImpactOptions = {}
 ): DayPayImpact {
   const monthlySalary = options.monthlySalary ?? 50000;
   const workingDaysInMonth = options.workingDaysInMonth ?? 22;
@@ -331,7 +335,13 @@ export function calculateDayPayImpact(
   }
   // Rule 5: Late Reporting & Short Leaves
   else if (status === "LATE" || isLateMorningCovered) {
+    const isExhaustedByCount =
+      options.shortLeaveIndex !== undefined &&
+      options.maxShortLeavesAllowed !== undefined &&
+      options.shortLeaveIndex > options.maxShortLeavesAllowed;
+
     const isExhausted =
+      isExhaustedByCount ||
       notes.toLowerCase().includes("deducted") ||
       notes.toLowerCase().includes("exhausted") ||
       notes.toLowerCase().includes("1 hr");
@@ -343,8 +353,12 @@ export function calculateDayPayImpact(
       payPercentage = Math.round(((standardShiftHours - 1) / standardShiftHours) * 100);
       deductionHours = 1;
       deductionAmount = hourlyRate;
-      netDayPay = dailyRate - deductionAmount;
-      reason = `Late arrival beyond grace time with exhausted monthly short leaves - 1 hour pay deducted (₹${hourlyRate.toLocaleString("en-IN")}).`;
+      netDayPay = Math.max(0, dailyRate - deductionAmount);
+      const countInfo =
+        options.shortLeaveIndex && options.maxShortLeavesAllowed
+          ? ` (${options.shortLeaveIndex}th used, ${options.maxShortLeavesAllowed} allowed)`
+          : "";
+      reason = `Late arrival beyond grace time${countInfo} - 1 hour pay deducted (₹${hourlyRate.toLocaleString("en-IN")}). Completed ${durationFormatted}.`;
     } else {
       impactType = "FULL_PAY";
       badgeLabel = "Full Pay (100%)";
@@ -353,7 +367,11 @@ export function calculateDayPayImpact(
       deductionHours = 0;
       deductionAmount = 0;
       netDayPay = dailyRate;
-      reason = `Late morning arrival (${checkIn}) covered by Short Leave allowance. Completed ${durationFormatted} - 100% pay credited.`;
+      const countInfo =
+        options.shortLeaveIndex && options.maxShortLeavesAllowed
+          ? ` (${options.shortLeaveIndex} of ${options.maxShortLeavesAllowed} used)`
+          : "";
+      reason = `Late morning arrival (${checkIn}) covered by Short Leave allowance${countInfo}. Completed ${durationFormatted} - 100% pay credited.`;
     }
   }
   // Rule 6: Approved Leave
@@ -406,7 +424,7 @@ export function calculateDayPayImpact(
     setOff = "Half Day";
   }
 
-  // Clean up contradictory notes text when Grace Period applies
+  // Clean up contradictory notes text when Grace Period applies or Short Leave is exhausted
   let displayNotes = notes;
   if (hasGraceApplied) {
     displayNotes = displayNotes
@@ -414,6 +432,16 @@ export function calculateDayPayImpact(
       .replace(/Late morning reporting covered by Short Leave allowance/gi, "Reporting within Grace Period")
       .replace(/\|\s*late arrival covered by short leave allowance/gi, "| Reporting within Grace Period")
       .replace(/late arrival covered by short leave allowance/gi, "Reporting within Grace Period");
+  } else if (impactType === "LATE_PENALTY" && (isLateMorningCovered || status === "LATE")) {
+    const countNote =
+      options.shortLeaveIndex && options.maxShortLeavesAllowed
+        ? `Short Leave allowance exhausted (${options.shortLeaveIndex} of ${options.maxShortLeavesAllowed} allowed) - 1h pay deducted`
+        : "Short Leave allowance exhausted - 1h pay deducted";
+    displayNotes = displayNotes
+      .replace(/\|\s*Late morning reporting covered by Short Leave allowance/gi, `| ${countNote}`)
+      .replace(/Late morning reporting covered by Short Leave allowance/gi, countNote)
+      .replace(/\|\s*late arrival covered by short leave allowance/gi, `| ${countNote}`)
+      .replace(/late arrival covered by short leave allowance/gi, countNote);
   }
 
   return {
@@ -499,11 +527,11 @@ export function calculateMonthlyPaySummary(
     }
   }
 
-  // Effective payable days
+  // Effective payable days (Full days + half days + late penalty days minus the 1 deducted hour)
   const effectivePayableDays =
     fullPayDays +
-    halfDayCount * 0.5 -
-    (latePenaltyCount * 1) / standardShiftHours;
+    halfDayCount * 0.5 +
+    latePenaltyCount * ((standardShiftHours - 1) / standardShiftHours);
 
   return {
     month: options.month,
@@ -524,4 +552,79 @@ export function calculateMonthlyPaySummary(
     totalNetPay: totalEarnedPay,
     effectivePayableDays: Math.max(0, Number(effectivePayableDays.toFixed(2))),
   };
+}
+
+/**
+ * Computes Day Pay Impacts for a batch/month of attendance records, tracking
+ * monthly Short Leave quota consumption chronologically per employee.
+ */
+export function calculateBatchDayPayImpacts(
+  records: AttendanceRecordLike[],
+  options: {
+    monthlySalary?: number;
+    workingDaysInMonth?: number;
+    standardShiftHours?: number;
+    employeePolicies?: Record<string, { shortLeaveAllowed?: number; [key: string]: any }>;
+    defaultShortLeaveAllowed?: number;
+  } = {}
+): DayPayImpact[] {
+  // Map records with their original index to preserve input order
+  const indexed = records.map((record, index) => ({ record, index }));
+
+  // Group by employee
+  const employeeGroups = new Map<string, typeof indexed>();
+  for (const item of indexed) {
+    const key = (item.record.employeeCode || item.record.employeeId || "unknown").toUpperCase();
+    if (!employeeGroups.has(key)) {
+      employeeGroups.set(key, []);
+    }
+    employeeGroups.get(key)!.push(item);
+  }
+
+  const results: DayPayImpact[] = new Array(records.length);
+
+  for (const [empKey, group] of employeeGroups.entries()) {
+    // Sort employee records chronologically ascending by date
+    group.sort((a, b) => a.record.date.localeCompare(b.record.date));
+
+    // Lookup policy for this employee
+    const policy =
+      options.employeePolicies?.[empKey] ||
+      Object.values(options.employeePolicies || {}).find(
+        (p: any) =>
+          (p.employeeCode && p.employeeCode.toUpperCase() === empKey) ||
+          (p.employeeId && p.employeeId.toUpperCase() === empKey)
+      );
+    const maxShortLeaves = policy?.shortLeaveAllowed ?? options.defaultShortLeaveAllowed ?? 3;
+
+    let shortLeaveCount = 0;
+
+    for (const item of group) {
+      // First, determine if this record qualifies as a Short Leave
+      const baseEvaluation = calculateDayPayImpact(item.record, {
+        monthlySalary: options.monthlySalary,
+        workingDaysInMonth: options.workingDaysInMonth,
+        standardShiftHours: options.standardShiftHours,
+      });
+
+      let shortLeaveIndex: number | undefined = undefined;
+      if (baseEvaluation.setOff === "Short Leave") {
+        shortLeaveCount++;
+        shortLeaveIndex = shortLeaveCount;
+      }
+
+      // Compute final impact with shortLeaveIndex and maxShortLeavesAllowed
+      const finalImpact = calculateDayPayImpact(item.record, {
+        monthlySalary: options.monthlySalary,
+        workingDaysInMonth: options.workingDaysInMonth,
+        standardShiftHours: options.standardShiftHours,
+        shortLeaveIndex,
+        maxShortLeavesAllowed: maxShortLeaves,
+      });
+
+      results[item.index] = finalImpact;
+    }
+  }
+
+  return results;
 }
