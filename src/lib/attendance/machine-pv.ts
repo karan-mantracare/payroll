@@ -113,16 +113,38 @@ export function parsePunchTimestamp(
   }
 
   if (!year || !month || !day || !hours || !minutes) {
-    // Fallback native date parse
-    const fallbackDate = new Date(trimmed);
-    if (!isNaN(fallbackDate.getTime())) {
-      const pad = (n: number) => String(n).padStart(2, "0");
-      return {
-        date: `${fallbackDate.getFullYear()}-${pad(fallbackDate.getMonth() + 1)}-${pad(fallbackDate.getDate())}`,
-        time: `${pad(fallbackDate.getHours())}:${pad(fallbackDate.getMinutes())}`,
-        timeMs: fallbackDate.getTime(),
-      };
+    // Only accept valid ISO formatted fallback if it contains date and time
+    if (trimmed.includes(":") && (trimmed.includes("-") || trimmed.includes("/"))) {
+      const fallbackDate = new Date(trimmed);
+      if (!isNaN(fallbackDate.getTime())) {
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const y = fallbackDate.getFullYear();
+        if (y >= 2020 && y <= 2050) {
+          return {
+            date: `${y}-${pad(fallbackDate.getMonth() + 1)}-${pad(fallbackDate.getDate())}`,
+            time: `${pad(fallbackDate.getHours())}:${pad(fallbackDate.getMinutes())}`,
+            timeMs: fallbackDate.getTime(),
+          };
+        }
+      }
     }
+    return null;
+  }
+
+  // Validate numeric ranges
+  const yNum = Number(year);
+  const mNum = Number(month);
+  const dNum = Number(day);
+  const hNum = Number(hours);
+  const minNum = Number(minutes);
+
+  if (
+    isNaN(yNum) || yNum < 2020 || yNum > 2050 ||
+    isNaN(mNum) || mNum < 1 || mNum > 12 ||
+    isNaN(dNum) || dNum < 1 || dNum > 31 ||
+    isNaN(hNum) || hNum < 0 || hNum > 23 ||
+    isNaN(minNum) || minNum < 0 || minNum > 59
+  ) {
     return null;
   }
 
@@ -166,6 +188,7 @@ export function parseMachinePVRawData(rawText: string): {
   summaries: ParsedDailyPunchSummary[];
   totalPunches: number;
   skippedLines: number;
+  invalidLines: Array<{ line: number; employeeCode: string; error: string }>;
 } {
   const lines = rawText
     .split(/\r?\n/)
@@ -173,6 +196,7 @@ export function parseMachinePVRawData(rawText: string): {
     .filter((l) => l.length > 0);
 
   const punches: PVPunchItem[] = [];
+  const invalidLines: Array<{ line: number; employeeCode: string; error: string }> = [];
   let skippedLines = 0;
 
   for (let i = 0; i < lines.length; i++) {
@@ -216,6 +240,11 @@ export function parseMachinePVRawData(rawText: string): {
 
     const parsedTime = parsePunchTimestamp(timestampStr, timeZoneStr);
     if (!parsedTime) {
+      invalidLines.push({
+        line: i + 1,
+        employeeCode,
+        error: `Invalid timestamp '${timestampStr}'. Expected YYYY-MM-DD HH:mm:ss (e.g. 2026-11-01 09:05:00)`,
+      });
       skippedLines++;
       continue;
     }
@@ -354,5 +383,6 @@ export function parseMachinePVRawData(rawText: string): {
     summaries,
     totalPunches: punches.length,
     skippedLines,
+    invalidLines,
   };
 }

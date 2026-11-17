@@ -206,7 +206,11 @@ MC-HRM-002,2026-11-01,08:35,17:35,PRESENT,On time morning`;
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to import attendance data");
 
-      setImportResult({ ...data.result, pvSummary: data.pvSummary });
+      setImportResult({
+        ...data.result,
+        summary: data.summary || data.result?.summary,
+        pvSummary: data.pvSummary,
+      });
       await fetchAttendance();
     } catch (err: any) {
       setImportError(err.message || "Failed to process attendance import");
@@ -820,25 +824,35 @@ MC-HRM-002,2026-11-01,08:35,17:35,PRESENT,On time morning`;
                 <div className="grid grid-cols-4 gap-2 text-center pt-2">
                   <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-emerald-100 dark:border-slate-700">
                     <span className="text-[10px] text-slate-500 block">Total</span>
-                    <span className="font-bold text-slate-800 dark:text-white text-base">{importResult.summary?.total || 0}</span>
+                    <span className="font-bold text-slate-800 dark:text-white text-base">
+                      {importResult.summary?.total ?? importResult.totalProcessed ?? 0}
+                    </span>
                   </div>
                   <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-emerald-100 dark:border-slate-700">
                     <span className="text-[10px] text-emerald-600 block">Created</span>
-                    <span className="font-bold text-emerald-600 text-base">{importResult.summary?.created || 0}</span>
+                    <span className="font-bold text-emerald-600 text-base">
+                      {importResult.summary?.created ?? importResult.createdCount ?? 0}
+                    </span>
                   </div>
                   <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-emerald-100 dark:border-slate-700">
                     <span className="text-[10px] text-blue-600 block">Updated</span>
-                    <span className="font-bold text-blue-600 text-base">{importResult.summary?.updated || 0}</span>
+                    <span className="font-bold text-blue-600 text-base">
+                      {importResult.summary?.updated ?? importResult.updatedCount ?? 0}
+                    </span>
                   </div>
                   <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-emerald-100 dark:border-slate-700">
                     <span className="text-[10px] text-rose-600 block">Failed</span>
-                    <span className="font-bold text-rose-600 text-base">{importResult.summary?.failed || 0}</span>
+                    <span className="font-bold text-rose-600 text-base">
+                      {importResult.summary?.failed ?? importResult.failedCount ?? 0}
+                    </span>
                   </div>
                 </div>
-                {importResult.summary?.failed > 0 && importResult.errors?.length > 0 && (
+                {((importResult.summary?.failed ?? importResult.failedCount ?? 0) > 0 || (importResult.errors && importResult.errors.length > 0)) && (
                   <div className="mt-2 text-xs text-rose-700 bg-rose-50 dark:bg-rose-950/40 p-2 rounded border border-rose-200 dark:border-rose-900 max-h-24 overflow-y-auto">
-                    {importResult.errors.map((errItem: any, idx: number) => (
-                      <div key={idx}>Row {errItem.row}: {errItem.reason}</div>
+                    {importResult.errors?.map((errItem: any, idx: number) => (
+                      <div key={idx}>
+                        Row {errItem.rowNumber || errItem.row || idx + 1} ({errItem.employeeCode || "N/A"}): {errItem.error || errItem.reason}
+                      </div>
                     ))}
                   </div>
                 )}

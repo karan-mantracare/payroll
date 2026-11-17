@@ -18,17 +18,17 @@ interface AttendanceSpreadsheetGridProps {
 
 const PV_COLUMNS: ColumnDef[] = [
   { key: "employeeCode", label: "Employee Code", placeholder: "EMP-001", width: "w-1/4" },
-  { key: "timestamp", label: "Time Stamp", placeholder: "2026-11-01 09:05:00", width: "w-1/2" },
+  { key: "timestamp", label: "Time Stamp (YYYY-MM-DD HH:mm:ss)", placeholder: "2026-11-01 09:05:00", width: "w-1/2" },
   { key: "timeZone", label: "Time Zone", placeholder: "Asia/Kolkata", width: "w-1/4" },
 ];
 
 const STANDARD_COLUMNS: ColumnDef[] = [
   { key: "employeeCode", label: "Employee Code", placeholder: "EMP-001", width: "w-1/6" },
-  { key: "date", label: "Date", placeholder: "2026-11-01", width: "w-1/6" },
-  { key: "checkIn", label: "Check-In", placeholder: "09:00", width: "w-1/6" },
-  { key: "checkOut", label: "Check-Out", placeholder: "18:00", width: "w-1/6" },
+  { key: "date", label: "Date (YYYY-MM-DD)", placeholder: "2026-11-01", width: "w-1/6" },
+  { key: "checkIn", label: "Check-In (HH:mm)", placeholder: "09:00", width: "w-1/6" },
+  { key: "checkOut", label: "Check-Out (HH:mm)", placeholder: "18:00", width: "w-1/6" },
   { key: "status", label: "Status", placeholder: "PRESENT", width: "w-1/6" },
-  { key: "notes", label: "Notes", placeholder: "Schedule", width: "w-1/6" },
+  { key: "notes", label: "Notes", placeholder: "Regular", width: "w-1/6" },
 ];
 
 export default function AttendanceSpreadsheetGrid({

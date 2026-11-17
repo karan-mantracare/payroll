@@ -1090,7 +1090,15 @@ export interface AttendanceImportRow {
 export interface AttendanceImportResult {
   totalProcessed: number;
   importedCount: number;
+  createdCount: number;
+  updatedCount: number;
   failedCount: number;
+  summary: {
+    total: number;
+    created: number;
+    updated: number;
+    failed: number;
+  };
   errors: Array<{ rowNumber: number; employeeCode: string; error: string }>;
 }
 
@@ -1121,6 +1129,8 @@ export async function importMonthlyAttendance(
 
   const errors: Array<{ rowNumber: number; employeeCode: string; error: string }> = [];
   let importedCount = 0;
+  let createdCount = 0;
+  let updatedCount = 0;
   const now = Date.now();
 
   for (let i = 0; i < rows.length; i++) {
@@ -1244,6 +1254,7 @@ export async function importMonthlyAttendance(
             updatedAt: now,
           })
           .where(eq(attendanceRecords.id, recordId));
+        updatedCount++;
       } else {
         recordId = `att_${randomUUID()}`;
         await db.insert(attendanceRecords).values({
@@ -1262,6 +1273,7 @@ export async function importMonthlyAttendance(
           createdAt: now,
           updatedAt: now,
         });
+        createdCount++;
       }
 
       // Insert event
@@ -1300,7 +1312,15 @@ export async function importMonthlyAttendance(
   return {
     totalProcessed: rows.length,
     importedCount,
+    createdCount,
+    updatedCount,
     failedCount: errors.length,
+    summary: {
+      total: rows.length,
+      created: createdCount,
+      updated: updatedCount,
+      failed: errors.length,
+    },
     errors,
   };
 }

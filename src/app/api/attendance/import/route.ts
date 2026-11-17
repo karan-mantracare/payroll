@@ -56,10 +56,13 @@ export async function POST(req: NextRequest) {
       if (isPV && machine !== "STANDARD") {
         const parsedPV = parseMachinePVRawData(text);
         if (parsedPV.rows.length === 0) {
+          const detail = parsedPV.invalidLines?.[0]
+            ? `Row ${parsedPV.invalidLines[0].line} (${parsedPV.invalidLines[0].employeeCode}): ${parsedPV.invalidLines[0].error}`
+            : "Expected format: YYYY-MM-DD HH:mm:ss (e.g. 2026-11-01 09:05:00)";
           return NextResponse.json(
             {
               success: false,
-              error: "NO_PUNCHES_FOUND: Could not parse any valid punch timestamps for Machine 1 - PV.",
+              error: `INVALID_TIMESTAMP: No valid punch timestamps found. ${detail}`,
               correlationId,
             },
             { status: 400 }
@@ -70,6 +73,7 @@ export async function POST(req: NextRequest) {
           totalPunches: parsedPV.totalPunches,
           daysCalculated: parsedPV.rows.length,
           skippedLines: parsedPV.skippedLines,
+          invalidLines: parsedPV.invalidLines,
         };
       } else {
         // Standard CSV format: EmployeeCode,Date,CheckIn,CheckOut,Status,Notes
@@ -108,6 +112,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       result,
+      summary: result.summary,
       pvSummary,
       correlationId,
     });

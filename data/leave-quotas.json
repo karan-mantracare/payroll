@@ -3,88 +3,96 @@
     "employeeId": "EMP-001",
     "employeeCode": "EMP-001",
     "privilegeLeave": 18,
-    "casualLeave": 0,
-    "sickLeave": 5,
-    "updatedAt": 1794310958267
+    "casualLeave": 12,
+    "sickLeave": 10,
+    "updatedAt": 1794901602311
   },
   "EMP-002": {
     "employeeId": "EMP-002",
     "employeeCode": "EMP-002",
     "privilegeLeave": 18,
-    "casualLeave": 0,
-    "sickLeave": 5,
-    "updatedAt": 1794310958267
+    "casualLeave": 12,
+    "sickLeave": 10,
+    "updatedAt": 1794901602311
   },
   "EMP-003": {
     "employeeId": "EMP-003",
     "employeeCode": "EMP-003",
     "privilegeLeave": 18,
-    "casualLeave": 0,
-    "sickLeave": 5,
-    "updatedAt": 1794310958267
+    "casualLeave": 12,
+    "sickLeave": 10,
+    "updatedAt": 1794901602311
   },
   "EMP-004": {
     "employeeId": "EMP-004",
     "employeeCode": "EMP-004",
     "privilegeLeave": 18,
-    "casualLeave": 0,
-    "sickLeave": 5,
-    "updatedAt": 1794310958267
+    "casualLeave": 12,
+    "sickLeave": 10,
+    "updatedAt": 1794901602311
   },
   "EMP-005": {
     "employeeId": "EMP-005",
     "employeeCode": "EMP-005",
     "privilegeLeave": 18,
-    "casualLeave": 0,
-    "sickLeave": 5,
-    "updatedAt": 1794310958267
+    "casualLeave": 12,
+    "sickLeave": 10,
+    "updatedAt": 1794901602311
   },
   "EMP-006": {
     "employeeId": "EMP-006",
     "employeeCode": "EMP-006",
     "privilegeLeave": 18,
-    "casualLeave": 0,
-    "sickLeave": 5,
-    "updatedAt": 1794310958267
+    "casualLeave": 12,
+    "sickLeave": 10,
+    "updatedAt": 1794901602311
   },
   "EMP-007": {
     "employeeId": "EMP-007",
     "employeeCode": "EMP-007",
     "privilegeLeave": 18,
-    "casualLeave": 0,
-    "sickLeave": 5,
-    "updatedAt": 1794310958267
+    "casualLeave": 12,
+    "sickLeave": 10,
+    "updatedAt": 1794901602311
   },
   "EMP-008": {
     "employeeId": "EMP-008",
     "employeeCode": "EMP-008",
     "privilegeLeave": 18,
-    "casualLeave": 0,
-    "sickLeave": 5,
-    "updatedAt": 1794310958267
+    "casualLeave": 12,
+    "sickLeave": 10,
+    "updatedAt": 1794901602311
   },
   "EMP-009": {
     "employeeId": "EMP-009",
     "employeeCode": "EMP-009",
     "privilegeLeave": 18,
-    "casualLeave": 0,
-    "sickLeave": 5,
-    "updatedAt": 1794310958267
+    "casualLeave": 12,
+    "sickLeave": 10,
+    "updatedAt": 1794901602311
   },
   "EMP-010": {
     "employeeId": "EMP-010",
     "employeeCode": "EMP-010",
     "privilegeLeave": 18,
-    "casualLeave": 0,
-    "sickLeave": 5,
-    "updatedAt": 1794310958267
+    "casualLeave": 12,
+    "sickLeave": 10,
+    "updatedAt": 1794901602311
   },
   "EMP-011": {
     "employeeId": "EMP-011",
     "employeeCode": "EMP-011",
     "privilegeLeave": 18,
-    "casualLeave": 0,
-    "sickLeave": 5,
-    "updatedAt": 1794310958267
+    "casualLeave": 12,
+    "sickLeave": 10,
+    "updatedAt": 1794901602311
+  },
+  "EMP-012": {
+    "employeeId": "EMP-012",
+    "employeeCode": "EMP-012",
+    "privilegeLeave": 18,
+    "casualLeave": 12,
+    "sickLeave": 10,
+    "updatedAt": 1794901602311
   }
 }
