@@ -10,7 +10,7 @@ import {
   teams,
   shifts,
 } from "../db/schema";
-import { eq, and, or, gte, lte, desc, inArray, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, or, gte, lte, desc, inArray, isNull, isNotNull, like } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { SessionContext } from "../permissions/types";
 import { auditLogger } from "../audit/logger";
@@ -21,6 +21,7 @@ import {
   notifyAdmins,
   resolveUserIdForEmployee,
 } from "../notifications/service";
+import { getEmployeeLeavesOffs } from "../leaves/employee-leaves-offs";
 
 export interface CheckInInput {
   timestampUtc?: string; // ISO 8601 UTC
@@ -1204,8 +1205,18 @@ export async function importMonthlyAttendance(
         }
       }
 
-      if (totalWorkMinutes > 0 && totalWorkMinutes < 240 && !row.status) {
-        status = "HALF_DAY";
+      // Check punch deduction rules
+      let recordNotes = row.notes || "Imported via batch";
+      if (!row.checkOutTime || !row.checkInTime) {
+        if (!row.status) {
+          status = "HALF_DAY";
+          recordNotes = "Entry Missing - Counted as Half Day";
+        }
+      } else if (totalWorkMinutes > 0 && totalWorkMinutes < 270) {
+        if (!row.status) {
+          status = "ABSENT";
+          recordNotes = `Duration ${Math.floor(totalWorkMinutes / 60)}h ${totalWorkMinutes % 60}m (< 4h 30m) - Counted as Off`;
+        }
       }
 
       // Check for existing duplicate record for same date
@@ -1214,6 +1225,8 @@ export async function importMonthlyAttendance(
         .from(attendanceRecords)
         .where(and(eq(attendanceRecords.employeeId, employee.id), eq(attendanceRecords.date, row.date)))
         .limit(1);
+
+      const source = (row.notes?.includes("PV") || recordNotes.includes("PV")) ? "BIOMETRIC" : "MANUAL_ADJUSTMENT";
 
       let recordId: string;
       if (existingRecords.length > 0) {
@@ -1226,8 +1239,8 @@ export async function importMonthlyAttendance(
             totalWorkMinutes,
             lateMinutes,
             status,
-            source: "MANUAL_ADJUSTMENT",
-            notes: row.notes || "Imported via CSV/Excel batch",
+            source,
+            notes: recordNotes,
             updatedAt: now,
           })
           .where(eq(attendanceRecords.id, recordId));
@@ -1244,8 +1257,8 @@ export async function importMonthlyAttendance(
           lateMinutes,
           earlyExitMinutes: 0,
           status,
-          source: "MANUAL_ADJUSTMENT",
-          notes: row.notes || "Imported via CSV/Excel batch",
+          source,
+          notes: recordNotes,
           createdAt: now,
           updatedAt: now,
         });
@@ -1289,5 +1302,192 @@ export async function importMonthlyAttendance(
     importedCount,
     failedCount: errors.length,
     errors,
+  };
+}
+
+export interface RecalculateAttendanceOptions {
+  month?: string; // YYYY-MM
+  startDate?: string;
+  endDate?: string;
+  employeeId?: string;
+}
+
+export interface RecalculationSummary {
+  totalExamined: number;
+  updatedCount: number;
+  halfDayMissingCount: number;
+  offCount: number;
+  presentCount: number;
+  lateCount: number;
+}
+
+/**
+ * Recalculates attendance records across the organization or for a selected scope.
+ * 
+ * Rules:
+ * 1. If either in-time or out-time is missing -> status becomes 'HALF_DAY', note: 'Entry Missing - Counted as Half Day'.
+ * 2. If both in-time and out-time exist but duration < 4 hrs 30 min (270 min) -> status becomes 'ABSENT' (Off).
+ * 3. If duration >= 4 hrs 30 min -> checks shift and grace period from employee Leaves & Offs policy to determine PRESENT or LATE.
+ */
+export async function recalculateAttendance(
+  session: SessionContext,
+  options?: RecalculateAttendanceOptions,
+  meta?: { ipAddress?: string; userAgent?: string }
+): Promise<RecalculationSummary> {
+  const canManage =
+    session.isSuperAdmin ||
+    session.roles.includes("SUPER_ADMIN") ||
+    session.roles.includes("ADMIN") ||
+    session.roles.includes("HR_MANAGER") ||
+    session.effectivePermissions.includes("admin.attendance.manage");
+
+  if (!canManage) {
+    throw new Error("UNAUTHORIZED: Insufficient permissions to recalculate attendance.");
+  }
+
+  const conditions = [];
+  if (options?.month) {
+    conditions.push(like(attendanceRecords.date, `${options.month}%`));
+  }
+  if (options?.startDate) {
+    conditions.push(gte(attendanceRecords.date, options.startDate));
+  }
+  if (options?.endDate) {
+    conditions.push(lte(attendanceRecords.date, options.endDate));
+  }
+  if (options?.employeeId) {
+    conditions.push(eq(attendanceRecords.employeeId, options.employeeId));
+  }
+
+  const records = await db
+    .select({
+      id: attendanceRecords.id,
+      employeeId: attendanceRecords.employeeId,
+      date: attendanceRecords.date,
+      shiftId: attendanceRecords.shiftId,
+      checkInTimeUtc: attendanceRecords.checkInTimeUtc,
+      checkOutTimeUtc: attendanceRecords.checkOutTimeUtc,
+      totalWorkMinutes: attendanceRecords.totalWorkMinutes,
+      status: attendanceRecords.status,
+      notes: attendanceRecords.notes,
+    })
+    .from(attendanceRecords)
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+  let updatedCount = 0;
+  let halfDayMissingCount = 0;
+  let offCount = 0;
+  let presentCount = 0;
+  let lateCount = 0;
+  const now = Date.now();
+
+  for (const record of records) {
+    let newStatus = record.status;
+    let newNotes = record.notes || "";
+    let newWorkMinutes = record.totalWorkMinutes;
+
+    // Rule 1: Missing either in-time or out-time
+    if (!record.checkInTimeUtc || !record.checkOutTimeUtc) {
+      newStatus = "HALF_DAY";
+      newWorkMinutes = 240;
+      if (!newNotes.includes("Entry Missing")) {
+        newNotes = newNotes
+          ? `${newNotes} | Entry Missing - Counted as Half Day`
+          : "Entry Missing - Counted as Half Day";
+      }
+      halfDayMissingCount++;
+    } else {
+      // Both in-time and out-time exist
+      const inMs = new Date(record.checkInTimeUtc).getTime();
+      const outMs = new Date(record.checkOutTimeUtc).getTime();
+      newWorkMinutes = outMs > inMs ? Math.floor((outMs - inMs) / (60 * 1000)) : 0;
+
+      // Rule 2: Less than 4 hours 30 minutes (270 min) -> Off (ABSENT)
+      if (newWorkMinutes < 270) {
+        newStatus = "ABSENT";
+        const h = Math.floor(newWorkMinutes / 60);
+        const m = newWorkMinutes % 60;
+        const offNote = `Duration ${h}h ${m}m (< 4h 30m) - Counted as Off`;
+        if (!newNotes.includes("Counted as Off")) {
+          newNotes = newNotes ? `${newNotes} | ${offNote}` : offNote;
+        }
+        offCount++;
+      } else {
+        // Rule 3: 4h 30m or more -> check policy
+        const employeePolicy = getEmployeeLeavesOffs(record.employeeId);
+        const graceMinutes = employeePolicy.graceTimeMinutes ?? 30;
+
+        let isLate = false;
+        if (record.shiftId) {
+          const shiftList = await db
+            .select()
+            .from(shifts)
+            .where(eq(shifts.id, record.shiftId))
+            .limit(1);
+
+          if (shiftList.length > 0 && shiftList[0].startTime) {
+            const shiftStartMins = parseTimeToMinutes(shiftList[0].startTime);
+            const inMins = getUtcTimeMinutes(record.checkInTimeUtc);
+            if (inMins > shiftStartMins + graceMinutes) {
+              isLate = true;
+            }
+          }
+        }
+
+        if (isLate) {
+          newStatus = "LATE";
+          lateCount++;
+        } else {
+          newStatus = "PRESENT";
+          presentCount++;
+        }
+      }
+    }
+
+    // Update if status, minutes, or notes changed
+    if (
+      newStatus !== record.status ||
+      newWorkMinutes !== record.totalWorkMinutes ||
+      newNotes !== record.notes
+    ) {
+      await db
+        .update(attendanceRecords)
+        .set({
+          status: newStatus as any,
+          totalWorkMinutes: newWorkMinutes,
+          notes: newNotes,
+          updatedAt: now,
+        })
+        .where(eq(attendanceRecords.id, record.id));
+
+      updatedCount++;
+    }
+  }
+
+  await auditLogger.logAuditEvent({
+    actorUserId: session.userId,
+    actorEmployeeId: session.employeeId,
+    action: "ATTENDANCE_RECALCULATED",
+    targetEntity: "attendance_records",
+    targetId: `recalc_${now}`,
+    changes: {
+      totalExamined: records.length,
+      updatedCount,
+      halfDayMissingCount,
+      offCount,
+      presentCount,
+      lateCount,
+    },
+    ipAddress: meta?.ipAddress,
+    userAgent: meta?.userAgent,
+  });
+
+  return {
+    totalExamined: records.length,
+    updatedCount,
+    halfDayMissingCount,
+    offCount,
+    presentCount,
+    lateCount,
   };
 }

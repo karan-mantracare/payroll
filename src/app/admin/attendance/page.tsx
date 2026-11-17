@@ -21,6 +21,8 @@ import {
   Calendar,
   Upload,
   FileSpreadsheet,
+  Calculator,
+  Info,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthGate";
 
@@ -58,14 +60,35 @@ export default function AdminAttendancePage() {
   const [adjusting, setAdjusting] = useState(false);
   const [adjustError, setAdjustError] = useState<string | null>(null);
 
+  // Machine & Import Templates
+  const PV_TEMPLATE = `Employee Code - Time Stamp - Time Zone
+EMP-001 - 2026-11-01 09:05:00 - Asia/Kolkata
+EMP-001 - 2026-11-01 18:15:00 - Asia/Kolkata
+EMP-002 - 2026-11-01 08:50:00 - Asia/Kolkata
+EMP-003 - 2026-11-01 09:30:00 - Asia/Kolkata
+EMP-003 - 2026-11-01 13:00:00 - Asia/Kolkata`;
+
+  const STANDARD_TEMPLATE = `EmployeeCode,Date,CheckIn,CheckOut,Status,Notes
+MC-ADM-001,2026-11-01,09:00,18:00,PRESENT,Regular schedule
+MC-HRM-002,2026-11-01,08:35,17:35,PRESENT,On time morning`;
+
   // Monthly Attendance Import Modal
   const [showImportModal, setShowImportModal] = useState(false);
-  const [importCsvText, setImportCsvText] = useState(
-    "EmployeeCode,Date,CheckIn,CheckOut,Status,Notes\nMC-ADM-001,2026-11-01,09:00,18:00,PRESENT,Regular schedule\nMC-HRM-002,2026-11-01,08:35,17:35,PRESENT,On time morning"
-  );
+  const [selectedMachine, setSelectedMachine] = useState<"PV" | "STANDARD">("PV");
+  const [importCsvText, setImportCsvText] = useState(PV_TEMPLATE);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<any | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+
+  // Recalculate Attendance Modal
+  const [showRecalculateModal, setShowRecalculateModal] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
+  const [recalculateError, setRecalculateError] = useState<string | null>(null);
+  const [recalculateResult, setRecalculateResult] = useState<any | null>(null);
+  const [recalculateScope, setRecalculateScope] = useState<"ALL" | "MONTH" | "DATE">("MONTH");
+  const [recalculateMonth, setRecalculateMonth] = useState<string>(
+    new Date().toISOString().slice(0, 7)
+  );
 
   const fetchAttendance = useCallback(async () => {
     setLoading(true);
@@ -173,7 +196,7 @@ export default function AdminAttendancePage() {
     setImportResult(null);
 
     try {
-      const res = await fetch("/payroll/api/attendance/import", {
+      const res = await fetch(`/payroll/api/attendance/import?machine=${selectedMachine}`, {
         method: "POST",
         headers: { "Content-Type": "text/csv" },
         body: importCsvText,
@@ -182,12 +205,45 @@ export default function AdminAttendancePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to import attendance data");
 
-      setImportResult(data.result);
+      setImportResult({ ...data.result, pvSummary: data.pvSummary });
       await fetchAttendance();
     } catch (err: any) {
       setImportError(err.message || "Failed to process attendance import");
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleRecalculateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecalculating(true);
+    setRecalculateError(null);
+    setRecalculateResult(null);
+
+    try {
+      const payload: any = {};
+      if (recalculateScope === "MONTH") {
+        payload.month = recalculateMonth;
+      } else if (recalculateScope === "DATE") {
+        payload.startDate = date;
+        payload.endDate = date;
+      }
+
+      const res = await fetch("/payroll/api/attendance/recalculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Recalculation failed.");
+
+      setRecalculateResult(data.summary);
+      await fetchAttendance();
+    } catch (err: any) {
+      setRecalculateError(err.message || "Failed to recalculate attendance.");
+    } finally {
+      setRecalculating(false);
     }
   };
 
@@ -308,6 +364,17 @@ export default function AdminAttendancePage() {
                 {stats.pendingCorrections}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => {
+              setShowRecalculateModal(true);
+              setRecalculateResult(null);
+              setRecalculateError(null);
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 font-semibold text-xs transition shadow-sm"
+          >
+            <Calculator className="w-4 h-4 text-[#293381] dark:text-[#36B4FF]" /> Recalculate
           </button>
 
           <button
@@ -743,6 +810,12 @@ export default function AdminAttendancePage() {
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   Import Completed Successfully
                 </div>
+                {importResult.pvSummary && (
+                  <div className="text-xs text-emerald-900 dark:text-emerald-200 bg-emerald-100/60 dark:bg-emerald-900/40 p-2.5 rounded-lg">
+                    Machine 1 - PV parsed <strong>{importResult.pvSummary.totalPunches}</strong> punches into{" "}
+                    <strong>{importResult.pvSummary.daysCalculated}</strong> daily attendance records.
+                  </div>
+                )}
                 <div className="grid grid-cols-4 gap-2 text-center pt-2">
                   <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border border-emerald-100 dark:border-slate-700">
                     <span className="text-[10px] text-slate-500 block">Total</span>
@@ -774,11 +847,49 @@ export default function AdminAttendancePage() {
             <form onSubmit={handleImportSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Upload CSV File
+                  Select Attendance Machine / Format
+                </label>
+                <select
+                  value={selectedMachine}
+                  onChange={(e) => {
+                    const val = e.target.value as "PV" | "STANDARD";
+                    setSelectedMachine(val);
+                    setImportCsvText(val === "PV" ? PV_TEMPLATE : STANDARD_TEMPLATE);
+                  }}
+                  className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
+                >
+                  <option value="PV">Machine 1 - PV (Employee Code - Time Stamp - Time Zone)</option>
+                  <option value="STANDARD">Standard Format (EmployeeCode, Date, CheckIn, CheckOut, Status, Notes)</option>
+                </select>
+              </div>
+
+              {selectedMachine === "PV" && (
+                <div className="p-3 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl text-xs space-y-1.5 text-blue-900 dark:text-blue-200">
+                  <div className="font-bold flex items-center gap-1.5 text-blue-950 dark:text-blue-100">
+                    <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    Machine 1 - PV Automatic Calculation Rules
+                  </div>
+                  <ul className="list-disc pl-4 space-y-1 text-[11px] text-blue-800 dark:text-blue-300">
+                    <li>
+                      <strong>Punch Mapping</strong>: Earliest punch of the day becomes In-Time. Latest punch becomes Out-Time.
+                    </li>
+                    <li>
+                      <strong>Missing Punch Deduction</strong>: If either In-Time or Out-Time is missing (single punch), the day is marked <em>Entry Missing</em> and counted as <strong>Half Day</strong>.
+                    </li>
+                    <li>
+                      <strong>Under 4.5h Work Deduction</strong>: If both In-Time and Out-Time are present but total duration is less than <strong>4 hrs 30 min</strong>, the day is counted as <strong>Off</strong>.
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Upload CSV / Text File
                 </label>
                 <input
                   type="file"
-                  accept=".csv,text/csv"
+                  accept=".csv,text/csv,text/plain,.txt"
                   onChange={handleFileUpload}
                   className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#293381] file:text-white hover:file:bg-[#1F2664] cursor-pointer"
                 />
@@ -787,10 +898,12 @@ export default function AdminAttendancePage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    CSV Data (or paste directly)
+                    {selectedMachine === "PV" ? "Punch Log Data (Paste or Upload)" : "CSV Data (or paste directly)"}
                   </label>
-                  <span className="text-[11px] text-slate-400">
-                    Format: EmployeeCode,Date,CheckIn,CheckOut,Status,Notes
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    {selectedMachine === "PV"
+                      ? "Format: Employee Code - Time Stamp - Time Zone"
+                      : "Format: EmployeeCode,Date,CheckIn,CheckOut,Status,Notes"}
                   </span>
                 </div>
                 <textarea
@@ -798,7 +911,7 @@ export default function AdminAttendancePage() {
                   value={importCsvText}
                   onChange={(e) => setImportCsvText(e.target.value)}
                   className="w-full font-mono text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#36B4FF]"
-                  placeholder="EmployeeCode,Date,CheckIn,CheckOut,Status,Notes"
+                  placeholder={selectedMachine === "PV" ? PV_TEMPLATE : STANDARD_TEMPLATE}
                 />
               </div>
 
@@ -818,6 +931,156 @@ export default function AdminAttendancePage() {
                   {importing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <Upload className="w-3.5 h-3.5" />
                   Execute Batch Import
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Recalculate Attendance Modal */}
+      {showRecalculateModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-[#293381]/10 rounded-lg text-[#293381] dark:text-[#36B4FF]">
+                  <Calculator className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                    Recalculate Attendance & Deductions
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Re-evaluate punch deductions, missing punches, and policy thresholds.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowRecalculateModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl text-xs space-y-1.5 text-amber-900 dark:text-amber-200">
+              <div className="font-bold flex items-center gap-1.5 text-amber-950 dark:text-amber-100">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                Attendance Deduction Rules
+              </div>
+              <ul className="list-disc pl-4 space-y-1 text-[11px] text-amber-800 dark:text-amber-300">
+                <li>
+                  <strong>Missing Punch</strong>: Either In-Time or Out-Time missing → Marked <em>Entry Missing</em> & counted as <strong>Half Day</strong>.
+                </li>
+                <li>
+                  <strong>Duration &lt; 4h 30m</strong>: Both times present but &lt; 4.5 hours → Counted as <strong>Off</strong>.
+                </li>
+                <li>
+                  <strong>Duration &ge; 4h 30m</strong>: Evaluated against shift schedule and employee grace period.
+                </li>
+              </ul>
+            </div>
+
+            <form onSubmit={handleRecalculateSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Recalculate Scope
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: "MONTH", label: "Month" },
+                    { id: "DATE", label: "Selected Date" },
+                    { id: "ALL", label: "All Records" },
+                  ].map((scope) => (
+                    <button
+                      key={scope.id}
+                      type="button"
+                      onClick={() => setRecalculateScope(scope.id as any)}
+                      className={`py-2 px-3 text-xs font-semibold rounded-lg border transition ${
+                        recalculateScope === scope.id
+                          ? "bg-[#293381] text-white border-[#293381] dark:bg-[#36B4FF] dark:text-slate-950 dark:border-[#36B4FF]"
+                          : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700"
+                      }`}
+                    >
+                      {scope.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {recalculateScope === "MONTH" && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Select Month (YYYY-MM)
+                  </label>
+                  <input
+                    type="month"
+                    value={recalculateMonth}
+                    onChange={(e) => setRecalculateMonth(e.target.value)}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  />
+                </div>
+              )}
+
+              {recalculateError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
+                  <span>{recalculateError}</span>
+                </div>
+              )}
+
+              {recalculateResult && (
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs space-y-2">
+                  <div className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    Recalculation Complete
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                    <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border dark:border-slate-700">
+                      <span className="text-[10px] text-slate-500 block">Examined</span>
+                      <span className="font-bold text-slate-800 dark:text-white text-sm">{recalculateResult.totalExamined}</span>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border dark:border-slate-700">
+                      <span className="text-[10px] text-blue-600 block">Updated</span>
+                      <span className="font-bold text-blue-600 text-sm">{recalculateResult.updatedCount}</span>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border dark:border-slate-700">
+                      <span className="text-[10px] text-amber-600 block">Half Day (Missing)</span>
+                      <span className="font-bold text-amber-600 text-sm">{recalculateResult.halfDayMissingCount}</span>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border dark:border-slate-700">
+                      <span className="text-[10px] text-rose-600 block">Off (&lt; 4.5h)</span>
+                      <span className="font-bold text-rose-600 text-sm">{recalculateResult.offCount}</span>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border dark:border-slate-700">
+                      <span className="text-[10px] text-emerald-600 block">Present</span>
+                      <span className="font-bold text-emerald-600 text-sm">{recalculateResult.presentCount}</span>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-2 rounded-lg border dark:border-slate-700">
+                      <span className="text-[10px] text-orange-600 block">Late</span>
+                      <span className="font-bold text-orange-600 text-sm">{recalculateResult.lateCount}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowRecalculateModal(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 hover:bg-slate-50 text-xs font-semibold"
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  disabled={recalculating}
+                  className="px-4 py-2 rounded-lg bg-[#293381] hover:bg-[#1F2664] text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                >
+                  {recalculating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Recalculate Now
                 </button>
               </div>
             </form>

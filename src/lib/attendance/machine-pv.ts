@@ -1,0 +1,358 @@
+import { AttendanceImportRow } from "./service";
+
+export interface PVPunchItem {
+  employeeCode: string;
+  timestampStr: string;
+  timeZoneStr: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  timeMs: number; // epoch ms
+}
+
+export interface ParsedDailyPunchSummary {
+  employeeCode: string;
+  date: string; // YYYY-MM-DD
+  checkInTime?: string;
+  checkOutTime?: string;
+  totalWorkMinutes: number;
+  status: "PRESENT" | "HALF_DAY" | "ABSENT";
+  notes: string;
+  punchCount: number;
+}
+
+/**
+ * Parses timestamp string into normalized date (YYYY-MM-DD), time (HH:mm), and epoch ms.
+ * Supports:
+ * - YYYY-MM-DD HH:mm:ss
+ * - YYYY-MM-DDTHH:mm:ss
+ * - DD-MM-YYYY HH:mm:ss
+ * - DD/MM/YYYY HH:mm:ss
+ * - YYYY/MM/DD HH:mm:ss
+ */
+export function parsePunchTimestamp(
+  rawTimestamp: string,
+  rawTimeZone?: string
+): { date: string; time: string; timeMs: number } | null {
+  const trimmed = rawTimestamp.trim();
+  if (!trimmed) return null;
+
+  let year = "";
+  let month = "";
+  let day = "";
+  let hours = "";
+  let minutes = "";
+  let seconds = "00";
+
+  // Try ISO format with T
+  if (trimmed.includes("T")) {
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      return { date, time, timeMs: d.getTime() };
+    }
+  }
+
+  // Split date part and time part
+  const spaceParts = trimmed.split(/\s+/);
+  if (spaceParts.length < 2) {
+    // Single string without space, maybe ISO or just date
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return {
+        date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+        time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+        timeMs: d.getTime(),
+      };
+    }
+    return null;
+  }
+
+  const datePart = spaceParts[0];
+  const timePart = spaceParts[1];
+
+  // Parse Date Part
+  if (datePart.includes("-")) {
+    const parts = datePart.split("-");
+    if (parts[0].length === 4) {
+      // YYYY-MM-DD
+      year = parts[0];
+      month = parts[1].padStart(2, "0");
+      day = parts[2].padStart(2, "0");
+    } else if (parts[2]?.length === 4) {
+      // DD-MM-YYYY
+      day = parts[0].padStart(2, "0");
+      month = parts[1].padStart(2, "0");
+      year = parts[2];
+    }
+  } else if (datePart.includes("/")) {
+    const parts = datePart.split("/");
+    if (parts[0].length === 4) {
+      // YYYY/MM/DD
+      year = parts[0];
+      month = parts[1].padStart(2, "0");
+      day = parts[2].padStart(2, "0");
+    } else if (parts[2]?.length === 4) {
+      // DD/MM/YYYY
+      day = parts[0].padStart(2, "0");
+      month = parts[1].padStart(2, "0");
+      year = parts[2];
+    }
+  }
+
+  // Parse Time Part
+  const timeParts = timePart.split(":");
+  if (timeParts.length >= 2) {
+    hours = timeParts[0].padStart(2, "0");
+    minutes = timeParts[1].padStart(2, "0");
+    if (timeParts[2]) {
+      seconds = timeParts[2].split(".")[0].padStart(2, "0");
+    }
+  }
+
+  if (!year || !month || !day || !hours || !minutes) {
+    // Fallback native date parse
+    const fallbackDate = new Date(trimmed);
+    if (!isNaN(fallbackDate.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return {
+        date: `${fallbackDate.getFullYear()}-${pad(fallbackDate.getMonth() + 1)}-${pad(fallbackDate.getDate())}`,
+        time: `${pad(fallbackDate.getHours())}:${pad(fallbackDate.getMinutes())}`,
+        timeMs: fallbackDate.getTime(),
+      };
+    }
+    return null;
+  }
+
+  const date = `${year}-${month}-${day}`;
+  const time = `${hours}:${minutes}`;
+
+  // Timezone resolution (defaulting to IST +05:30 for Mantra Care if local or unspecified)
+  let tzOffset = "+05:30";
+  if (rawTimeZone) {
+    const tzLower = rawTimeZone.toLowerCase().trim();
+    if (tzLower === "utc" || tzLower === "z") {
+      tzOffset = "Z";
+    } else if (/^[+-]\d{2}:?\d{2}$/.test(rawTimeZone.trim())) {
+      const raw = rawTimeZone.trim();
+      tzOffset = raw.includes(":") ? raw : `${raw.slice(0, 3)}:${raw.slice(3)}`;
+    }
+  }
+
+  const isoString = tzOffset === "Z"
+    ? `${date}T${hours}:${minutes}:${seconds}.000Z`
+    : `${date}T${hours}:${minutes}:${seconds}${tzOffset}`;
+
+  const timeMs = new Date(isoString).getTime();
+
+  return { date, time, timeMs };
+}
+
+/**
+ * Parses raw Machine 1 - PV punch text into daily attendance rows.
+ * Format: Employee Code - Time Stamp - Time Zone
+ * Delimiters supported: ' - ', ',', '\t', ';'
+ *
+ * Rules:
+ * 1. Minimum punch time of the day = in-time.
+ * 2. Maximum punch time of the day = out-time.
+ * 3. If either in-time or out-time is missing (e.g. only 1 punch) -> 'Entry Missing', count as HALF_DAY.
+ * 4. If both are present but duration < 4 hrs 30 min (270 min) -> count as ABSENT (OFF).
+ */
+export function parseMachinePVRawData(rawText: string): {
+  rows: AttendanceImportRow[];
+  summaries: ParsedDailyPunchSummary[];
+  totalPunches: number;
+  skippedLines: number;
+} {
+  const lines = rawText
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  const punches: PVPunchItem[] = [];
+  let skippedLines = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Determine delimiter
+    let parts: string[] = [];
+    if (line.includes(" - ")) {
+      parts = line.split(" - ").map((p) => p.trim());
+    } else if (line.includes("\t")) {
+      parts = line.split("\t").map((p) => p.trim());
+    } else if (line.includes(",")) {
+      parts = line.split(",").map((p) => p.trim());
+    } else if (line.includes(";")) {
+      parts = line.split(";").map((p) => p.trim());
+    } else {
+      // Try multiple space splitting
+      parts = line.split(/\s{2,}/).map((p) => p.trim());
+    }
+
+    if (parts.length < 2) {
+      skippedLines++;
+      continue;
+    }
+
+    const employeeCode = parts[0]?.trim();
+    const timestampStr = parts[1]?.trim();
+    const timeZoneStr = parts[2]?.trim() || "Asia/Kolkata";
+
+    // Skip header lines
+    const codeLower = employeeCode.toLowerCase();
+    const timeLower = timestampStr.toLowerCase();
+    if (
+      codeLower.includes("employee") ||
+      codeLower.includes("emp code") ||
+      timeLower.includes("time") ||
+      timeLower.includes("stamp")
+    ) {
+      continue;
+    }
+
+    const parsedTime = parsePunchTimestamp(timestampStr, timeZoneStr);
+    if (!parsedTime) {
+      skippedLines++;
+      continue;
+    }
+
+    punches.push({
+      employeeCode,
+      timestampStr,
+      timeZoneStr,
+      date: parsedTime.date,
+      time: parsedTime.time,
+      timeMs: parsedTime.timeMs,
+    });
+  }
+
+  // Group punches by Employee Code + Date
+  const grouped: Record<string, Record<string, PVPunchItem[]>> = {};
+  for (const punch of punches) {
+    if (!grouped[punch.employeeCode]) {
+      grouped[punch.employeeCode] = {};
+    }
+    if (!grouped[punch.employeeCode][punch.date]) {
+      grouped[punch.employeeCode][punch.date] = [];
+    }
+    grouped[punch.employeeCode][punch.date].push(punch);
+  }
+
+  const summaries: ParsedDailyPunchSummary[] = [];
+  const rows: AttendanceImportRow[] = [];
+
+  for (const [employeeCode, datesObj] of Object.entries(grouped)) {
+    for (const [date, dayPunches] of Object.entries(datesObj)) {
+      // Sort ascending by epoch time
+      dayPunches.sort((a, b) => a.timeMs - b.timeMs);
+
+      const firstPunch = dayPunches[0];
+      const lastPunch = dayPunches[dayPunches.length - 1];
+
+      // Check if punches are distinct (more than 1 minute apart)
+      const isSinglePunch =
+        dayPunches.length === 1 ||
+        lastPunch.timeMs - firstPunch.timeMs < 60 * 1000;
+
+      if (isSinglePunch) {
+        // Either in-time or out-time is missing:
+        // Update entry as 'Entry Missing' and count that day as Half Day
+        const inTime = firstPunch.time;
+        const notes = `Entry Missing (Single punch at ${inTime}) - Counted as Half Day`;
+
+        summaries.push({
+          employeeCode,
+          date,
+          checkInTime: inTime,
+          checkOutTime: undefined,
+          totalWorkMinutes: 240, // 4 hours attributed for half day
+          status: "HALF_DAY",
+          notes,
+          punchCount: dayPunches.length,
+        });
+
+        rows.push({
+          employeeCode,
+          date,
+          checkInTime: inTime,
+          checkOutTime: undefined,
+          status: "HALF_DAY",
+          notes,
+        });
+      } else {
+        // Both in-time and out-time present
+        const inTime = firstPunch.time;
+        const outTime = lastPunch.time;
+        const durationMinutes = Math.floor(
+          (lastPunch.timeMs - firstPunch.timeMs) / (60 * 1000)
+        );
+
+        const hours = Math.floor(durationMinutes / 60);
+        const mins = durationMinutes % 60;
+
+        // Deduction Rule: If intime and out time both are mentioned but less than 4 hrs 30 min (270 min) -> consider it OFF (ABSENT)
+        if (durationMinutes < 270) {
+          const notes = `Duration ${hours}h ${mins}m (< 4h 30m) - Counted as Off`;
+
+          summaries.push({
+            employeeCode,
+            date,
+            checkInTime: inTime,
+            checkOutTime: outTime,
+            totalWorkMinutes: durationMinutes,
+            status: "ABSENT",
+            notes,
+            punchCount: dayPunches.length,
+          });
+
+          rows.push({
+            employeeCode,
+            date,
+            checkInTime: inTime,
+            checkOutTime: outTime,
+            status: "ABSENT",
+            notes,
+          });
+        } else {
+          // Normal attendance (4h 30m or more) -> PRESENT
+          const notes = `Machine 1 - PV: In ${inTime}, Out ${outTime} (${dayPunches.length} punches, ${hours}h ${mins}m)`;
+
+          summaries.push({
+            employeeCode,
+            date,
+            checkInTime: inTime,
+            checkOutTime: outTime,
+            totalWorkMinutes: durationMinutes,
+            status: "PRESENT",
+            notes,
+            punchCount: dayPunches.length,
+          });
+
+          rows.push({
+            employeeCode,
+            date,
+            checkInTime: inTime,
+            checkOutTime: outTime,
+            status: "PRESENT",
+            notes,
+          });
+        }
+      }
+    }
+  }
+
+  // Sort rows chronologically by date and employee code
+  rows.sort((a, b) => a.date.localeCompare(b.date) || a.employeeCode.localeCompare(b.employeeCode));
+  summaries.sort((a, b) => a.date.localeCompare(b.date) || a.employeeCode.localeCompare(b.employeeCode));
+
+  return {
+    rows,
+    summaries,
+    totalPunches: punches.length,
+    skippedLines,
+  };
+}

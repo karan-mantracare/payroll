@@ -1,0 +1,16 @@
+{
+  "EMP-001": {
+    "employeeId": "EMP-001",
+    "employeeCode": "EMP-001",
+    "workingDaysPerWeek": 5,
+    "weekOffCount": 1,
+    "weekOffDays": [
+      "Sat"
+    ],
+    "weekOffException": "Mon",
+    "shortLeaveAllowed": 3,
+    "graceTimeMinutes": 30,
+    "updatedAt": 1794903027320,
+    "updatedBy": "1"
+  }
+}

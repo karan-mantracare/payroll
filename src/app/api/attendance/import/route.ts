@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionContext } from "@/lib/auth/session";
 import { importMonthlyAttendance, AttendanceImportRow } from "@/lib/attendance/service";
+import { parseMachinePVRawData } from "@/lib/attendance/machine-pv";
 import { generateCorrelationId, logSecureError, sanitizeUserFacingError } from "@/lib/security/safe-logger";
 
 export async function POST(req: NextRequest) {
@@ -15,8 +16,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const { searchParams } = new URL(req.url);
+    const machine = (searchParams.get("machine") || "PV").toUpperCase();
+
     const contentType = req.headers.get("content-type") || "";
     let rows: AttendanceImportRow[] = [];
+    let pvSummary: any = null;
 
     if (contentType.includes("application/json")) {
       const body = await req.json().catch(() => null);
@@ -28,41 +33,67 @@ export async function POST(req: NextRequest) {
       }
       rows = body.rows;
     } else {
-      // Parse plain CSV text
+      // Parse plain text / CSV
       const text = await req.text();
       const lines = text
         .split(/\r?\n/)
         .map((l) => l.trim())
         .filter((l) => l.length > 0);
 
-      if (lines.length <= 1) {
+      if (lines.length <= 1 && !lines[0]?.includes(",")) {
         return NextResponse.json(
-          { success: false, error: "EMPTY_CSV: No data rows found in CSV.", correlationId },
+          { success: false, error: "EMPTY_DATA: No punch records found.", correlationId },
           { status: 400 }
         );
       }
 
-      // Format: EmployeeCode,Date,CheckIn,CheckOut,Status,Notes
-      const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-      const codeIdx = headers.findIndex((h) => h.includes("code") || h.includes("id"));
-      const dateIdx = headers.findIndex((h) => h.includes("date"));
-      const inIdx = headers.findIndex((h) => h.includes("in"));
-      const outIdx = headers.findIndex((h) => h.includes("out"));
-      const statusIdx = headers.findIndex((h) => h.includes("status"));
-      const notesIdx = headers.findIndex((h) => h.includes("note"));
+      // Check if Machine 1 - PV format
+      const isPV =
+        machine === "PV" ||
+        machine === "MACHINE_1_PV" ||
+        lines.some((l) => l.includes(" - ") || l.toLowerCase().includes("time stamp") || l.toLowerCase().includes("time zone"));
 
-      for (let i = 1; i < lines.length; i++) {
-        const parts = lines[i].split(",").map((p) => p.trim());
-        if (parts.length < 3) continue;
+      if (isPV && machine !== "STANDARD") {
+        const parsedPV = parseMachinePVRawData(text);
+        if (parsedPV.rows.length === 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "NO_PUNCHES_FOUND: Could not parse any valid punch timestamps for Machine 1 - PV.",
+              correlationId,
+            },
+            { status: 400 }
+          );
+        }
+        rows = parsedPV.rows;
+        pvSummary = {
+          totalPunches: parsedPV.totalPunches,
+          daysCalculated: parsedPV.rows.length,
+          skippedLines: parsedPV.skippedLines,
+        };
+      } else {
+        // Standard CSV format: EmployeeCode,Date,CheckIn,CheckOut,Status,Notes
+        const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+        const codeIdx = headers.findIndex((h) => h.includes("code") || h.includes("id"));
+        const dateIdx = headers.findIndex((h) => h.includes("date"));
+        const inIdx = headers.findIndex((h) => h.includes("in"));
+        const outIdx = headers.findIndex((h) => h.includes("out"));
+        const statusIdx = headers.findIndex((h) => h.includes("status"));
+        const notesIdx = headers.findIndex((h) => h.includes("note"));
 
-        rows.push({
-          employeeCode: parts[codeIdx !== -1 ? codeIdx : 0] || "",
-          date: parts[dateIdx !== -1 ? dateIdx : 1] || "",
-          checkInTime: parts[inIdx !== -1 ? inIdx : 2] || "",
-          checkOutTime: outIdx !== -1 ? parts[outIdx] : undefined,
-          status: statusIdx !== -1 ? (parts[statusIdx] as any) : undefined,
-          notes: notesIdx !== -1 ? parts[notesIdx] : undefined,
-        });
+        for (let i = 1; i < lines.length; i++) {
+          const parts = lines[i].split(",").map((p) => p.trim());
+          if (parts.length < 3) continue;
+
+          rows.push({
+            employeeCode: parts[codeIdx !== -1 ? codeIdx : 0] || "",
+            date: parts[dateIdx !== -1 ? dateIdx : 1] || "",
+            checkInTime: parts[inIdx !== -1 ? inIdx : 2] || "",
+            checkOutTime: outIdx !== -1 ? parts[outIdx] : undefined,
+            status: statusIdx !== -1 ? (parts[statusIdx] as any) : undefined,
+            notes: notesIdx !== -1 ? parts[notesIdx] : undefined,
+          });
+        }
       }
     }
 
@@ -77,6 +108,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       result,
+      pvSummary,
       correlationId,
     });
   } catch (err: any) {
@@ -84,7 +116,7 @@ export async function POST(req: NextRequest) {
     const msg = err.message || "";
     const status = msg.includes("UNAUTHORIZED")
       ? 403
-      : msg.includes("INVALID_PAYLOAD") || msg.includes("EMPTY_CSV")
+      : msg.includes("INVALID_PAYLOAD") || msg.includes("EMPTY_DATA")
       ? 400
       : 500;
 
