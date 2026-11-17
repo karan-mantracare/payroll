@@ -80,8 +80,9 @@ export default function MonthlyAttendancePayImpact({
   const [empNameOp, setEmpNameOp] = useState<"contains" | "is" | "starts_with">("contains");
   const [notesOp, setNotesOp] = useState<"contains" | "does_not_contain">("contains");
 
-  // Enabled fields in Conditions (default to standard 5 fields from user request)
+  // Enabled fields in Conditions (default to standard fields from user request)
   const [enabledFields, setEnabledFields] = useState<Record<string, boolean>>({
+    empId: true,
     empName: true,
     date: true,
     setOff: true,
@@ -92,6 +93,7 @@ export default function MonthlyAttendancePayImpact({
   });
 
   const [tempEnabledFields, setTempEnabledFields] = useState<Record<string, boolean>>({
+    empId: true,
     empName: true,
     date: true,
     setOff: true,
@@ -102,11 +104,13 @@ export default function MonthlyAttendancePayImpact({
   });
 
   // User-requested Filter States:
-  // 1. Emp Name
-  // 2. Date - Exact, Less Than, Greater Than, Between
-  // 3. Set Off - Exact (Drop down)
-  // 4. Assigned Shift - Exact (Drop down)
-  // 5. Deduction Rule & Notes - Contains
+  // 1. Emp ID - Exact (text field)
+  // 2. Emp Name
+  // 3. Date - Exact, Less Than, Greater Than, Between
+  // 4. Set Off - Exact (Drop down)
+  // 5. Assigned Shift - Exact (Drop down)
+  // 6. Deduction Rule & Notes - Contains
+  const [filterEmpId, setFilterEmpId] = useState<string>("");
   const [filterEmpName, setFilterEmpName] = useState<string>("");
   const [filterDateMode, setFilterDateMode] = useState<"ALL" | "EXACT" | "LESS_THAN" | "GREATER_THAN" | "BETWEEN">("ALL");
   const [filterDate1, setFilterDate1] = useState<string>("");
@@ -116,6 +120,7 @@ export default function MonthlyAttendancePayImpact({
   const [filterNotesQuery, setFilterNotesQuery] = useState<string>("");
 
   const ALL_FIELDS = [
+    { id: "empId", label: "Emp ID", category: "STANDARD" },
     { id: "empName", label: "Emp Name", category: "STANDARD" },
     { id: "date", label: "Date", category: "STANDARD" },
     { id: "setOff", label: "Set Off", category: "STANDARD" },
@@ -256,6 +261,14 @@ export default function MonthlyAttendancePayImpact({
   // Filtered Impacts
   const filteredImpacts = useMemo<DayPayImpact[]>(() => {
     return calculatedImpacts.filter((item) => {
+      // 0. Emp ID Filter (Exact text match)
+      if (enabledFields.empId && filterEmpId.trim()) {
+        const q = filterEmpId.trim().toLowerCase();
+        const code = (item.employeeCode || "").trim().toLowerCase();
+        const id = (item.employeeId || "").trim().toLowerCase();
+        if (code !== q && id !== q) return false;
+      }
+
       // 1. Emp Name Filter
       if (enabledFields.empName && filterEmpName.trim()) {
         const q = filterEmpName.toLowerCase();
@@ -339,6 +352,7 @@ export default function MonthlyAttendancePayImpact({
   }, [
     calculatedImpacts,
     enabledFields,
+    filterEmpId,
     filterEmpName,
     empNameOp,
     filterDateMode,
@@ -356,6 +370,7 @@ export default function MonthlyAttendancePayImpact({
   // Active filter count
   const activeFiltersCount = useMemo(() => {
     let count = 0;
+    if (enabledFields.empId && filterEmpId.trim()) count++;
     if (enabledFields.empName && filterEmpName.trim()) count++;
     if (enabledFields.date && filterDateMode !== "ALL" && (filterDate1 || filterDate2)) count++;
     if (enabledFields.setOff && filterSetOff !== "ALL") count++;
@@ -367,6 +382,7 @@ export default function MonthlyAttendancePayImpact({
     return count;
   }, [
     enabledFields,
+    filterEmpId,
     filterEmpName,
     filterDateMode,
     filterDate1,
@@ -380,6 +396,7 @@ export default function MonthlyAttendancePayImpact({
   ]);
 
   const resetAllFilters = () => {
+    setFilterEmpId("");
     setFilterEmpName("");
     setEmpNameOp("contains");
     setFilterDateMode("ALL");
@@ -623,6 +640,40 @@ export default function MonthlyAttendancePayImpact({
                                   <X className="w-4 h-4" />
                                 </button>
                               </div>
+
+                              {/* Condition 0: Emp ID (Exact) */}
+                              {enabledFields.empId && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                      Emp ID
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEnabledFields((prev) => ({ ...prev, empId: false }))}
+                                      className="text-slate-400 hover:text-rose-500 text-xs cursor-pointer"
+                                      title="Remove filter"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <select
+                                      disabled
+                                      className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 text-slate-700 dark:text-slate-300"
+                                    >
+                                      <option>Exact (Is)</option>
+                                    </select>
+                                    <input
+                                      type="text"
+                                      placeholder="Value... (e.g. EMP-001)"
+                                      value={filterEmpId}
+                                      onChange={(e) => setFilterEmpId(e.target.value)}
+                                      className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0084c7]"
+                                    />
+                                  </div>
+                                </div>
+                              )}
 
                               {/* Condition 1: Emp Name */}
                               {enabledFields.empName && (
@@ -1041,6 +1092,7 @@ export default function MonthlyAttendancePayImpact({
                                   type="button"
                                   onClick={() => {
                                     setTempEnabledFields({
+                                      empId: true,
                                       empName: true,
                                       date: true,
                                       setOff: true,
@@ -1129,6 +1181,14 @@ export default function MonthlyAttendancePayImpact({
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">
                 Active:
               </span>
+              {enabledFields.empId && filterEmpId.trim() && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-[#0084c7] border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 shadow-2xs">
+                  Emp ID (Exact): &quot;{filterEmpId}&quot;
+                  <button type="button" onClick={() => setFilterEmpId("")} className="hover:text-rose-500 cursor-pointer">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              )}
               {enabledFields.empName && filterEmpName.trim() && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-[#0084c7] border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 shadow-2xs">
                   Emp ({empNameOp}): &quot;{filterEmpName}&quot;
