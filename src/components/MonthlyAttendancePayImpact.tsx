@@ -636,9 +636,23 @@ export default function MonthlyAttendancePayImpact({
 
                       {/* Shift */}
                       <td className="px-4 py-3">
-                        <span className="font-medium text-slate-700 dark:text-slate-300">
+                        <div className="font-semibold text-slate-900 dark:text-white text-xs">
                           {item.shiftName}
-                        </span>
+                        </div>
+                        {item.hasGraceApplied ? (
+                          <div className="mt-0.5 space-y-0.5">
+                            <span className="font-mono text-[11px] font-bold text-[#293381] dark:text-[#36B4FF] block">
+                              {item.effectiveShiftTiming}
+                            </span>
+                            <span className="text-[10px] text-slate-400 block font-mono">
+                              Base: {item.scheduledShiftTiming}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            {item.scheduledShiftTiming}
+                          </div>
+                        )}
                       </td>
 
                       {/* In Time */}

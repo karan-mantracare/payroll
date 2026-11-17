@@ -563,9 +563,20 @@ MC-HRM-002,2026-11-01,08:35,17:35,PRESENT,On time morning`;
                     </td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                       <div className="font-semibold text-xs">{r.shiftName || "General Shift"}</div>
-                      <div className="font-mono text-[10px] text-slate-400">
-                        {r.shiftStartTime || "09:00"} - {r.shiftEndTime || "18:00"}
-                      </div>
+                      {r.checkInTimeUtc && formatUtcTime(r.checkInTimeUtc) > (r.shiftStartTime || "09:00") && formatUtcTime(r.checkInTimeUtc) <= "09:35" ? (
+                        <div className="space-y-0.5">
+                          <span className="font-mono text-[10px] font-bold text-[#293381] dark:text-[#36B4FF] block">
+                            09:30 - 18:30 (Grace Period)
+                          </span>
+                          <span className="font-mono text-[9px] text-slate-400 block">
+                            Base: {r.shiftStartTime || "09:00"} - {r.shiftEndTime || "18:00"}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="font-mono text-[10px] text-slate-400">
+                          {r.shiftStartTime || "09:00"} - {r.shiftEndTime || "18:00"}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 font-mono">
                       <div>{formatUtcTime(r.checkInTimeUtc)}</div>

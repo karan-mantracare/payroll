@@ -39,6 +39,9 @@ export interface DayPayImpact {
   date: string;
   dayOfWeek: string;
   shiftName: string;
+  scheduledShiftTiming: string;
+  effectiveShiftTiming: string;
+  hasGraceApplied: boolean;
   checkIn: string;
   checkOut: string;
   durationMinutes: number;
@@ -134,6 +137,59 @@ export function calculateDayPayImpact(
   const checkIn = formatTime(record.checkInTimeUtc);
   const checkOut = formatTime(record.checkOutTimeUtc);
 
+  // Resolve Scheduled and Effective Shift Timing (Accounting for Grace Period)
+  let rawStartTime = record.shiftStartTime || "";
+  let rawEndTime = record.shiftEndTime || "";
+
+  if (!rawStartTime) {
+    if (record.shiftName?.includes("08:30")) {
+      rawStartTime = "08:30";
+      rawEndTime = "17:30";
+    } else if (record.shiftName?.includes("09:30")) {
+      rawStartTime = "09:30";
+      rawEndTime = "18:30";
+    } else if (record.shiftName?.includes("12:00")) {
+      rawStartTime = "12:00";
+      rawEndTime = "21:00";
+    } else if (record.shiftName?.includes("18:00")) {
+      rawStartTime = "18:00";
+      rawEndTime = "06:00";
+    } else {
+      rawStartTime = "09:00";
+      rawEndTime = "18:00";
+    }
+  }
+
+  const scheduledShiftTiming = `${rawStartTime} - ${rawEndTime}`;
+  let effectiveShiftTiming = scheduledShiftTiming;
+  let hasGraceApplied = false;
+
+  // Grace Period Rule:
+  // "If my Report time is 9 AM and grace period is 30 min, I can come by 9.30, but I can leave by 6.30 PM only."
+  if (checkIn && checkIn !== "--") {
+    const [inH, inM] = checkIn.split(":").map(Number);
+    const [startH, startM] = rawStartTime.split(":").map(Number);
+    const [endH, endM] = rawEndTime.split(":").map(Number);
+    const inTotalMins = inH * 60 + inM;
+    const startTotalMins = startH * 60 + startM;
+
+    // If check-in is after scheduled start time (e.g. 09:05 up to 09:35 on a 09:00 shift),
+    // the shift schedule dynamically becomes 09:30 to 18:30 with 30m grace!
+    if (inTotalMins > startTotalMins && inTotalMins <= startTotalMins + 60) {
+      hasGraceApplied = true;
+      const graceStartMins = startTotalMins + 30; // 09:30
+      const graceEndMins = (endH * 60 + endM + 30) % 1440; // 18:30
+
+      const formatMins = (m: number) => {
+        const hh = Math.floor(m / 60) % 24;
+        const mm = m % 60;
+        return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+      };
+
+      effectiveShiftTiming = `${formatMins(graceStartMins)} - ${formatMins(graceEndMins)} (Grace Period)`;
+    }
+  }
+
   let impactType: PayImpactType = "FULL_PAY";
   let badgeLabel = "Full Pay (100%)";
   let badgeColor: "emerald" | "amber" | "rose" | "orange" | "blue" | "slate" =
@@ -142,7 +198,9 @@ export function calculateDayPayImpact(
   let deductionHours = 0;
   let deductionAmount = 0;
   let netDayPay = dailyRate;
-  let reason = "Full scheduled shift completed - 100% pay credited.";
+  let reason = hasGraceApplied
+    ? `Shift ${effectiveShiftTiming} applied (Grace Period). Completed 9h shift - 100% pay credited.`
+    : "Full scheduled shift completed - 100% pay credited.";
 
   // Rule 1: Unauthorized Shift Deduction
   if (notes.toLowerCase().includes("unauthorized shift")) {
@@ -258,6 +316,9 @@ export function calculateDayPayImpact(
     date: record.date,
     dayOfWeek,
     shiftName: record.shiftName || "General Shift",
+    scheduledShiftTiming,
+    effectiveShiftTiming,
+    hasGraceApplied,
     checkIn,
     checkOut,
     durationMinutes: totalMinutes,
