@@ -175,24 +175,42 @@ export function calculateDayPayImpact(
   let hasGraceApplied = false;
 
   // Grace Period Rule:
-  // "If my Report time is 9 AM and grace period is 30 min, I can come by 9.30, but I can leave by 6.30 PM only."
-  // Applies exclusively to the General Day Shift (09:00 - 18:00).
-  // Afternoon shift (12:00 - 21:00) and other shifts do NOT have grace period shifting.
-  const isGeneralDayShift =
+  // Policy allows 30 minutes grace period for morning shifts (08:30, 09:00, 09:30).
+  // - 09:00 General Day Shift: check-in between 09:01 and 09:35 applies 09:30 - 18:30 (Grace Period).
+  // - 09:30 Flexible Morning: check-in between 09:31 and 10:05 (e.g. 09:35) is reporting within grace window -> Grace Period.
+  // - 08:30 Morning Shift: check-in between 08:31 and 09:05 is reporting within grace window -> Grace Period.
+  // Afternoon shift (12:00 - 21:00):
+  // - Check-in at 12:35 is a late arrival covered by Short Leave allowance (NOT Grace Period).
+  const isMorningShift =
     rawStartTime === "09:00" ||
+    rawStartTime === "09:30" ||
+    rawStartTime === "08:30" ||
     record.shiftName?.includes("09:00") ||
-    record.shiftName?.toLowerCase().includes("general day");
+    record.shiftName?.includes("09:30") ||
+    record.shiftName?.includes("08:30") ||
+    record.shiftName?.toLowerCase().includes("general day") ||
+    record.shiftName?.toLowerCase().includes("flexible morning") ||
+    record.shiftName?.toLowerCase().includes("morning");
 
-  if (checkIn && checkIn !== "--" && isGeneralDayShift) {
+  if (checkIn && checkIn !== "--" && isMorningShift) {
     const [inH, inM] = checkIn.split(":").map(Number);
     const [startH, startM] = rawStartTime.split(":").map(Number);
     const inTotalMins = inH * 60 + inM;
     const startTotalMins = startH * 60 + startM;
+    const lateMins = inTotalMins - startTotalMins;
 
-    // On 09:00 morning shift, arrival between 09:01 and 09:35 applies 09:30 - 18:30 (Grace Period)
-    if (inTotalMins > startTotalMins && inTotalMins <= startTotalMins + 35) {
+    // Reporting within grace window (up to 35 minutes after scheduled start)
+    if (lateMins > 0 && lateMins <= 35) {
       hasGraceApplied = true;
-      effectiveShiftTiming = "09:30 - 18:30 (Grace Period)";
+      if (
+        rawStartTime === "09:00" ||
+        record.shiftName?.includes("09:00") ||
+        record.shiftName?.toLowerCase().includes("general day")
+      ) {
+        effectiveShiftTiming = "09:30 - 18:30 (Grace Period)";
+      } else {
+        effectiveShiftTiming = scheduledShiftTiming;
+      }
     }
   }
 
@@ -212,9 +230,13 @@ export function calculateDayPayImpact(
     notes.toLowerCase().includes("late arrival") ||
     notes.toLowerCase().includes("late morning");
 
+  // Late arrival covered by Short Leave applies when:
+  // - Grace period did NOT apply
+  // - And employee arrived late and completed full working hours (>= 510 mins, i.e. 8.5h - 9h),
+  //   such as the Afternoon Shift (12:00 shift in-time 12:35) or morning shifts arriving past grace (> 35m late)
   const isLateMorningCovered =
     !hasGraceApplied &&
-    (hasShortLeaveNote || (isLateArrival && totalMinutes >= 510));
+    (isLateArrival && totalMinutes >= 510);
 
   let impactType: PayImpactType = "FULL_PAY";
   let badgeLabel = "Full Pay (100%)";
@@ -227,7 +249,15 @@ export function calculateDayPayImpact(
 
   let reason = "Full scheduled shift completed - 100% pay credited.";
   if (hasGraceApplied) {
-    reason = `Shift ${effectiveShiftTiming} applied (Grace Period). Completed 9h shift - 100% pay credited.`;
+    if (
+      rawStartTime === "09:00" ||
+      record.shiftName?.includes("09:00") ||
+      record.shiftName?.toLowerCase().includes("general day")
+    ) {
+      reason = `Shift 09:30 - 18:30 applied (Grace Period). Completed 9h shift - 100% pay credited.`;
+    } else {
+      reason = `Shift ${scheduledShiftTiming} completed with Grace Period applied (In: ${checkIn}). 100% pay credited.`;
+    }
   } else if (isLateMorningCovered) {
     reason = `Late morning arrival (${checkIn}) covered by Short Leave allowance. Completed ${durationFormatted} - 100% pay credited.`;
   }
@@ -344,9 +374,11 @@ export function calculateDayPayImpact(
     setOff = "Grace Period";
   } else if (
     isLateMorningCovered ||
-    notes.toLowerCase().includes("short leave") ||
-    notes.toLowerCase().includes("late morning") ||
-    notes.toLowerCase().includes("late arrival")
+    (!hasGraceApplied && (
+      notes.toLowerCase().includes("short leave") ||
+      notes.toLowerCase().includes("late morning") ||
+      notes.toLowerCase().includes("late arrival")
+    ))
   ) {
     setOff = "Short Leave";
   } else if (
@@ -374,6 +406,16 @@ export function calculateDayPayImpact(
     setOff = "Half Day";
   }
 
+  // Clean up contradictory notes text when Grace Period applies
+  let displayNotes = notes;
+  if (hasGraceApplied) {
+    displayNotes = displayNotes
+      .replace(/\|\s*Late morning reporting covered by Short Leave allowance/gi, "| Reporting within Grace Period")
+      .replace(/Late morning reporting covered by Short Leave allowance/gi, "Reporting within Grace Period")
+      .replace(/\|\s*late arrival covered by short leave allowance/gi, "| Reporting within Grace Period")
+      .replace(/late arrival covered by short leave allowance/gi, "Reporting within Grace Period");
+  }
+
   return {
     recordId: record.id,
     employeeId: record.employeeId,
@@ -391,7 +433,7 @@ export function calculateDayPayImpact(
     durationMinutes: totalMinutes,
     durationFormatted,
     status,
-    notes,
+    notes: displayNotes,
     source: record.source || "SYSTEM",
 
     impactType,

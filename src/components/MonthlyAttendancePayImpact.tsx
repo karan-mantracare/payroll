@@ -1515,9 +1515,11 @@ export default function MonthlyAttendancePayImpact({
                             <span className="font-mono text-[11px] font-bold text-[#293381] dark:text-[#36B4FF] block">
                               {item.effectiveShiftTiming}
                             </span>
-                            <span className="text-[10px] text-slate-400 block font-mono">
-                              Base: {item.scheduledShiftTiming}
-                            </span>
+                            {item.effectiveShiftTiming !== item.scheduledShiftTiming && (
+                              <span className="text-[10px] text-slate-400 block font-mono">
+                                Base: {item.scheduledShiftTiming}
+                              </span>
+                            )}
                           </div>
                         ) : (
                           <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
