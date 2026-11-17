@@ -1660,7 +1660,7 @@ export async function recalculateAttendance(
               // Within 1 hour and completed full hours -> covered by Short Leave
               newStatus = "PRESENT";
               if (!newNotes.includes("Short Leave")) {
-                newNotes = newNotes ? `${newNotes} | Late arrival covered by Short Leave allowance` : "Late arrival covered by Short Leave allowance";
+                newNotes = newNotes ? `${newNotes} | Late morning reporting covered by Short Leave allowance` : "Late morning reporting covered by Short Leave allowance";
               }
               presentCount++;
             } else {

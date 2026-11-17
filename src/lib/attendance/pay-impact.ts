@@ -166,29 +166,45 @@ export function calculateDayPayImpact(
 
   // Grace Period Rule:
   // "If my Report time is 9 AM and grace period is 30 min, I can come by 9.30, but I can leave by 6.30 PM only."
-  if (checkIn && checkIn !== "--") {
+  // Applies exclusively to the General Day Shift (09:00 - 18:00).
+  // Afternoon shift (12:00 - 21:00) and other shifts do NOT have grace period shifting.
+  const isGeneralDayShift =
+    rawStartTime === "09:00" ||
+    record.shiftName?.includes("09:00") ||
+    record.shiftName?.toLowerCase().includes("general day");
+
+  if (checkIn && checkIn !== "--" && isGeneralDayShift) {
     const [inH, inM] = checkIn.split(":").map(Number);
     const [startH, startM] = rawStartTime.split(":").map(Number);
-    const [endH, endM] = rawEndTime.split(":").map(Number);
     const inTotalMins = inH * 60 + inM;
     const startTotalMins = startH * 60 + startM;
 
-    // If check-in is after scheduled start time (e.g. 09:05 up to 09:35 on a 09:00 shift),
-    // the shift schedule dynamically becomes 09:30 to 18:30 with 30m grace!
-    if (inTotalMins > startTotalMins && inTotalMins <= startTotalMins + 60) {
+    // On 09:00 morning shift, arrival between 09:01 and 09:35 applies 09:30 - 18:30 (Grace Period)
+    if (inTotalMins > startTotalMins && inTotalMins <= startTotalMins + 35) {
       hasGraceApplied = true;
-      const graceStartMins = startTotalMins + 30; // 09:30
-      const graceEndMins = (endH * 60 + endM + 30) % 1440; // 18:30
-
-      const formatMins = (m: number) => {
-        const hh = Math.floor(m / 60) % 24;
-        const mm = m % 60;
-        return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-      };
-
-      effectiveShiftTiming = `${formatMins(graceStartMins)} - ${formatMins(graceEndMins)} (Grace Period)`;
+      effectiveShiftTiming = "09:30 - 18:30 (Grace Period)";
     }
   }
+
+  // Determine if arrival is late (late morning / late arrival)
+  const isLateArrival = Boolean(
+    checkIn &&
+      checkIn !== "--" &&
+      (() => {
+        const [inH, inM] = checkIn.split(":").map(Number);
+        const [startH, startM] = rawStartTime.split(":").map(Number);
+        return inH * 60 + inM > startH * 60 + startM;
+      })()
+  );
+
+  const hasShortLeaveNote =
+    notes.toLowerCase().includes("short leave") ||
+    notes.toLowerCase().includes("late arrival") ||
+    notes.toLowerCase().includes("late morning");
+
+  const isLateMorningCovered =
+    !hasGraceApplied &&
+    (hasShortLeaveNote || (isLateArrival && totalMinutes >= 510));
 
   let impactType: PayImpactType = "FULL_PAY";
   let badgeLabel = "Full Pay (100%)";
@@ -198,9 +214,13 @@ export function calculateDayPayImpact(
   let deductionHours = 0;
   let deductionAmount = 0;
   let netDayPay = dailyRate;
-  let reason = hasGraceApplied
-    ? `Shift ${effectiveShiftTiming} applied (Grace Period). Completed 9h shift - 100% pay credited.`
-    : "Full scheduled shift completed - 100% pay credited.";
+
+  let reason = "Full scheduled shift completed - 100% pay credited.";
+  if (hasGraceApplied) {
+    reason = `Shift ${effectiveShiftTiming} applied (Grace Period). Completed 9h shift - 100% pay credited.`;
+  } else if (isLateMorningCovered) {
+    reason = `Late morning arrival (${checkIn}) covered by Short Leave allowance. Completed ${durationFormatted} - 100% pay credited.`;
+  }
 
   // Rule 1: Unauthorized Shift Deduction
   if (notes.toLowerCase().includes("unauthorized shift")) {
@@ -270,7 +290,7 @@ export function calculateDayPayImpact(
     reason = `Worked ${durationFormatted}. Met 4h 30m threshold but incomplete full shift - Half day deducted.`;
   }
   // Rule 5: Late Reporting & Short Leaves
-  else if (status === "LATE") {
+  else if (status === "LATE" || isLateMorningCovered) {
     const isExhausted =
       notes.toLowerCase().includes("deducted") ||
       notes.toLowerCase().includes("exhausted") ||
@@ -286,14 +306,14 @@ export function calculateDayPayImpact(
       netDayPay = dailyRate - deductionAmount;
       reason = `Late arrival beyond grace time with exhausted monthly short leaves - 1 hour pay deducted (₹${hourlyRate.toLocaleString("en-IN")}).`;
     } else {
-      impactType = "LATE_COVERED";
-      badgeLabel = "Short Leave (100% Pay)";
+      impactType = "FULL_PAY";
+      badgeLabel = "Full Pay (100%)";
       badgeColor = "emerald";
       payPercentage = 100;
       deductionHours = 0;
       deductionAmount = 0;
       netDayPay = dailyRate;
-      reason = "Late morning reporting covered by 1-hour Short Leave allowance - No pay deducted.";
+      reason = `Late morning arrival (${checkIn}) covered by Short Leave allowance. Completed ${durationFormatted} - 100% pay credited.`;
     }
   }
   // Rule 6: Approved Leave
