@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   CalendarDays,
   Clock,
@@ -32,10 +32,26 @@ const ALL_DAYS: { key: DayOfWeek; label: string }[] = [
   { key: "Sun", label: "Sunday" },
 ];
 
-function CategoryTooltip({ text }: { text: string }) {
+function CategoryTooltip({ title, text }: { title?: string; text: string }) {
   const [show, setShow] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShow(false);
+      }
+    }
+    if (show) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [show]);
+
   return (
-    <div className="relative inline-flex items-center">
+    <div ref={containerRef} className="relative inline-flex items-center">
       <button
         type="button"
         onMouseEnter={() => setShow(true)}
@@ -44,15 +60,53 @@ function CategoryTooltip({ text }: { text: string }) {
           e.stopPropagation();
           setShow((s) => !s);
         }}
-        className="text-slate-400 hover:text-[#293381] dark:hover:text-[#36B4FF] transition p-0.5 rounded-full"
-        title={text}
+        className="text-slate-400 hover:text-[#293381] dark:hover:text-[#36B4FF] transition p-1 rounded-full hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+        title="View category details"
         aria-label="Category Information"
       >
         <HelpCircle className="w-4 h-4" />
       </button>
+
       {show && (
-        <div className="absolute left-6 top-1/2 -translate-y-1/2 z-50 w-72 p-2.5 bg-slate-900 text-white text-[11px] font-normal rounded-lg shadow-xl border border-slate-700 pointer-events-none leading-relaxed">
-          {text}
+        <div
+          role="tooltip"
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-0 top-full mt-2 z-50 w-80 max-w-[calc(100vw-3rem)] p-3.5 rounded-xl shadow-2xl border border-indigo-400/30 text-left pointer-events-auto"
+          style={{
+            backgroundColor: "#181E50",
+            color: "#FFFFFF",
+          }}
+        >
+          {/* Triangular caret */}
+          <div
+            style={{ borderBottomColor: "#181E50" }}
+            className="absolute -top-2 left-2.5 w-0 h-0 border-x-6 border-x-transparent border-b-8 pointer-events-none"
+          />
+
+          <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-white/15">
+            <div className="flex items-center gap-1.5 font-bold text-[#36B4FF] text-xs uppercase tracking-wider">
+              <Info className="w-3.5 h-3.5 shrink-0 text-[#36B4FF]" />
+              <span>{title || "Category Information"}</span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShow(false);
+              }}
+              className="text-slate-300 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded hover:bg-white/10"
+              aria-label="Close tooltip"
+            >
+              ✕
+            </button>
+          </div>
+
+          <p
+            className="text-slate-100 text-[11px] leading-relaxed font-normal"
+            style={{ color: "#F1F5F9" }}
+          >
+            {text}
+          </p>
         </div>
       )}
     </div>
@@ -322,10 +376,12 @@ export default function LeavesAndOffsTab({
         {/* Category Accordion / Collapsible Groups (Shift Allocation ON TOP, all collapsed by default) */}
         <div className="space-y-4">
           {/* CATEGORY 1: Shift Allocation & Allowed Roster Access (TOP) */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs transition">
+          <div className="border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs transition relative z-30">
             <div
               onClick={() => toggleCategory("shifts")}
-              className="w-full flex items-center justify-between p-4 bg-slate-50/80 dark:bg-slate-800/60 hover:bg-slate-100/70 dark:hover:bg-slate-800 transition cursor-pointer select-none"
+              className={`w-full flex items-center justify-between p-4 bg-slate-50/80 dark:bg-slate-800/60 hover:bg-slate-100/70 dark:hover:bg-slate-800 transition cursor-pointer select-none ${
+                collapsedCategories.shifts ? "rounded-xl" : "rounded-t-xl"
+              }`}
             >
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-[#293381]/10 text-[#293381] dark:bg-[#36B4FF]/10 dark:text-[#36B4FF]">
@@ -336,7 +392,10 @@ export default function LeavesAndOffsTab({
                     <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                       Shift Allocation & Allowed Roster Access
                     </span>
-                    <CategoryTooltip text="Configures the employee's mandatory Default Shift and up to 2 approved Alternate Shifts. Reporting to unallocated shifts triggers salary deduction unless exception is authorized." />
+                    <CategoryTooltip
+                      title="Shift Allocation & Roster Policy"
+                      text="Configures the employee's mandatory Default Shift and up to 2 approved Alternate Shifts. Reporting to unallocated shifts triggers salary deduction unless a supervisor exception is authorized."
+                    />
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5">
                     Designate default reporting shift, secondary permitted rosters, exception waiver, and deduction penalty.
@@ -357,7 +416,7 @@ export default function LeavesAndOffsTab({
             </div>
 
             {!collapsedCategories.shifts && (
-              <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-4">
+              <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-b-xl space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <p className="text-xs text-slate-600 dark:text-slate-300">
                     Select the primary shift and up to 2 approved secondary shifts. Any punch outside these permitted shifts incurs an unauthorized deduction unless an exception is authorized.
@@ -467,10 +526,12 @@ export default function LeavesAndOffsTab({
           </div>
 
           {/* CATEGORY 2: Weekly Working Schedule & Rest Days */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs transition">
+          <div className="border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs transition relative z-20">
             <div
               onClick={() => toggleCategory("schedule")}
-              className="w-full flex items-center justify-between p-4 bg-slate-50/80 dark:bg-slate-800/60 hover:bg-slate-100/70 dark:hover:bg-slate-800 transition cursor-pointer select-none"
+              className={`w-full flex items-center justify-between p-4 bg-slate-50/80 dark:bg-slate-800/60 hover:bg-slate-100/70 dark:hover:bg-slate-800 transition cursor-pointer select-none ${
+                collapsedCategories.schedule ? "rounded-xl" : "rounded-t-xl"
+              }`}
             >
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400">
@@ -481,7 +542,10 @@ export default function LeavesAndOffsTab({
                     <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                       Weekly Working Schedule & Rest Days
                     </span>
-                    <CategoryTooltip text="Defines the employee's weekly working schedule (5, 6, or 7 days), week off count allowance (1, 2, or 3 days), designated week off days (with dynamic + add), and week off exception days." />
+                    <CategoryTooltip
+                      title="Weekly Schedule & Rest Days"
+                      text="Defines scheduled working days (5, 6, or 7 days), allowed week-off count (1, 2, or 3 days), designated week-off days (with dynamic + add), and week-off exception days."
+                    />
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5">
                     Configure scheduled working days per week, week-off allowances, designated rest days, and exception days.
@@ -502,7 +566,7 @@ export default function LeavesAndOffsTab({
             </div>
 
             {!collapsedCategories.schedule && (
-              <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-6">
+              <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-b-xl space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* 1. Working Days in a Week */}
                   <div className="space-y-2 p-4 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800">
@@ -648,10 +712,12 @@ export default function LeavesAndOffsTab({
           </div>
 
           {/* CATEGORY 3: Lateness & Grace Period Allowances */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs transition">
+          <div className="border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs transition relative z-10">
             <div
               onClick={() => toggleCategory("lateness")}
-              className="w-full flex items-center justify-between p-4 bg-slate-50/80 dark:bg-slate-800/60 hover:bg-slate-100/70 dark:hover:bg-slate-800 transition cursor-pointer select-none"
+              className={`w-full flex items-center justify-between p-4 bg-slate-50/80 dark:bg-slate-800/60 hover:bg-slate-100/70 dark:hover:bg-slate-800 transition cursor-pointer select-none ${
+                collapsedCategories.lateness ? "rounded-xl" : "rounded-t-xl"
+              }`}
             >
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-orange-500/10 text-orange-600 dark:bg-orange-400/10 dark:text-orange-400">
@@ -662,7 +728,10 @@ export default function LeavesAndOffsTab({
                     <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                       Lateness & Grace Period Allowances
                     </span>
-                    <CategoryTooltip text="Sets the monthly allocation of 1-hour late morning allowances (Short Leaves) and punch-in grace time windows before deductions trigger." />
+                    <CategoryTooltip
+                      title="Lateness & Grace Allowances"
+                      text="Sets the monthly allocation of 1-hour late morning allowances (Short Leaves) without pay loss, and the check-in grace window (0-60 min) before late arrival deductions apply."
+                    />
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5">
                     Configure late arrival allowances, grace windows, and short leave deduction triggers.
@@ -683,7 +752,7 @@ export default function LeavesAndOffsTab({
             </div>
 
             {!collapsedCategories.lateness && (
-              <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-b-xl grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* 5. Late Morning / Short Leave Allowed */}
                 <div className="space-y-2 p-4 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800">
                   <label className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
