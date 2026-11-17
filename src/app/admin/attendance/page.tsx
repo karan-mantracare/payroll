@@ -26,9 +26,11 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/components/AuthGate";
 import AttendanceSpreadsheetGrid from "@/components/AttendanceSpreadsheetGrid";
+import MonthlyAttendancePayImpact from "@/components/MonthlyAttendancePayImpact";
 
 export default function AdminAttendancePage() {
   const { user } = useAuth();
+  const [activeView, setActiveView] = useState<"DAILY" | "MONTHLY_PAY">("DAILY");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [statusFilter, setStatusFilter] = useState("");
   const [records, setRecords] = useState<any[]>([]);
@@ -421,7 +423,43 @@ MC-HRM-002,2026-11-01,08:35,17:35,PRESENT,On time morning`;
         </div>
       </div>
 
-      {/* KPI Stats Cards */}
+      {/* View Switcher: Daily Roster vs Monthly Pay Impact */}
+      <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveView("DAILY")}
+          className={`pb-2 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+            activeView === "DAILY"
+              ? "border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF]"
+              : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+          }`}
+        >
+          <CalendarCheck2 className="w-4 h-4" />
+          <span>Daily Roster Log</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveView("MONTHLY_PAY")}
+          className={`pb-2 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+            activeView === "MONTHLY_PAY"
+              ? "border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF]"
+              : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+          }`}
+        >
+          <Calculator className="w-4 h-4" />
+          <span>Monthly Attendance & Day's Pay Impact</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold font-mono">
+            Payroll Ledger
+          </span>
+        </button>
+      </div>
+
+      {activeView === "MONTHLY_PAY" ? (
+        <MonthlyAttendancePayImpact />
+      ) : (
+        <>
+          {/* KPI Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm">
           <span className="text-xs font-semibold text-slate-400 block mb-1">Total Scoped Records</span>
@@ -565,6 +603,8 @@ MC-HRM-002,2026-11-01,08:35,17:35,PRESENT,On time morning`;
             </table>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* Regularization Requests Modal */}

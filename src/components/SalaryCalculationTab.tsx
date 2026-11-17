@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Calculator,
   Clock,
@@ -13,19 +13,26 @@ import {
   ArrowRight,
   Info,
   DollarSign,
+  CalendarDays,
+  Sliders,
 } from "lucide-react";
+import MonthlyAttendancePayImpact from "./MonthlyAttendancePayImpact";
 
 interface SalaryCalculationTabProps {
   employeeId: string;
   employeeCode?: string;
+  employeeName?: string;
   basicSalary?: number;
 }
 
 export default function SalaryCalculationTab({
   employeeId,
   employeeCode,
+  employeeName,
   basicSalary = 50000,
 }: SalaryCalculationTabProps) {
+  const [activeSubTab, setActiveSubTab] = useState<"LIVE_LEDGER" | "SIMULATOR">("LIVE_LEDGER");
+
   // Simulator State
   const [simPunchIn, setSimPunchIn] = useState("09:30");
   const [simPunchOut, setSimPunchOut] = useState("17:30");
@@ -37,6 +44,24 @@ export default function SalaryCalculationTab({
   const [monthlySalary, setMonthlySalary] = useState(basicSalary || 50000);
   const [standardShiftHours, setStandardShiftHours] = useState(9);
   const [workingDaysInMonth, setWorkingDaysInMonth] = useState(22);
+
+  // Attempt to load employee's actual basic salary from sensitive financials
+  useEffect(() => {
+    async function loadSalary() {
+      try {
+        const res = await fetch(`/payroll/api/employees/${employeeId}/sensitive`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.details?.basicSalary && typeof json.details.basicSalary === "number") {
+            setMonthlySalary(json.details.basicSalary);
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    loadSalary();
+  }, [employeeId]);
 
   // Compute Daily & Hourly Rates
   const dailyRate = Math.round(monthlySalary / workingDaysInMonth);
@@ -160,8 +185,52 @@ export default function SalaryCalculationTab({
 
   return (
     <div className="space-y-6">
-      {/* Header Overview Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+      {/* Sub-Tab Navigation */}
+      <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab("LIVE_LEDGER")}
+          className={`pb-2 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+            activeSubTab === "LIVE_LEDGER"
+              ? "border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF]"
+              : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+          }`}
+        >
+          <CalendarDays className="w-4 h-4" />
+          <span>Monthly Attendance & Day's Pay Impact</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold font-mono">
+            Live Records
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab("SIMULATOR")}
+          className={`pb-2 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+            activeSubTab === "SIMULATOR"
+              ? "border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF]"
+              : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          <span>Calculation Rules & Interactive Sandbox</span>
+        </button>
+      </div>
+
+      {activeSubTab === "LIVE_LEDGER" && (
+        <MonthlyAttendancePayImpact
+          employeeId={employeeId}
+          employeeCode={employeeCode}
+          employeeName={employeeName}
+          initialSalary={monthlySalary}
+          initialWorkingDays={workingDaysInMonth}
+        />
+      )}
+
+      {activeSubTab === "SIMULATOR" && (
+        <div className="space-y-6">
+          {/* Header Overview Card */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800 gap-3">
           <div>
             <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -492,6 +561,8 @@ export default function SalaryCalculationTab({
           </div>
         </div>
       </div>
+        </div>
+      )}
     </div>
   );
 }

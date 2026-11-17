@@ -1271,6 +1271,7 @@ export default function EmployeeDetailPage({
         <SalaryCalculationTab
           employeeId={employee.id}
           employeeCode={employee.employeeCode}
+          employeeName={employee.user?.name || employee.employeeCode}
         />
       )}
     </div>

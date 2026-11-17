@@ -1,0 +1,357 @@
+/**
+ * Utility functions for computing Day Pay Impact and Monthly Salary Impact
+ * based on biometric punch logs, shift policies, and attendance deduction rules.
+ */
+
+export interface AttendanceRecordLike {
+  id?: string;
+  employeeId?: string;
+  employeeCode?: string;
+  employeeName?: string;
+  date: string;
+  shiftName?: string;
+  shiftStartTime?: string;
+  shiftEndTime?: string;
+  checkInTimeUtc?: string | null;
+  checkOutTimeUtc?: string | null;
+  totalWorkMinutes?: number;
+  status?: string;
+  lateMinutes?: number;
+  earlyExitMinutes?: number;
+  source?: string;
+  notes?: string | null;
+}
+
+export type PayImpactType =
+  | "FULL_PAY"
+  | "HALF_DAY"
+  | "FULL_DAY_LOP"
+  | "LATE_PENALTY"
+  | "LATE_COVERED"
+  | "ON_LEAVE"
+  | "WEEK_OFF";
+
+export interface DayPayImpact {
+  recordId?: string;
+  employeeId?: string;
+  employeeCode?: string;
+  employeeName?: string;
+  date: string;
+  dayOfWeek: string;
+  shiftName: string;
+  checkIn: string;
+  checkOut: string;
+  durationMinutes: number;
+  durationFormatted: string;
+  status: string;
+  notes: string;
+  source: string;
+
+  // Pay Impact
+  impactType: PayImpactType;
+  badgeLabel: string;
+  badgeColor: "emerald" | "amber" | "rose" | "orange" | "blue" | "slate";
+  payPercentage: number; // e.g. 100, 50, 0
+  deductionHours: number;
+  deductionAmount: number;
+  netDayPay: number;
+  reason: string;
+}
+
+export interface MonthlyPaySummary {
+  month: string;
+  monthlySalary: number;
+  workingDaysInMonth: number;
+  standardShiftHours: number;
+  dailyRate: number;
+  hourlyRate: number;
+
+  totalDaysTracked: number;
+  fullPayDays: number;
+  halfDayCount: number;
+  fullDayLopCount: number;
+  latePenaltyCount: number;
+  shortLeaveCoveredCount: number;
+
+  totalDeductions: number;
+  totalNetPay: number;
+  effectivePayableDays: number;
+}
+
+const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/**
+ * Calculates the exact salary impact for a single day's attendance record.
+ */
+export function calculateDayPayImpact(
+  record: AttendanceRecordLike,
+  options: {
+    monthlySalary?: number;
+    workingDaysInMonth?: number;
+    standardShiftHours?: number;
+  } = {}
+): DayPayImpact {
+  const monthlySalary = options.monthlySalary ?? 50000;
+  const workingDaysInMonth = options.workingDaysInMonth ?? 22;
+  const standardShiftHours = options.standardShiftHours ?? 9;
+
+  const dailyRate = Math.round(monthlySalary / workingDaysInMonth);
+  const hourlyRate = Math.round(dailyRate / standardShiftHours);
+
+  const recordDate = new Date(record.date);
+  const dayOfWeek = isNaN(recordDate.getTime())
+    ? "--"
+    : DAYS_OF_WEEK[recordDate.getUTCDay()];
+
+  const notes = record.notes || "";
+  const status = (record.status || "PRESENT").toUpperCase();
+  const totalMinutes = record.totalWorkMinutes ?? 0;
+  const durationHours = Math.floor(totalMinutes / 60);
+  const durationMins = totalMinutes % 60;
+  const durationFormatted =
+    totalMinutes > 0 ? `${durationHours}h ${durationMins}m` : "--";
+
+  const hasCheckIn = Boolean(record.checkInTimeUtc);
+  const hasCheckOut = Boolean(record.checkOutTimeUtc);
+
+  // Format check-in / check-out times
+  const formatTime = (iso?: string | null) => {
+    if (!iso) return "--";
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
+      return d.toLocaleTimeString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    } catch {
+      return iso;
+    }
+  };
+
+  const checkIn = formatTime(record.checkInTimeUtc);
+  const checkOut = formatTime(record.checkOutTimeUtc);
+
+  let impactType: PayImpactType = "FULL_PAY";
+  let badgeLabel = "Full Pay (100%)";
+  let badgeColor: "emerald" | "amber" | "rose" | "orange" | "blue" | "slate" =
+    "emerald";
+  let payPercentage = 100;
+  let deductionHours = 0;
+  let deductionAmount = 0;
+  let netDayPay = dailyRate;
+  let reason = "Full scheduled shift completed - 100% pay credited.";
+
+  // Rule 1: Unauthorized Shift Deduction
+  if (notes.toLowerCase().includes("unauthorized shift")) {
+    if (notes.toLowerCase().includes("half day") || status === "HALF_DAY") {
+      impactType = "HALF_DAY";
+      badgeLabel = "Half Day LOP (-50%)";
+      badgeColor = "amber";
+      payPercentage = 50;
+      deductionHours = standardShiftHours / 2;
+      deductionAmount = Math.round(dailyRate * 0.5);
+      netDayPay = dailyRate - deductionAmount;
+      reason = "Reported to unauthorized shift without exception - Half day deduction applied.";
+    } else {
+      impactType = "FULL_DAY_LOP";
+      badgeLabel = "Full Day LOP (-100%)";
+      badgeColor = "rose";
+      payPercentage = 0;
+      deductionHours = standardShiftHours;
+      deductionAmount = dailyRate;
+      netDayPay = 0;
+      reason = "Reported to unauthorized shift without exception - Full day loss of pay applied.";
+    }
+  }
+  // Rule 2: Single Punch Missing (Entry Missing) -> Half Day
+  else if (
+    (!hasCheckIn || !hasCheckOut) &&
+    (status === "HALF_DAY" || notes.toLowerCase().includes("missing") || notes.toLowerCase().includes("single punch"))
+  ) {
+    impactType = "HALF_DAY";
+    badgeLabel = "Half Day LOP (-50%)";
+    badgeColor = "amber";
+    payPercentage = 50;
+    deductionHours = standardShiftHours / 2;
+    deductionAmount = Math.round(dailyRate * 0.5);
+    netDayPay = dailyRate - deductionAmount;
+    reason = "Single punch recorded (Entry Missing: Check-In or Check-Out missing) - Half day deducted.";
+  }
+  // Rule 3: Worked < 4 hrs 30 mins (270 min) -> Off / Full Day Loss of Pay
+  else if (
+    (hasCheckIn && hasCheckOut && totalMinutes > 0 && totalMinutes < 270) ||
+    status === "OFF" ||
+    status === "ABSENT" ||
+    notes.toLowerCase().includes("under 4.5h") ||
+    notes.toLowerCase().includes("counted as off")
+  ) {
+    impactType = "FULL_DAY_LOP";
+    badgeLabel = "Full Day LOP (-100%)";
+    badgeColor = "rose";
+    payPercentage = 0;
+    deductionHours = standardShiftHours;
+    deductionAmount = dailyRate;
+    netDayPay = 0;
+    reason =
+      totalMinutes > 0
+        ? `Total worked duration ${durationFormatted} is below 4h 30m minimum threshold - Counted as Off with full day pay deduction.`
+        : "Absent from work schedule - Full day loss of pay.";
+  }
+  // Rule 4: Half Day (worked >= 4h 30m but short of full shift)
+  else if (status === "HALF_DAY") {
+    impactType = "HALF_DAY";
+    badgeLabel = "Half Day LOP (-50%)";
+    badgeColor = "amber";
+    payPercentage = 50;
+    deductionHours = standardShiftHours / 2;
+    deductionAmount = Math.round(dailyRate * 0.5);
+    netDayPay = dailyRate - deductionAmount;
+    reason = `Worked ${durationFormatted}. Met 4h 30m threshold but incomplete full shift - Half day deducted.`;
+  }
+  // Rule 5: Late Reporting & Short Leaves
+  else if (status === "LATE") {
+    const isExhausted =
+      notes.toLowerCase().includes("deducted") ||
+      notes.toLowerCase().includes("exhausted") ||
+      notes.toLowerCase().includes("1 hr");
+
+    if (isExhausted) {
+      impactType = "LATE_PENALTY";
+      badgeLabel = "Late (-1 Hr Pay)";
+      badgeColor = "orange";
+      payPercentage = Math.round(((standardShiftHours - 1) / standardShiftHours) * 100);
+      deductionHours = 1;
+      deductionAmount = hourlyRate;
+      netDayPay = dailyRate - deductionAmount;
+      reason = `Late arrival beyond grace time with exhausted monthly short leaves - 1 hour pay deducted (₹${hourlyRate.toLocaleString("en-IN")}).`;
+    } else {
+      impactType = "LATE_COVERED";
+      badgeLabel = "Short Leave (100% Pay)";
+      badgeColor = "emerald";
+      payPercentage = 100;
+      deductionHours = 0;
+      deductionAmount = 0;
+      netDayPay = dailyRate;
+      reason = "Late morning reporting covered by 1-hour Short Leave allowance - No pay deducted.";
+    }
+  }
+  // Rule 6: Approved Leave
+  else if (status === "ON_LEAVE") {
+    impactType = "ON_LEAVE";
+    badgeLabel = "Paid Leave (100%)";
+    badgeColor = "blue";
+    payPercentage = 100;
+    deductionHours = 0;
+    deductionAmount = 0;
+    netDayPay = dailyRate;
+    reason = "Approved company leave - 100% pay credited.";
+  }
+
+  return {
+    recordId: record.id,
+    employeeId: record.employeeId,
+    employeeCode: record.employeeCode,
+    employeeName: record.employeeName,
+    date: record.date,
+    dayOfWeek,
+    shiftName: record.shiftName || "General Shift",
+    checkIn,
+    checkOut,
+    durationMinutes: totalMinutes,
+    durationFormatted,
+    status,
+    notes,
+    source: record.source || "SYSTEM",
+
+    impactType,
+    badgeLabel,
+    badgeColor,
+    payPercentage,
+    deductionHours,
+    deductionAmount,
+    netDayPay,
+    reason,
+  };
+}
+
+/**
+ * Computes monthly summary metrics from a collection of day impact calculations.
+ */
+export function calculateMonthlyPaySummary(
+  dayImpacts: DayPayImpact[],
+  options: {
+    month: string;
+    monthlySalary?: number;
+    workingDaysInMonth?: number;
+    standardShiftHours?: number;
+  }
+): MonthlyPaySummary {
+  const monthlySalary = options.monthlySalary ?? 50000;
+  const workingDaysInMonth = options.workingDaysInMonth ?? 22;
+  const standardShiftHours = options.standardShiftHours ?? 9;
+
+  const dailyRate = Math.round(monthlySalary / workingDaysInMonth);
+  const hourlyRate = Math.round(dailyRate / standardShiftHours);
+
+  let fullPayDays = 0;
+  let halfDayCount = 0;
+  let fullDayLopCount = 0;
+  let latePenaltyCount = 0;
+  let shortLeaveCoveredCount = 0;
+  let totalDeductions = 0;
+  let totalEarnedPay = 0;
+
+  for (const item of dayImpacts) {
+    totalDeductions += item.deductionAmount;
+    totalEarnedPay += item.netDayPay;
+
+    switch (item.impactType) {
+      case "FULL_PAY":
+      case "ON_LEAVE":
+        fullPayDays += 1;
+        break;
+      case "HALF_DAY":
+        halfDayCount += 1;
+        break;
+      case "FULL_DAY_LOP":
+        fullDayLopCount += 1;
+        break;
+      case "LATE_PENALTY":
+        latePenaltyCount += 1;
+        break;
+      case "LATE_COVERED":
+        shortLeaveCoveredCount += 1;
+        fullPayDays += 1;
+        break;
+    }
+  }
+
+  // Effective payable days
+  const effectivePayableDays =
+    fullPayDays +
+    halfDayCount * 0.5 -
+    (latePenaltyCount * 1) / standardShiftHours;
+
+  return {
+    month: options.month,
+    monthlySalary,
+    workingDaysInMonth,
+    standardShiftHours,
+    dailyRate,
+    hourlyRate,
+
+    totalDaysTracked: dayImpacts.length,
+    fullPayDays,
+    halfDayCount,
+    fullDayLopCount,
+    latePenaltyCount,
+    shortLeaveCoveredCount,
+
+    totalDeductions,
+    totalNetPay: totalEarnedPay,
+    effectivePayableDays: Math.max(0, Number(effectivePayableDays.toFixed(2))),
+  };
+}
