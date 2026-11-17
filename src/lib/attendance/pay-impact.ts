@@ -31,6 +31,15 @@ export type PayImpactType =
   | "ON_LEAVE"
   | "WEEK_OFF";
 
+export type SetOffType =
+  | "Grace Period"
+  | "Short Leave"
+  | "Leave"
+  | "Half Day"
+  | "Shift Exception"
+  | "Comp Off"
+  | "None";
+
 export interface DayPayImpact {
   recordId?: string;
   employeeId?: string;
@@ -42,6 +51,7 @@ export interface DayPayImpact {
   scheduledShiftTiming: string;
   effectiveShiftTiming: string;
   hasGraceApplied: boolean;
+  setOff: SetOffType;
   checkIn: string;
   checkOut: string;
   durationMinutes: number;
@@ -328,6 +338,42 @@ export function calculateDayPayImpact(
     reason = "Approved company leave - 100% pay credited.";
   }
 
+  // Determine Set-off Option Applied
+  let setOff: SetOffType = "None";
+  if (hasGraceApplied) {
+    setOff = "Grace Period";
+  } else if (
+    isLateMorningCovered ||
+    notes.toLowerCase().includes("short leave") ||
+    notes.toLowerCase().includes("late morning") ||
+    notes.toLowerCase().includes("late arrival")
+  ) {
+    setOff = "Short Leave";
+  } else if (
+    status === "ON_LEAVE" ||
+    status === "LEAVE" ||
+    impactType === "ON_LEAVE" ||
+    notes.toLowerCase().includes("leave")
+  ) {
+    setOff = "Leave";
+  } else if (
+    notes.toLowerCase().includes("shift exception") ||
+    notes.toLowerCase().includes("exception authorized")
+  ) {
+    setOff = "Shift Exception";
+  } else if (
+    notes.toLowerCase().includes("comp off") ||
+    notes.toLowerCase().includes("compensatory")
+  ) {
+    setOff = "Comp Off";
+  } else if (
+    status === "HALF_DAY" ||
+    impactType === "HALF_DAY" ||
+    notes.toLowerCase().includes("half day")
+  ) {
+    setOff = "Half Day";
+  }
+
   return {
     recordId: record.id,
     employeeId: record.employeeId,
@@ -339,6 +385,7 @@ export function calculateDayPayImpact(
     scheduledShiftTiming,
     effectiveShiftTiming,
     hasGraceApplied,
+    setOff,
     checkIn,
     checkOut,
     durationMinutes: totalMinutes,

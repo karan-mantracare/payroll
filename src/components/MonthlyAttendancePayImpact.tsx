@@ -22,11 +22,13 @@ import {
   ArrowRight,
   Info,
   Building,
+  X,
 } from "lucide-react";
 import {
   AttendanceRecordLike,
   DayPayImpact,
   MonthlyPaySummary,
+  SetOffType,
   calculateDayPayImpact,
   calculateMonthlyPaySummary,
 } from "@/lib/attendance/pay-impact";
@@ -62,6 +64,20 @@ export default function MonthlyAttendancePayImpact({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // User-requested Filter States:
+  // 1. Emp Name
+  // 2. Date - Exact, Less Than, Greater Than, Between
+  // 3. Set Off - Exact (Drop down)
+  // 4. Assigned Shift - Exact (Drop down)
+  // 5. Deduction Rule & Notes - Contains
+  const [filterEmpName, setFilterEmpName] = useState<string>("");
+  const [filterDateMode, setFilterDateMode] = useState<"ALL" | "EXACT" | "LESS_THAN" | "GREATER_THAN" | "BETWEEN">("ALL");
+  const [filterDate1, setFilterDate1] = useState<string>("");
+  const [filterDate2, setFilterDate2] = useState<string>("");
+  const [filterSetOff, setFilterSetOff] = useState<string>("ALL");
+  const [filterShift, setFilterShift] = useState<string>("ALL");
+  const [filterNotesQuery, setFilterNotesQuery] = useState<string>("");
 
   // Salary Parameters
   const [monthlySalary, setMonthlySalary] = useState<number>(initialSalary || 50000);
@@ -145,31 +161,131 @@ export default function MonthlyAttendancePayImpact({
     );
   }, [records, monthlySalary, workingDaysInMonth, standardShiftHours]);
 
+  // Distinct available shifts for Assigned Shift dropdown
+  const availableShifts = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of calculatedImpacts) {
+      if (r.shiftName) s.add(r.shiftName);
+    }
+    return Array.from(s).sort();
+  }, [calculatedImpacts]);
+
   // Filtered Impacts
   const filteredImpacts = useMemo<DayPayImpact[]>(() => {
     return calculatedImpacts.filter((item) => {
+      // 1. Emp Name Filter (matches employee name or employee code)
+      if (filterEmpName.trim()) {
+        const q = filterEmpName.toLowerCase();
+        const matchesName = item.employeeName?.toLowerCase().includes(q);
+        const matchesCode = item.employeeCode?.toLowerCase().includes(q);
+        if (!matchesName && !matchesCode) return false;
+      }
+
+      // 2. Date Filter (Exact, Less Than, Greater Than, Between)
+      if (filterDateMode === "EXACT" && filterDate1) {
+        if (item.date !== filterDate1) return false;
+      } else if (filterDateMode === "LESS_THAN" && filterDate1) {
+        if (item.date >= filterDate1) return false;
+      } else if (filterDateMode === "GREATER_THAN" && filterDate1) {
+        if (item.date <= filterDate1) return false;
+      } else if (filterDateMode === "BETWEEN") {
+        if (filterDate1 && item.date < filterDate1) return false;
+        if (filterDate2 && item.date > filterDate2) return false;
+      }
+
+      // 3. Set Off Filter (Exact Drop down)
+      if (filterSetOff !== "ALL") {
+        if (item.setOff !== filterSetOff) return false;
+      }
+
+      // 4. Assigned Shift Filter (Exact Drop down)
+      if (filterShift !== "ALL") {
+        if (item.shiftName !== filterShift) return false;
+      }
+
+      // 5. Deduction Rule & Notes Filter (Contains)
+      if (filterNotesQuery.trim()) {
+        const nq = filterNotesQuery.toLowerCase();
+        const matchesReason = item.reason?.toLowerCase().includes(nq);
+        const matchesNotes = item.notes?.toLowerCase().includes(nq);
+        if (!matchesReason && !matchesNotes) return false;
+      }
+
       // Status Filter
       if (statusFilter !== "ALL" && item.status !== statusFilter) return false;
 
-      // Impact Filter
+      // Pay Impact Filter
       if (impactFilter === "DEDUCTIONS" && item.deductionAmount === 0) return false;
       if (impactFilter === "FULL_PAY" && item.impactType !== "FULL_PAY" && item.impactType !== "LATE_COVERED") return false;
       if (impactFilter === "HALF_DAY" && item.impactType !== "HALF_DAY") return false;
       if (impactFilter === "FULL_DAY_LOP" && item.impactType !== "FULL_DAY_LOP") return false;
 
-      // Search Filter
+      // Search Query (general search bar)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesName = item.employeeName?.toLowerCase().includes(q);
         const matchesCode = item.employeeCode?.toLowerCase().includes(q);
         const matchesDate = item.date.includes(q);
         const matchesShift = item.shiftName.toLowerCase().includes(q);
-        if (!matchesName && !matchesCode && !matchesDate && !matchesShift) return false;
+        const matchesNotes = item.notes?.toLowerCase().includes(q);
+        const matchesReason = item.reason?.toLowerCase().includes(q);
+        const matchesSetOff = item.setOff.toLowerCase().includes(q);
+        if (!matchesName && !matchesCode && !matchesDate && !matchesShift && !matchesNotes && !matchesReason && !matchesSetOff) return false;
       }
 
       return true;
     });
-  }, [calculatedImpacts, statusFilter, impactFilter, searchQuery]);
+  }, [
+    calculatedImpacts,
+    filterEmpName,
+    filterDateMode,
+    filterDate1,
+    filterDate2,
+    filterSetOff,
+    filterShift,
+    filterNotesQuery,
+    statusFilter,
+    impactFilter,
+    searchQuery,
+  ]);
+
+  // Active filter count
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filterEmpName.trim()) count++;
+    if (filterDateMode !== "ALL" && (filterDate1 || filterDate2)) count++;
+    if (filterSetOff !== "ALL") count++;
+    if (filterShift !== "ALL") count++;
+    if (filterNotesQuery.trim()) count++;
+    if (statusFilter !== "ALL") count++;
+    if (impactFilter !== "ALL") count++;
+    if (searchQuery.trim()) count++;
+    return count;
+  }, [
+    filterEmpName,
+    filterDateMode,
+    filterDate1,
+    filterDate2,
+    filterSetOff,
+    filterShift,
+    filterNotesQuery,
+    statusFilter,
+    impactFilter,
+    searchQuery,
+  ]);
+
+  const resetAllFilters = () => {
+    setFilterEmpName("");
+    setFilterDateMode("ALL");
+    setFilterDate1("");
+    setFilterDate2("");
+    setFilterSetOff("ALL");
+    setFilterShift("ALL");
+    setFilterNotesQuery("");
+    setStatusFilter("ALL");
+    setImpactFilter("ALL");
+    setSearchQuery("");
+  };
 
   // Summary Metrics
   const summary = useMemo<MonthlyPaySummary>(() => {
@@ -196,24 +312,25 @@ export default function MonthlyAttendancePayImpact({
 
   // Export to CSV
   const handleExportCsv = () => {
-    if (calculatedImpacts.length === 0) return;
+    if (filteredImpacts.length === 0) return;
     const headers = [
       "Date",
       "Day",
       "Employee Code",
       "Employee Name",
-      "Shift",
+      "Assigned Shift",
       "Check-In",
       "Check-Out",
       "Duration",
       "Status",
-      "Pay Impact",
+      "Set-off",
+      "Day's Pay Impact",
       "Deduction Amount (INR)",
       "Net Day Pay (INR)",
       "Calculation Reason",
     ];
 
-    const rows = calculatedImpacts.map((item) => [
+    const rows = filteredImpacts.map((item) => [
       item.date,
       item.dayOfWeek,
       `"${item.employeeCode || ""}"`,
@@ -223,6 +340,7 @@ export default function MonthlyAttendancePayImpact({
       item.checkOut,
       item.durationFormatted,
       item.status,
+      `"${item.setOff}"`,
       `"${item.badgeLabel}"`,
       item.deductionAmount,
       item.netDayPay,
@@ -296,55 +414,28 @@ export default function MonthlyAttendancePayImpact({
           </div>
         </div>
 
-        {/* Action Row & Filters */}
+        {/* Top Action Row: Rates & Export */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Employee Filter (shown only if not locked to single employee) */}
-            {!employeeId && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-500 font-medium">Employee:</span>
-                <select
-                  value={selectedEmployeeFilter}
-                  onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
-                  className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
-                >
-                  <option value="">All Employees ({employeesList.length})</option>
-                  {employeesList.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.code} - {emp.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-[#293381] dark:text-[#36B4FF]" />
+              Filter Records
+            </span>
+            {activeFiltersCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#293381] text-white dark:bg-[#36B4FF] dark:text-slate-950">
+                {activeFiltersCount} active
+              </span>
             )}
-
-            {/* Impact Filter */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500 font-medium">Pay Impact:</span>
-              <select
-                value={impactFilter}
-                onChange={(e) => setImpactFilter(e.target.value)}
-                className="text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
+            {activeFiltersCount > 0 && (
+              <button
+                type="button"
+                onClick={resetAllFilters}
+                className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 flex items-center gap-1 hover:underline ml-2"
               >
-                <option value="ALL">All Impact Types</option>
-                <option value="DEDUCTIONS">Deductions Only (Any Pay Loss)</option>
-                <option value="FULL_PAY">Full Pay Only (100%)</option>
-                <option value="HALF_DAY">Half Day Penalties (-50%)</option>
-                <option value="FULL_DAY_LOP">Full Day LOP (-100%)</option>
-              </select>
-            </div>
-
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search date, code, notes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="text-xs pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#293381] w-48"
-              />
-            </div>
+                <X className="w-3 h-3" />
+                Reset Filters
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -377,12 +468,151 @@ export default function MonthlyAttendancePayImpact({
             <button
               type="button"
               onClick={handleExportCsv}
-              disabled={calculatedImpacts.length === 0}
+              disabled={filteredImpacts.length === 0}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 transition flex items-center gap-1.5 disabled:opacity-50"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Export CSV</span>
             </button>
+          </div>
+        </div>
+
+        {/* User-Requested Filters Grid */}
+        <div className="p-3.5 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-slate-200/80 dark:border-slate-700/60 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+          {/* Filter 1: Emp Name */}
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+              Emp Name
+            </label>
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Name or code..."
+                value={filterEmpName}
+                onChange={(e) => setFilterEmpName(e.target.value)}
+                className="w-full text-xs pl-8 pr-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#293381]"
+              />
+            </div>
+          </div>
+
+          {/* Filter 2: Date - Exact, Less Than, Greater Than, Between */}
+          <div className={filterDateMode === "BETWEEN" ? "sm:col-span-2 lg:col-span-2" : ""}>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+              Date ({filterDateMode === "ALL" ? "All" : filterDateMode === "EXACT" ? "Exact" : filterDateMode === "LESS_THAN" ? "<" : filterDateMode === "GREATER_THAN" ? ">" : "Range"})
+            </label>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={filterDateMode}
+                onChange={(e) => setFilterDateMode(e.target.value as any)}
+                className="text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381] shrink-0"
+              >
+                <option value="ALL">All Dates</option>
+                <option value="EXACT">Exact (=)</option>
+                <option value="LESS_THAN">Less Than (&lt;)</option>
+                <option value="GREATER_THAN">Greater Than (&gt;)</option>
+                <option value="BETWEEN">Between</option>
+              </select>
+
+              {filterDateMode === "EXACT" || filterDateMode === "LESS_THAN" || filterDateMode === "GREATER_THAN" ? (
+                <input
+                  type="date"
+                  value={filterDate1}
+                  onChange={(e) => setFilterDate1(e.target.value)}
+                  className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
+                />
+              ) : filterDateMode === "BETWEEN" ? (
+                <div className="flex items-center gap-1 flex-1">
+                  <input
+                    type="date"
+                    value={filterDate1}
+                    onChange={(e) => setFilterDate1(e.target.value)}
+                    className="w-1/2 text-xs px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
+                    placeholder="From"
+                  />
+                  <span className="text-[10px] text-slate-400">to</span>
+                  <input
+                    type="date"
+                    value={filterDate2}
+                    onChange={(e) => setFilterDate2(e.target.value)}
+                    className="w-1/2 text-xs px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
+                    placeholder="To"
+                  />
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Filter 3: Set Off - Exact (Drop down) */}
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+              Set Off (Exact)
+            </label>
+            <select
+              value={filterSetOff}
+              onChange={(e) => setFilterSetOff(e.target.value)}
+              className="w-full text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
+            >
+              <option value="ALL">All Set-offs</option>
+              <option value="Grace Period">Grace Period</option>
+              <option value="Short Leave">Short Leave</option>
+              <option value="Leave">Leave</option>
+              <option value="Half Day">Half Day</option>
+              <option value="Shift Exception">Shift Exception</option>
+              <option value="Comp Off">Comp Off</option>
+              <option value="None">None (—)</option>
+            </select>
+          </div>
+
+          {/* Filter 4: Assigned Shift - Exact (Drop down) */}
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+              Assigned Shift
+            </label>
+            <select
+              value={filterShift}
+              onChange={(e) => setFilterShift(e.target.value)}
+              className="w-full text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
+            >
+              <option value="ALL">All Shifts ({availableShifts.length})</option>
+              {availableShifts.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filter 5: Deduction Rule & Notes - Contains */}
+          <div className={filterDateMode === "BETWEEN" ? "lg:col-span-2" : ""}>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+              Deduction Rule & Notes (Contains)
+            </label>
+            <input
+              type="text"
+              placeholder="Contains in rule or notes..."
+              value={filterNotesQuery}
+              onChange={(e) => setFilterNotesQuery(e.target.value)}
+              className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#293381]"
+            />
+          </div>
+
+          {/* Additional Filter: Pay Impact */}
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+              Pay Impact
+            </label>
+            <select
+              value={impactFilter}
+              onChange={(e) => setImpactFilter(e.target.value)}
+              className="w-full text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381]"
+            >
+              <option value="ALL">All Impacts</option>
+              <option value="DEDUCTIONS">Deductions Only</option>
+              <option value="FULL_PAY">Full Pay (100%)</option>
+              <option value="HALF_DAY">Half Day (-50%)</option>
+              <option value="FULL_DAY_LOP">Full Day LOP (-100%)</option>
+            </select>
           </div>
         </div>
 
@@ -599,6 +829,7 @@ export default function MonthlyAttendancePayImpact({
                   <th className="px-4 py-3">Check-Out</th>
                   <th className="px-4 py-3">Duration</th>
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Set-off</th>
                   <th className="px-4 py-3">Day's Pay Impact</th>
                   <th className="px-4 py-3 text-right">Net Day Pay</th>
                   <th className="px-4 py-3">Deduction Rule & Notes</th>
@@ -697,6 +928,31 @@ export default function MonthlyAttendancePayImpact({
                         >
                           {item.status}
                         </span>
+                      </td>
+
+                      {/* Set-off */}
+                      <td className="px-4 py-3">
+                        {item.setOff !== "None" ? (
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold whitespace-nowrap border shadow-2xs inline-block ${
+                              item.setOff === "Grace Period"
+                                ? "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800"
+                                : item.setOff === "Short Leave"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                : item.setOff === "Leave"
+                                ? "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800"
+                                : item.setOff === "Half Day"
+                                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                                : item.setOff === "Shift Exception"
+                                ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800"
+                                : "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/60 dark:text-teal-300 dark:border-teal-800"
+                            }`}
+                          >
+                            {item.setOff}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-mono text-[11px]">—</span>
+                        )}
                       </td>
 
                       {/* Day's Pay Impact Badge */}
