@@ -18,6 +18,9 @@ import {
   Sliders,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Calendar,
   ShieldAlert,
   ArrowRight,
   Info,
@@ -70,6 +73,10 @@ export default function MonthlyAttendancePayImpact({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Pagination State (options: 10, 20, 50, 100, 250, 500)
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Filter Popover & Conditions Modal State (Matching User's Reference Portal)
   const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
@@ -426,17 +433,56 @@ export default function MonthlyAttendancePayImpact({
     });
   }, [calculatedImpacts, selectedMonth, monthlySalary, workingDaysInMonth, standardShiftHours]);
 
-  // Navigation handlers for prev/next month
+  // Reset current page when filters or month change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    selectedMonth,
+    pageSize,
+    filterEmpId,
+    filterEmpName,
+    filterDateMode,
+    filterDate1,
+    filterDate2,
+    filterSetOff,
+    filterShift,
+    filterNotesQuery,
+    statusFilter,
+    impactFilter,
+    searchQuery,
+    savedPreset,
+  ]);
+
+  // Pagination slicing
+  const totalPages = Math.max(1, Math.ceil(filteredImpacts.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, filteredImpacts.length);
+  const paginatedImpacts = useMemo(() => {
+    return filteredImpacts.slice(startIndex, endIndex);
+  }, [filteredImpacts, startIndex, endIndex]);
+
+  // Navigation handlers for prev/next month (pure calendar arithmetic, immune to timezone/UTC shift bugs)
   const handlePrevMonth = () => {
     const [year, month] = selectedMonth.split("-").map(Number);
-    const prevDate = new Date(year, month - 2, 1);
-    setSelectedMonth(prevDate.toISOString().slice(0, 7));
+    let newYear = year;
+    let newMonth = month - 1;
+    if (newMonth < 1) {
+      newMonth = 12;
+      newYear -= 1;
+    }
+    setSelectedMonth(`${newYear}-${String(newMonth).padStart(2, "0")}`);
   };
 
   const handleNextMonth = () => {
     const [year, month] = selectedMonth.split("-").map(Number);
-    const nextDate = new Date(year, month, 1);
-    setSelectedMonth(nextDate.toISOString().slice(0, 7));
+    let newYear = year;
+    let newMonth = month + 1;
+    if (newMonth > 12) {
+      newMonth = 1;
+      newYear += 1;
+    }
+    setSelectedMonth(`${newYear}-${String(newMonth).padStart(2, "0")}`);
   };
 
   // Export to CSV
@@ -512,7 +558,7 @@ export default function MonthlyAttendancePayImpact({
           </div>
 
           {/* Month Selector with Prev/Next buttons */}
-          <div className="flex items-center gap-2 self-start sm:self-auto bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
+          <div className="flex items-center gap-1.5 self-start sm:self-auto bg-slate-50 dark:bg-slate-800/60 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
             <button
               type="button"
               onClick={handlePrevMonth}
@@ -521,16 +567,18 @@ export default function MonthlyAttendancePayImpact({
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2 px-2">
+            <div className="relative flex items-center gap-2 px-3 py-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 transition cursor-pointer shadow-2xs group">
+              <Calendar className="w-3.5 h-3.5 text-[#293381] dark:text-[#36B4FF] shrink-0" />
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap select-none">
+                {monthLabel}
+              </span>
               <input
                 type="month"
                 value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer"
+                onChange={(e) => e.target.value && setSelectedMonth(e.target.value)}
+                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                title="Click to select month"
               />
-              <span className="hidden md:inline text-xs font-semibold text-[#293381] dark:text-[#36B4FF] border-l border-slate-300 dark:border-slate-700 pl-2">
-                {monthLabel}
-              </span>
             </div>
             <button
               type="button"
@@ -1462,200 +1510,289 @@ export default function MonthlyAttendancePayImpact({
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="px-4 py-3">Date & Day</th>
-                  {!employeeId && <th className="px-4 py-3">Employee</th>}
-                  <th className="px-4 py-3">Assigned Shift</th>
-                  <th className="px-4 py-3">Check-In</th>
-                  <th className="px-4 py-3">Check-Out</th>
-                  <th className="px-4 py-3">Duration</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Set-off</th>
-                  <th className="px-4 py-3">Day's Pay Impact</th>
-                  <th className="px-4 py-3 text-right">Net Day Pay</th>
-                  <th className="px-4 py-3">Deduction Rule & Notes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredImpacts.map((item, idx) => {
-                  const isDeduction = item.deductionAmount > 0;
-                  return (
-                    <tr
-                      key={item.recordId || idx}
-                      className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition"
-                    >
-                      {/* Date & Day */}
-                      <td className="px-4 py-3 font-mono">
-                        <div className="font-bold text-slate-900 dark:text-white">
-                          {item.date}
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-sans uppercase">
-                          {item.dayOfWeek}
-                        </span>
-                      </td>
-
-                      {/* Employee (if showing multiple) */}
-                      {!employeeId && (
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-slate-900 dark:text-white">
-                            {item.employeeName || "--"}
+          <div>
+            {/* Scrollable Table without Word Wrapping */}
+            <div className="overflow-x-auto border-t border-slate-200 dark:border-slate-800">
+              <table className="w-full min-w-[1350px] text-left text-xs whitespace-nowrap divide-y divide-slate-100 dark:divide-slate-800">
+                <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                  <tr>
+                    <th className="px-4 py-3 whitespace-nowrap">Date & Day</th>
+                    {!employeeId && <th className="px-4 py-3 whitespace-nowrap">Employee</th>}
+                    <th className="px-4 py-3 whitespace-nowrap">Assigned Shift</th>
+                    <th className="px-4 py-3 whitespace-nowrap">Check-In</th>
+                    <th className="px-4 py-3 whitespace-nowrap">Check-Out</th>
+                    <th className="px-4 py-3 whitespace-nowrap">Duration</th>
+                    <th className="px-4 py-3 whitespace-nowrap">Status</th>
+                    <th className="px-4 py-3 whitespace-nowrap">Set-off</th>
+                    <th className="px-4 py-3 whitespace-nowrap">Day's Pay Impact</th>
+                    <th className="px-4 py-3 text-right whitespace-nowrap">Net Day Pay</th>
+                    <th className="px-4 py-3 whitespace-nowrap">Deduction Rule & Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {paginatedImpacts.map((item, idx) => {
+                    const isDeduction = item.deductionAmount > 0;
+                    return (
+                      <tr
+                        key={item.recordId || idx}
+                        className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition"
+                      >
+                        {/* Date & Day */}
+                        <td className="px-4 py-3 font-mono whitespace-nowrap">
+                          <div className="font-bold text-slate-900 dark:text-white">
+                            {item.date}
                           </div>
-                          <div className="font-mono text-[10px] text-[#36B4FF]">
-                            {item.employeeCode}
+                          <span className="text-[10px] text-slate-400 font-sans uppercase">
+                            {item.dayOfWeek}
+                          </span>
+                        </td>
+
+                        {/* Employee (if showing multiple) */}
+                        {!employeeId && (
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="font-semibold text-slate-900 dark:text-white">
+                              {item.employeeName || "--"}
+                            </div>
+                            <div className="font-mono text-[10px] text-[#36B4FF]">
+                              {item.employeeCode}
+                            </div>
+                          </td>
+                        )}
+
+                        {/* Shift */}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="font-semibold text-slate-900 dark:text-white text-xs">
+                            {item.shiftName}
+                          </div>
+                          {item.hasGraceApplied ? (
+                            <div className="mt-0.5 flex items-center gap-1.5">
+                              <span className="font-mono text-[11px] font-bold text-[#293381] dark:text-[#36B4FF]">
+                                {item.effectiveShiftTiming}
+                              </span>
+                              {item.effectiveShiftTiming !== item.scheduledShiftTiming && (
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  (Base: {item.scheduledShiftTiming})
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                              {item.scheduledShiftTiming}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* In Time */}
+                        <td className="px-4 py-3 font-mono whitespace-nowrap">
+                          <span className={item.checkIn === "--" ? "text-rose-500 font-bold" : "text-slate-700 dark:text-slate-300"}>
+                            {item.checkIn}
+                          </span>
+                        </td>
+
+                        {/* Out Time */}
+                        <td className="px-4 py-3 font-mono whitespace-nowrap">
+                          <span className={item.checkOut === "--" ? "text-rose-500 font-bold" : "text-slate-700 dark:text-slate-300"}>
+                            {item.checkOut}
+                          </span>
+                        </td>
+
+                        {/* Duration */}
+                        <td className="px-4 py-3 font-mono whitespace-nowrap">
+                          <span
+                            className={`font-semibold ${
+                              item.durationMinutes < 270 && item.durationMinutes > 0
+                                ? "text-rose-600 dark:text-rose-400"
+                                : "text-slate-900 dark:text-white"
+                            }`}
+                          >
+                            {item.durationFormatted}
+                          </span>
+                        </td>
+
+                        {/* Attendance Status */}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              item.status === "PRESENT"
+                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                : item.status === "HALF_DAY"
+                                ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                : item.status === "LATE"
+                                ? "bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300"
+                                : "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                            }`}
+                          >
+                            {item.status}
+                          </span>
+                        </td>
+
+                        {/* Set-off */}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {item.setOff !== "None" ? (
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold whitespace-nowrap border shadow-2xs inline-block ${
+                                item.setOff === "Grace Period"
+                                  ? "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800"
+                                  : item.setOff === "Short Leave"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                  : item.setOff === "Leave"
+                                  ? "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800"
+                                  : item.setOff === "Half Day"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                                  : item.setOff === "Shift Exception"
+                                  ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800"
+                                  : "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/60 dark:text-teal-300 dark:border-teal-800"
+                              }`}
+                            >
+                              {item.setOff}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-mono text-[11px]">—</span>
+                          )}
+                        </td>
+
+                        {/* Day's Pay Impact Badge */}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap shadow-2xs ${
+                                item.badgeColor === "emerald"
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700"
+                                  : item.badgeColor === "amber"
+                                  ? "bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
+                                  : item.badgeColor === "orange"
+                                  ? "bg-orange-100 text-orange-800 dark:bg-orange-950/70 dark:text-orange-300 border border-orange-300 dark:border-orange-700"
+                                  : "bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-700"
+                              }`}
+                            >
+                              {item.badgeLabel}
+                            </span>
                           </div>
                         </td>
-                      )}
 
-                      {/* Shift */}
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-slate-900 dark:text-white text-xs">
-                          {item.shiftName}
-                        </div>
-                        {item.hasGraceApplied ? (
-                          <div className="mt-0.5 space-y-0.5">
-                            <span className="font-mono text-[11px] font-bold text-[#293381] dark:text-[#36B4FF] block">
-                              {item.effectiveShiftTiming}
+                        {/* Net Day Pay */}
+                        <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
+                          <div
+                            className={`font-bold ${
+                              item.netDayPay === 0
+                                ? "text-rose-600 dark:text-rose-400"
+                                : isDeduction
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-emerald-600 dark:text-emerald-400"
+                            }`}
+                          >
+                            ₹{item.netDayPay.toLocaleString("en-IN")}
+                          </div>
+                          {isDeduction && (
+                            <div className="text-[10px] text-rose-500 font-sans font-semibold">
+                              -₹{item.deductionAmount.toLocaleString("en-IN")}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Deduction Reason & Notes */}
+                        <td className="px-4 py-3 text-[11px] text-slate-500 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-slate-700 dark:text-slate-300">
+                              {item.reason}
                             </span>
-                            {item.effectiveShiftTiming !== item.scheduledShiftTiming && (
-                              <span className="text-[10px] text-slate-400 block font-mono">
-                                Base: {item.scheduledShiftTiming}
+                            {item.notes && item.notes !== item.reason && (
+                              <span className="text-[10px] text-slate-400 italic">
+                                | {item.notes}
                               </span>
                             )}
                           </div>
-                        ) : (
-                          <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                            {item.scheduledShiftTiming}
-                          </div>
-                        )}
-                      </td>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-                      {/* In Time */}
-                      <td className="px-4 py-3 font-mono">
-                        <span className={item.checkIn === "--" ? "text-rose-500 font-bold" : "text-slate-700 dark:text-slate-300"}>
-                          {item.checkIn}
-                        </span>
-                      </td>
+            {/* Pagination Controls */}
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs bg-slate-50/50 dark:bg-slate-800/20">
+              <div className="flex flex-wrap items-center gap-3 text-slate-600 dark:text-slate-400">
+                <span>
+                  Showing{" "}
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {filteredImpacts.length === 0 ? 0 : startIndex + 1}
+                  </span>{" "}
+                  to{" "}
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {endIndex}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {filteredImpacts.length}
+                  </span>{" "}
+                  entries
+                </span>
 
-                      {/* Out Time */}
-                      <td className="px-4 py-3 font-mono">
-                        <span className={item.checkOut === "--" ? "text-rose-500 font-bold" : "text-slate-700 dark:text-slate-300"}>
-                          {item.checkOut}
-                        </span>
-                      </td>
+                <div className="flex items-center gap-1.5 pl-3 border-l border-slate-300 dark:border-slate-700">
+                  <span className="text-[11px] text-slate-500">Rows per page:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381] cursor-pointer"
+                  >
+                    {[10, 20, 50, 100, 250, 500].map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-                      {/* Duration */}
-                      <td className="px-4 py-3 font-mono">
-                        <span
-                          className={`font-semibold ${
-                            item.durationMinutes < 270 && item.durationMinutes > 0
-                              ? "text-rose-600 dark:text-rose-400"
-                              : "text-slate-900 dark:text-white"
-                          }`}
-                        >
-                          {item.durationFormatted}
-                        </span>
-                      </td>
+              {/* Page Nav Buttons */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={safeCurrentPage <= 1}
+                  onClick={() => setCurrentPage(1)}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                  title="First Page"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  disabled={safeCurrentPage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
 
-                      {/* Attendance Status */}
-                      <td className="px-4 py-3">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            item.status === "PRESENT"
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                              : item.status === "HALF_DAY"
-                              ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                              : item.status === "LATE"
-                              ? "bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300"
-                              : "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
-                          }`}
-                        >
-                          {item.status}
-                        </span>
-                      </td>
+                <span className="px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg select-none">
+                  Page {safeCurrentPage} of {totalPages}
+                </span>
 
-                      {/* Set-off */}
-                      <td className="px-4 py-3">
-                        {item.setOff !== "None" ? (
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold whitespace-nowrap border shadow-2xs inline-block ${
-                              item.setOff === "Grace Period"
-                                ? "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800"
-                                : item.setOff === "Short Leave"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
-                                : item.setOff === "Leave"
-                                ? "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800"
-                                : item.setOff === "Half Day"
-                                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
-                                : item.setOff === "Shift Exception"
-                                ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800"
-                                : "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/60 dark:text-teal-300 dark:border-teal-800"
-                            }`}
-                          >
-                            {item.setOff}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-mono text-[11px]">—</span>
-                        )}
-                      </td>
-
-                      {/* Day's Pay Impact Badge */}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap shadow-2xs ${
-                              item.badgeColor === "emerald"
-                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700"
-                                : item.badgeColor === "amber"
-                                ? "bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
-                                : item.badgeColor === "orange"
-                                ? "bg-orange-100 text-orange-800 dark:bg-orange-950/70 dark:text-orange-300 border border-orange-300 dark:border-orange-700"
-                                : "bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-700"
-                            }`}
-                          >
-                            {item.badgeLabel}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Net Day Pay */}
-                      <td className="px-4 py-3 text-right font-mono">
-                        <div
-                          className={`font-bold ${
-                            item.netDayPay === 0
-                              ? "text-rose-600 dark:text-rose-400"
-                              : isDeduction
-                              ? "text-amber-600 dark:text-amber-400"
-                              : "text-emerald-600 dark:text-emerald-400"
-                          }`}
-                        >
-                          ₹{item.netDayPay.toLocaleString("en-IN")}
-                        </div>
-                        {isDeduction && (
-                          <div className="text-[10px] text-rose-500 font-sans font-semibold">
-                            -₹{item.deductionAmount.toLocaleString("en-IN")}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Deduction Reason & Notes */}
-                      <td className="px-4 py-3 text-[11px] text-slate-500 max-w-xs leading-relaxed">
-                        <span className="font-medium text-slate-700 dark:text-slate-300">
-                          {item.reason}
-                        </span>
-                        {item.notes && item.notes !== item.reason && (
-                          <span className="block text-[10px] text-slate-400 italic mt-0.5">
-                            {item.notes}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                <button
+                  type="button"
+                  disabled={safeCurrentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                  title="Next Page"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  disabled={safeCurrentPage >= totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                  title="Last Page"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
