@@ -1623,7 +1623,7 @@ export default function MonthlyAttendancePayImpact({
             <div className="flex items-center gap-2.5">
               <Info className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
               <span>
-                <strong>Proportionate Deduction Applied</strong>: {summary.totalDaysInMonth}-day month with {summary.fixedOffDays} Fixed Offs. Taking {summary.totalOffDays} days off triggers proportionate clawback of <strong>{summary.proportionateDeductionDays} days</strong> (({summary.fixedOffDays}/{summary.totalDaysInMonth}) &times; {summary.totalOffIncludingFixed}) for <strong>-₹{summary.proportionateDeductionAmount.toLocaleString("en-IN")}</strong>.
+                <strong>Proportionate Deduction Applied</strong>: {summary.totalDaysInMonth} Total Days &minus; {(summary.totalOffIncludingFixed + summary.extraLeavePenaltyDays + summary.proportionateDeductionDays).toFixed(2)} Days Deducted ({summary.totalOffIncludingFixed} Total Offs + {summary.extraLeavePenaltyDays} 6-Day Rule + {summary.proportionateDeductionDays} Proportionate) = <strong>{summary.effectivePayableDays} Final Payable Days</strong> (-₹{summary.totalDeductions.toLocaleString("en-IN")}).
               </span>
             </div>
             <button

@@ -220,19 +220,22 @@ export default function CalculationRulesSandbox() {
   const simNetPayAfterOff = Math.max(0, monthlySalary - simOffDeductionAmount);
 
   // Proportionate Deduction Simulation Calculations
+  const propDailyRate = monthlySalary / (propTotalDaysInMonth || 1);
   const propRequiredDays = Math.max(0, propTotalDaysInMonth - propFixedOffs);
   const propDaysOffTaken = Math.max(0, propRequiredDays - propWorkedDays);
-  const prop6DayPenaltyDays = Math.floor(propDaysOffTaken / 6);
   const propTotalOffsIncludingFixed = propDaysOffTaken + propFixedOffs;
+  const prop6DayPenaltyDays = propDaysOffTaken > 0 ? Math.floor(propTotalOffsIncludingFixed / 6) : 0;
   const propClawbackDays =
     propTotalDaysInMonth > 0 && propDaysOffTaken > 0
       ? Number(((propFixedOffs / propTotalDaysInMonth) * propTotalOffsIncludingFixed).toFixed(2))
       : 0;
-  const propTotalDeductedDays = Number(
-    (propDaysOffTaken + prop6DayPenaltyDays + propClawbackDays).toFixed(2)
-  );
-  const propTotalDeductionAmount = Math.round(propTotalDeductedDays * dailyRate);
-  const propNetMonthlyPay = Math.max(0, monthlySalary - propTotalDeductionAmount);
+  const propTotalDeductedDays =
+    propDaysOffTaken > 0
+      ? Number((propTotalOffsIncludingFixed + prop6DayPenaltyDays + propClawbackDays).toFixed(2))
+      : 0;
+  const propFinalPayableDays = Number(Math.max(0, propTotalDaysInMonth - propTotalDeductedDays).toFixed(2));
+  const propTotalDeductionAmount = Math.round(propTotalDeductedDays * propDailyRate);
+  const propNetMonthlyPay = Math.round(propFinalPayableDays * propDailyRate);
 
   return (
     <div className="space-y-6">
@@ -488,19 +491,21 @@ export default function CalculationRulesSandbox() {
               <li className="flex items-start gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0" />
                 <span>
-                  <strong>Proportionate Clawback Formula</strong>: When taking leave, paid fixed offs are proportionately deducted:
+                  <strong>Proportionate Clawback Formula</strong>: When taking leave, paid fixed offs are proportionately deducted against total month days:
                   <code className="text-[11px] font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 block mt-1">
-                    Clawback = (Fixed Offs / Month Days) &times; (Off Days + Fixed Offs)
+                    Clawback = (Fixed Offs / Month Days) &times; Total Offs (including Fixed)
                   </code>
                   <code className="text-[11px] font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 block mt-1">
-                    Total Deduction = Off Days + 6-Day Rule + Clawback
+                    Total Deduction = Total Offs + 6-Day Rule (floor(Total Offs / 6)) + Clawback
                   </code>
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mt-1.5 shrink-0" />
                 <span>
-                  <strong>October Case (19 Days Worked)</strong>: 6 Offs taken + 1 (6-day rule) + (6/31 &times; 12) = <strong>9.32 Days Deducted</strong>.
+                  <strong>October Case (19 Days Worked)</strong>: <br />
+                  31 Total Days &minus; 12 Offs taken (6 off + 6 fixed) + 2 (6-day rule) + 2.32 (6/31 &times; 12) = <strong>16.32 Days Deducted</strong>.<br />
+                  <span className="text-teal-700 dark:text-teal-300 font-bold">Final Pay for October = 31 &minus; 16.32 = 14.68 Payable Days.</span>
                 </span>
               </li>
             </ul>
@@ -904,12 +909,12 @@ export default function CalculationRulesSandbox() {
                   <span className="font-mono font-bold">{propRequiredDays} - {propWorkedDays} = {propDaysOffTaken} Days</span>
                 </div>
                 <div className="bg-white/80 dark:bg-slate-900/60 p-2.5 rounded-lg border border-teal-200/60 dark:border-teal-800/40">
-                  <span className="text-slate-500 block">3. 6-Day Rule Extra Penalty:</span>
-                  <span className="font-mono font-bold">floor({propDaysOffTaken} / 6) = {prop6DayPenaltyDays} Day(s)</span>
+                  <span className="text-slate-500 block">3. Total Offs (Taken + Fixed):</span>
+                  <span className="font-mono font-bold">{propDaysOffTaken} + {propFixedOffs} = {propTotalOffsIncludingFixed} Days</span>
                 </div>
                 <div className="bg-white/80 dark:bg-slate-900/60 p-2.5 rounded-lg border border-teal-200/60 dark:border-teal-800/40">
-                  <span className="text-slate-500 block">4. Total Offs Including Fixed:</span>
-                  <span className="font-mono font-bold">{propDaysOffTaken} + {propFixedOffs} = {propTotalOffsIncludingFixed} Days</span>
+                  <span className="text-slate-500 block">4. 6-Day Rule Penalty on Total Offs:</span>
+                  <span className="font-mono font-bold">floor({propTotalOffsIncludingFixed} / 6) = {prop6DayPenaltyDays} Day(s)</span>
                 </div>
               </div>
 
@@ -919,7 +924,10 @@ export default function CalculationRulesSandbox() {
                   ({propFixedOffs} / {propTotalDaysInMonth}) &times; {propTotalOffsIncludingFixed} = <strong>{propClawbackDays} Days</strong>
                 </div>
                 <div className="mt-1 pt-1 border-t border-slate-200 dark:border-slate-800 text-teal-800 dark:text-teal-300">
-                  Total Deduction = {propDaysOffTaken} (Off) + {prop6DayPenaltyDays} (6-Day Penalty) + {propClawbackDays} (Proportionate) = <strong>{propTotalDeductedDays} Days Deducted</strong>
+                  Total Deductions = {propTotalOffsIncludingFixed} (Total Offs) + {prop6DayPenaltyDays} (6-Day Penalty) + {propClawbackDays} (Proportionate) = <strong>{propTotalDeductedDays} Days Deducted</strong>
+                </div>
+                <div className="mt-1 text-teal-900 dark:text-teal-200 font-bold">
+                  Final Payable Days = {propTotalDaysInMonth} (Total Days) - {propTotalDeductedDays} (Deductions) = <strong>{propFinalPayableDays} Payable Days</strong>
                 </div>
               </div>
             </div>
@@ -933,13 +941,17 @@ export default function CalculationRulesSandbox() {
                   Calculated Outcome
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300">
-                  {propTotalDeductedDays} Days Deducted
+                  {propFinalPayableDays} Payable Days
                 </span>
               </div>
               <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
                 <div className="flex justify-between">
-                  <span>Base Off Days:</span>
-                  <span className="font-semibold">{propDaysOffTaken} days</span>
+                  <span>Total Days in Month:</span>
+                  <span className="font-semibold">{propTotalDaysInMonth} days</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total Offs (Taken + Fixed):</span>
+                  <span className="font-semibold">{propTotalOffsIncludingFixed} days</span>
                 </div>
                 <div className="flex justify-between">
                   <span>6-Day Extra Penalty:</span>
@@ -949,9 +961,13 @@ export default function CalculationRulesSandbox() {
                   <span>Proportionate Clawback:</span>
                   <span className="font-semibold text-teal-600 dark:text-teal-400">+{propClawbackDays} days</span>
                 </div>
-                <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-700 font-bold text-rose-600 dark:text-rose-400">
                   <span>Total Deducted Days:</span>
-                  <span className="text-rose-600 dark:text-rose-400">{propTotalDeductedDays} days</span>
+                  <span>-{propTotalDeductedDays} days</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-700 font-bold text-teal-700 dark:text-teal-300">
+                  <span>Final Payable Days:</span>
+                  <span>{propFinalPayableDays} days</span>
                 </div>
               </div>
             </div>
@@ -966,7 +982,7 @@ export default function CalculationRulesSandbox() {
                 <span className="font-mono font-bold">-₹{propTotalDeductionAmount.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between text-sm font-bold text-slate-900 dark:text-white pt-2 border-t border-slate-200 dark:border-slate-700">
-                <span>Net Estimated Pay:</span>
+                <span>Final Pay for Month:</span>
                 <span className="font-mono text-emerald-600 dark:text-emerald-400">
                   ₹{propNetMonthlyPay.toLocaleString()}
                 </span>

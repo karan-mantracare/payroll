@@ -543,22 +543,17 @@ export function calculateMonthlyPaySummary(
   }
 
   // 1. 6-Day Leave / Off Rule:
-  // For every 6 days of leave / off in a month, 1 day extra will be deducted.
-  // 6 days off -> 7 days deducted (+1 extra)
-  // 12 days off -> 14 days deducted (+2 extra)
+  // For every 6 days of total off (including fixed offs) in a month, 1 day extra will be deducted.
   const totalOffDays = fullDayLopCount + halfDayCount * 0.5;
-  const extraLeavePenaltyDays = Math.floor(totalOffDays / 6);
-  const extraLeaveDeductionAmount = extraLeavePenaltyDays * dailyRate;
-
-  totalDeductions += extraLeaveDeductionAmount;
-  totalEarnedPay = Math.max(0, totalEarnedPay - extraLeaveDeductionAmount);
 
   // 2. Proportionate Deduction Rule:
   // Total Fixed Offs = e.g. 5 Sundays + 1 National Holiday = 6 Fixed Offs
   // Required Working Days = Total Days of Month - Fixed Offs
-  // If employee took off (totalOffDays > 0):
-  // Total Off including Fixed Off = totalOffDays + fixedOffDays
-  // Proportionate Clawback Days = (fixedOffDays / totalDaysInMonth) * totalOffIncludingFixed
+  // Total Offs (Taken + Fixed) = totalOffDays + fixedOffDays (e.g. 6 + 6 = 12)
+  // 6-Day Rule on Total Offs = floor(Total Offs / 6) (e.g. floor(12 / 6) = 2)
+  // Proportionate Clawback Days = (Fixed Offs / Total Month Days) * Total Offs (e.g. (6/31) * 12 = 2.32)
+  // Total Deducted Days = Total Offs + 6-Day Rule + Proportionate = 12 + 2 + 2.32 = 16.32 Days
+  // Final Payable Days = Total Month Days - Total Deducted Days = 31 - 16.32 = 14.68 Days
   let totalDaysInMonth = 30;
   if (options.month) {
     const parts = options.month.split("-");
@@ -578,6 +573,9 @@ export function calculateMonthlyPaySummary(
 
   const fixedOffDays = options.fixedOffDays ?? Math.max(0, totalDaysInMonth - workingDaysInMonth);
   const totalOffIncludingFixed = totalOffDays + fixedOffDays;
+  const extraLeavePenaltyDays = totalOffDays > 0 ? Math.floor(totalOffIncludingFixed / 6) : 0;
+  const extraLeaveDeductionAmount = extraLeavePenaltyDays * dailyRate;
+
   const proportionateDeductionDays =
     totalOffDays > 0 && totalDaysInMonth > 0
       ? Number(((fixedOffDays / totalDaysInMonth) * totalOffIncludingFixed).toFixed(2))
@@ -585,19 +583,61 @@ export function calculateMonthlyPaySummary(
   const proportionateDeductionAmount = Math.round(proportionateDeductionDays * dailyRate);
 
   const isProportionateApplied = options.applyProportionateDeduction === true;
-  if (isProportionateApplied && proportionateDeductionAmount > 0) {
-    totalDeductions += proportionateDeductionAmount;
-    totalEarnedPay = Math.max(0, totalEarnedPay - proportionateDeductionAmount);
+
+  if (isProportionateApplied && totalOffDays > 0) {
+    // Total deduction when proportionate rule applies:
+    // 31 Total Days - (12 Total Offs + 2 6-Day Rule + 2.32 Proportionate) = 14.68 Payable Days
+    const totalDeductedDays = Number(
+      (totalOffIncludingFixed + extraLeavePenaltyDays + proportionateDeductionDays).toFixed(2)
+    );
+    const effectivePayableDays = Number(
+      Math.max(0, totalDaysInMonth - totalDeductedDays).toFixed(2)
+    );
+    const totalDeductionsAmount = Math.round(totalDeductedDays * (monthlySalary / totalDaysInMonth));
+    const finalNetPay = Math.round(effectivePayableDays * (monthlySalary / totalDaysInMonth));
+
+    return {
+      month: options.month,
+      monthlySalary,
+      workingDaysInMonth,
+      standardShiftHours,
+      dailyRate,
+      hourlyRate,
+
+      totalDaysTracked: dayImpacts.length,
+      fullPayDays,
+      halfDayCount,
+      fullDayLopCount,
+      latePenaltyCount,
+      shortLeaveCoveredCount,
+
+      totalOffDays,
+      extraLeavePenaltyDays,
+      extraLeaveDeductionAmount,
+
+      totalDaysInMonth,
+      fixedOffDays,
+      totalOffIncludingFixed,
+      proportionateDeductionDays,
+      proportionateDeductionAmount,
+      isProportionateApplied,
+
+      totalDeductions: totalDeductionsAmount,
+      totalNetPay: finalNetPay,
+      effectivePayableDays,
+    };
   }
 
-  // Effective payable days
+  // Standard calculation if proportionate is disabled
+  totalDeductions += extraLeaveDeductionAmount;
+  totalEarnedPay = Math.max(0, totalEarnedPay - extraLeaveDeductionAmount);
+
   const effectivePayableDays = Math.max(
     0,
     fullPayDays +
       halfDayCount * 0.5 +
       latePenaltyCount * ((standardShiftHours - 1) / standardShiftHours) -
-      extraLeavePenaltyDays -
-      (isProportionateApplied ? proportionateDeductionDays : 0)
+      extraLeavePenaltyDays
   );
 
   return {
