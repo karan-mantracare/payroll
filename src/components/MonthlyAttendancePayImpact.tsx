@@ -75,7 +75,7 @@ export default function MonthlyAttendancePayImpact({
   const [error, setError] = useState<string | null>(null);
 
   // Pagination State (options: 10, 20, 50, 100, 250, 500)
-  const [pageSize, setPageSize] = useState<number>(50);
+  const [pageSize, setPageSize] = useState<number>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Filter Popover & Conditions Modal State (Matching User's Reference Portal)
@@ -462,6 +462,20 @@ export default function MonthlyAttendancePayImpact({
     return filteredImpacts.slice(startIndex, endIndex);
   }, [filteredImpacts, startIndex, endIndex]);
 
+  // Page numbers list for pagination buttons
+  const pageNumbers = useMemo<(number | string)[]>(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (safeCurrentPage <= 4) {
+      return [1, 2, 3, 4, 5, "...", totalPages];
+    }
+    if (safeCurrentPage >= totalPages - 3) {
+      return [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, "...", safeCurrentPage - 1, safeCurrentPage, safeCurrentPage + 1, "...", totalPages];
+  }, [totalPages, safeCurrentPage]);
+
   // Navigation handlers for prev/next month (pure calendar arithmetic, immune to timezone/UTC shift bugs)
   const handlePrevMonth = () => {
     const [year, month] = selectedMonth.split("-").map(Number);
@@ -483,6 +497,129 @@ export default function MonthlyAttendancePayImpact({
       newYear += 1;
     }
     setSelectedMonth(`${newYear}-${String(newMonth).padStart(2, "0")}`);
+  };
+
+  // Reusable Pagination Controls (rendered at top and bottom of table)
+  const renderPaginationControls = (position: "top" | "bottom") => {
+    if (filteredImpacts.length === 0) return null;
+
+    return (
+      <div
+        className={`px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs bg-slate-50/70 dark:bg-slate-800/30 ${
+          position === "top"
+            ? "border-b border-slate-200 dark:border-slate-800"
+            : "border-t border-slate-200 dark:border-slate-800"
+        }`}
+      >
+        <div className="flex flex-wrap items-center gap-3 text-slate-600 dark:text-slate-400">
+          <span>
+            Showing{" "}
+            <span className="font-bold text-slate-900 dark:text-white">
+              {startIndex + 1}
+            </span>{" "}
+            to{" "}
+            <span className="font-bold text-slate-900 dark:text-white">
+              {endIndex}
+            </span>{" "}
+            of{" "}
+            <span className="font-bold text-slate-900 dark:text-white">
+              {filteredImpacts.length}
+            </span>{" "}
+            entries
+          </span>
+
+          <div className="flex items-center gap-1.5 pl-3 border-l border-slate-300 dark:border-slate-700">
+            <span className="text-[11px] text-slate-500 font-medium">Rows per page:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381] cursor-pointer"
+            >
+              {[10, 20, 50, 100, 250, 500].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Page Nav Buttons with Numbered Buttons */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            disabled={safeCurrentPage <= 1}
+            onClick={() => setCurrentPage(1)}
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
+            title="First Page"
+          >
+            <ChevronsLeft className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            disabled={safeCurrentPage <= 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
+            title="Previous Page"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Numbered Page Buttons */}
+          <div className="flex items-center gap-1 mx-1">
+            {pageNumbers.map((num, idx) => {
+              if (num === "...") {
+                return (
+                  <span
+                    key={`ellipsis-${idx}`}
+                    className="px-1 text-slate-400 font-bold text-xs select-none"
+                  >
+                    ...
+                  </span>
+                );
+              }
+              const isCurrent = safeCurrentPage === num;
+              return (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => setCurrentPage(num as number)}
+                  className={`w-7 h-7 rounded-lg text-xs font-bold transition flex items-center justify-center ${
+                    isCurrent
+                      ? "bg-[#293381] text-white dark:bg-[#36B4FF] dark:text-slate-900 shadow-xs"
+                      : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {num}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            disabled={safeCurrentPage >= totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
+            title="Next Page"
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            disabled={safeCurrentPage >= totalPages}
+            onClick={() => setCurrentPage(totalPages)}
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
+            title="Last Page"
+          >
+            <ChevronsRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    );
   };
 
   // Export to CSV
@@ -1511,8 +1648,11 @@ export default function MonthlyAttendancePayImpact({
           </div>
         ) : (
           <div>
+            {/* Top Pagination Controls */}
+            {renderPaginationControls("top")}
+
             {/* Scrollable Table without Word Wrapping */}
-            <div className="overflow-x-auto border-t border-slate-200 dark:border-slate-800">
+            <div className="overflow-x-auto">
               <table className="w-full min-w-[1350px] text-left text-xs whitespace-nowrap divide-y divide-slate-100 dark:divide-slate-800">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   <tr>
@@ -1710,89 +1850,8 @@ export default function MonthlyAttendancePayImpact({
               </table>
             </div>
 
-            {/* Pagination Controls */}
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs bg-slate-50/50 dark:bg-slate-800/20">
-              <div className="flex flex-wrap items-center gap-3 text-slate-600 dark:text-slate-400">
-                <span>
-                  Showing{" "}
-                  <span className="font-bold text-slate-900 dark:text-white">
-                    {filteredImpacts.length === 0 ? 0 : startIndex + 1}
-                  </span>{" "}
-                  to{" "}
-                  <span className="font-bold text-slate-900 dark:text-white">
-                    {endIndex}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-bold text-slate-900 dark:text-white">
-                    {filteredImpacts.length}
-                  </span>{" "}
-                  entries
-                </span>
-
-                <div className="flex items-center gap-1.5 pl-3 border-l border-slate-300 dark:border-slate-700">
-                  <span className="text-[11px] text-slate-500">Rows per page:</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                    className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#293381] cursor-pointer"
-                  >
-                    {[10, 20, 50, 100, 250, 500].map((size) => (
-                      <option key={size} value={size}>
-                        {size}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Page Nav Buttons */}
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  disabled={safeCurrentPage <= 1}
-                  onClick={() => setCurrentPage(1)}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                  title="First Page"
-                >
-                  <ChevronsLeft className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  disabled={safeCurrentPage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                  title="Previous Page"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-
-                <span className="px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg select-none">
-                  Page {safeCurrentPage} of {totalPages}
-                </span>
-
-                <button
-                  type="button"
-                  disabled={safeCurrentPage >= totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                  title="Next Page"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  disabled={safeCurrentPage >= totalPages}
-                  onClick={() => setCurrentPage(totalPages)}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                  title="Last Page"
-                >
-                  <ChevronsRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            {/* Bottom Pagination Controls */}
+            {renderPaginationControls("bottom")}
           </div>
         )}
       </div>
