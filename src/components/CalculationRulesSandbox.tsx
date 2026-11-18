@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   XCircle,
+  Calendar,
 } from "lucide-react";
 
 interface EmployeeOption {
@@ -38,6 +39,7 @@ export default function CalculationRulesSandbox() {
   const [simUnauthorizedShift, setSimUnauthorizedShift] = useState<boolean>(false);
   const [simShiftException, setSimShiftException] = useState<boolean>(false);
   const [simPenaltyAction, setSimPenaltyAction] = useState<"OFF" | "HALF_DAY">("HALF_DAY");
+  const [simOffDaysInMonth, setSimOffDaysInMonth] = useState<number>(6);
 
   // Load employees list for optional selection
   useEffect(() => {
@@ -205,6 +207,12 @@ export default function CalculationRulesSandbox() {
 
   const sim = calculateSimulation();
 
+  // 6-Day Off Rule Simulation Calculations
+  const simExtraDays = Math.floor(simOffDaysInMonth / 6);
+  const simTotalDeductedDays = simOffDaysInMonth + simExtraDays;
+  const simOffDeductionAmount = simTotalDeductedDays * dailyRate;
+  const simNetPayAfterOff = Math.max(0, monthlySalary - simOffDeductionAmount);
+
   return (
     <div className="space-y-6">
       {/* Top Banner Card */}
@@ -250,8 +258,8 @@ export default function CalculationRulesSandbox() {
           </div>
         </div>
 
-        {/* 4 Core Rule Columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 5 Core Rule Columns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {/* Rule 1: Machine 1 - PV Punch Rules */}
           <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3">
             <div className="flex items-center gap-2">
@@ -382,6 +390,51 @@ export default function CalculationRulesSandbox() {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
                 <span>
                   <strong>Exception Waiver</strong>: When a supervisor or HR grants a shift exception, normal pay calculation is restored.
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Rule 5: 6-Day Leave / Off Deduction Rule */}
+          <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                5. 6-Day Off Deduction Rule
+              </h3>
+            </div>
+
+            <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+              <li className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 shrink-0" />
+                <span>
+                  <strong>6 Days Off = 7 Days Deducted</strong>: If you are on off for 6 days in a month, salary will be deducted for 7 days (1 extra day deducted).
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 shrink-0" />
+                <span>
+                  <strong>12 Days Off = 14 Days Deducted</strong>: If you are on off for 12 days in a month, salary will be deducted for 14 days (2 extra days deducted).
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0" />
+                <span>
+                  <strong>Cumulative Penalty</strong>: For every 6 days of leave / off in a month, <strong>1 day extra</strong> will be deducted.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mt-1.5 shrink-0" />
+                <span>
+                  <strong>Calculation Formula</strong>: <br />
+                  <code className="text-[11px] font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 block mt-1">
+                    Extra Days = floor(Off Days / 6)
+                  </code>
+                  <code className="text-[11px] font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 block mt-1">
+                    Total Deducted = Off Days + Extra Days
+                  </code>
                 </span>
               </li>
             </ul>
@@ -554,6 +607,116 @@ export default function CalculationRulesSandbox() {
                 <span>Net Payable for Day:</span>
                 <span className="font-mono text-emerald-600 dark:text-emerald-400">
                   ₹{sim.netDayPay.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Interactive Monthly 6-Day Off Rule Simulator */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-2 flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+          Interactive Monthly 6-Day Leave / Off Rule Simulator
+        </h3>
+        <p className="text-xs text-slate-500 mb-5">
+          Simulate accumulated leave / off days in a month. For every 6 days on off, 1 additional day of salary is deducted (e.g. 6 days off → 7 days deducted, 12 days off → 14 days deducted).
+        </p>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="space-y-4 lg:col-span-2">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Total Off / Leave Days in Month:
+              </label>
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                {[0, 3, 6, 9, 12, 15, 18].map((days) => (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => setSimOffDaysInMonth(days)}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition ${
+                      simOffDaysInMonth === days
+                        ? "bg-purple-600 text-white border-purple-600"
+                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-300"
+                    }`}
+                  >
+                    {days} Days Off
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="0"
+                  max="31"
+                  step="1"
+                  value={simOffDaysInMonth}
+                  onChange={(e) => setSimOffDaysInMonth(Number(e.target.value))}
+                  className="w-full accent-purple-600 cursor-pointer"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  max="31"
+                  value={simOffDaysInMonth}
+                  onChange={(e) => setSimOffDaysInMonth(Math.max(0, Number(e.target.value)))}
+                  className="w-20 text-xs px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-mono font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-lg bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/40 text-xs text-purple-900 dark:text-purple-300 space-y-1">
+              <div className="font-semibold flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                Rule Execution Breakdown:
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                {simOffDaysInMonth === 0 ? (
+                  "0 off days recorded. No leave deduction applied."
+                ) : (
+                  <>
+                    Employee is on off for <strong>{simOffDaysInMonth} days</strong>. Formula applies{" "}
+                    <strong>Math.floor({simOffDaysInMonth} / 6) = {simExtraDays} extra day(s)</strong> penalty.
+                    Total salary deducted: <strong>{simTotalDeductedDays} days</strong> ({simOffDaysInMonth} base + {simExtraDays} extra).
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Monthly Result Card */}
+          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col justify-between space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Monthly Impact
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300">
+                  {simTotalDeductedDays} Days Deducted
+                </span>
+              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1">
+                <div>Base Off Days: <span className="font-semibold">{simOffDaysInMonth} days</span></div>
+                <div>Extra Penalty Days: <span className="font-semibold text-purple-600 dark:text-purple-400">+{simExtraDays} day(s)</span></div>
+                <div>Total Days Deducted: <span className="font-semibold text-rose-600 dark:text-rose-400">{simTotalDeductedDays} days</span></div>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-3 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500">Gross Monthly Salary:</span>
+                <span className="font-mono font-semibold">₹{monthlySalary.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-rose-600 dark:text-rose-400">
+                <span>Deduction ({simTotalDeductedDays} days):</span>
+                <span className="font-mono font-bold">-₹{simOffDeductionAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm font-bold text-slate-900 dark:text-white pt-2 border-t border-slate-200 dark:border-slate-700">
+                <span>Net Estimated Pay:</span>
+                <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                  ₹{simNetPayAfterOff.toLocaleString()}
                 </span>
               </div>
             </div>

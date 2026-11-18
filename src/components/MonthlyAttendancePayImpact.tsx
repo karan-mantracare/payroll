@@ -1582,7 +1582,11 @@ export default function MonthlyAttendancePayImpact({
             -₹{summary.totalDeductions.toLocaleString("en-IN")}
           </div>
           <p className="text-[10px] text-slate-400 mt-0.5">
-            {summary.latePenaltyCount > 0 ? `${summary.latePenaltyCount} late hr penalties` : "From punch penalties"}
+            {summary.extraLeavePenaltyDays > 0
+              ? `Includes ${summary.extraLeavePenaltyDays}d 6-day off penalty`
+              : summary.latePenaltyCount > 0
+              ? `${summary.latePenaltyCount} late hr penalties`
+              : "From punch & leave deductions"}
           </p>
         </div>
 
@@ -1600,6 +1604,16 @@ export default function MonthlyAttendancePayImpact({
           </p>
         </div>
       </div>
+
+      {/* 6-Day Off Rule Notification Banner if active */}
+      {summary.extraLeavePenaltyDays > 0 && (
+        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 text-xs text-purple-900 dark:text-purple-300">
+          <Info className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+          <span>
+            <strong>6-Day Off Rule Applied</strong>: {summary.totalOffDays} off/leave days accumulated in {monthLabel} trigger an extra <strong>{summary.extraLeavePenaltyDays} day</strong> salary deduction (-₹{summary.extraLeaveDeductionAmount.toLocaleString("en-IN")}). Total salary deducted: <strong>{summary.totalOffDays + summary.extraLeavePenaltyDays} days</strong>.
+          </span>
+        </div>
+      )}
 
       {/* Main Table Card */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">

@@ -86,6 +86,11 @@ export interface MonthlyPaySummary {
   latePenaltyCount: number;
   shortLeaveCoveredCount: number;
 
+  // 6-Day Leave / Off Rule
+  totalOffDays: number;
+  extraLeavePenaltyDays: number;
+  extraLeaveDeductionAmount: number;
+
   totalDeductions: number;
   totalNetPay: number;
   effectivePayableDays: number;
@@ -527,11 +532,25 @@ export function calculateMonthlyPaySummary(
     }
   }
 
-  // Effective payable days (Full days + half days + late penalty days minus the 1 deducted hour)
-  const effectivePayableDays =
+  // 6-Day Leave / Off Rule:
+  // For every 6 days of leave / off in a month, 1 day extra will be deducted.
+  // 6 days off -> 7 days deducted (+1 extra)
+  // 12 days off -> 14 days deducted (+2 extra)
+  const totalOffDays = fullDayLopCount + halfDayCount * 0.5;
+  const extraLeavePenaltyDays = Math.floor(totalOffDays / 6);
+  const extraLeaveDeductionAmount = extraLeavePenaltyDays * dailyRate;
+
+  totalDeductions += extraLeaveDeductionAmount;
+  totalEarnedPay = Math.max(0, totalEarnedPay - extraLeaveDeductionAmount);
+
+  // Effective payable days (Full days + half days + late penalty days minus the 1 deducted hour minus extra leave penalty days)
+  const effectivePayableDays = Math.max(
+    0,
     fullPayDays +
-    halfDayCount * 0.5 +
-    latePenaltyCount * ((standardShiftHours - 1) / standardShiftHours);
+      halfDayCount * 0.5 +
+      latePenaltyCount * ((standardShiftHours - 1) / standardShiftHours) -
+      extraLeavePenaltyDays
+  );
 
   return {
     month: options.month,
@@ -547,6 +566,10 @@ export function calculateMonthlyPaySummary(
     fullDayLopCount,
     latePenaltyCount,
     shortLeaveCoveredCount,
+
+    totalOffDays,
+    extraLeavePenaltyDays,
+    extraLeaveDeductionAmount,
 
     totalDeductions,
     totalNetPay: totalEarnedPay,
