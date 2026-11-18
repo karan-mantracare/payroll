@@ -91,6 +91,14 @@ export interface MonthlyPaySummary {
   extraLeavePenaltyDays: number;
   extraLeaveDeductionAmount: number;
 
+  // Proportionate Deduction Rule
+  totalDaysInMonth: number;
+  fixedOffDays: number;
+  totalOffIncludingFixed: number;
+  proportionateDeductionDays: number;
+  proportionateDeductionAmount: number;
+  isProportionateApplied: boolean;
+
   totalDeductions: number;
   totalNetPay: number;
   effectivePayableDays: number;
@@ -490,6 +498,8 @@ export function calculateMonthlyPaySummary(
     monthlySalary?: number;
     workingDaysInMonth?: number;
     standardShiftHours?: number;
+    fixedOffDays?: number;
+    applyProportionateDeduction?: boolean;
   }
 ): MonthlyPaySummary {
   const monthlySalary = options.monthlySalary ?? 50000;
@@ -532,7 +542,7 @@ export function calculateMonthlyPaySummary(
     }
   }
 
-  // 6-Day Leave / Off Rule:
+  // 1. 6-Day Leave / Off Rule:
   // For every 6 days of leave / off in a month, 1 day extra will be deducted.
   // 6 days off -> 7 days deducted (+1 extra)
   // 12 days off -> 14 days deducted (+2 extra)
@@ -543,13 +553,51 @@ export function calculateMonthlyPaySummary(
   totalDeductions += extraLeaveDeductionAmount;
   totalEarnedPay = Math.max(0, totalEarnedPay - extraLeaveDeductionAmount);
 
-  // Effective payable days (Full days + half days + late penalty days minus the 1 deducted hour minus extra leave penalty days)
+  // 2. Proportionate Deduction Rule:
+  // Total Fixed Offs = e.g. 5 Sundays + 1 National Holiday = 6 Fixed Offs
+  // Required Working Days = Total Days of Month - Fixed Offs
+  // If employee took off (totalOffDays > 0):
+  // Total Off including Fixed Off = totalOffDays + fixedOffDays
+  // Proportionate Clawback Days = (fixedOffDays / totalDaysInMonth) * totalOffIncludingFixed
+  let totalDaysInMonth = 30;
+  if (options.month) {
+    const parts = options.month.split("-");
+    if (parts.length >= 2) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (!isNaN(y) && !isNaN(m)) {
+        totalDaysInMonth = new Date(y, m, 0).getDate();
+      }
+    } else {
+      const d = new Date(options.month + " 01");
+      if (!isNaN(d.getTime())) {
+        totalDaysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      }
+    }
+  }
+
+  const fixedOffDays = options.fixedOffDays ?? Math.max(0, totalDaysInMonth - workingDaysInMonth);
+  const totalOffIncludingFixed = totalOffDays + fixedOffDays;
+  const proportionateDeductionDays =
+    totalOffDays > 0 && totalDaysInMonth > 0
+      ? Number(((fixedOffDays / totalDaysInMonth) * totalOffIncludingFixed).toFixed(2))
+      : 0;
+  const proportionateDeductionAmount = Math.round(proportionateDeductionDays * dailyRate);
+
+  const isProportionateApplied = options.applyProportionateDeduction === true;
+  if (isProportionateApplied && proportionateDeductionAmount > 0) {
+    totalDeductions += proportionateDeductionAmount;
+    totalEarnedPay = Math.max(0, totalEarnedPay - proportionateDeductionAmount);
+  }
+
+  // Effective payable days
   const effectivePayableDays = Math.max(
     0,
     fullPayDays +
       halfDayCount * 0.5 +
       latePenaltyCount * ((standardShiftHours - 1) / standardShiftHours) -
-      extraLeavePenaltyDays
+      extraLeavePenaltyDays -
+      (isProportionateApplied ? proportionateDeductionDays : 0)
   );
 
   return {
@@ -570,6 +618,13 @@ export function calculateMonthlyPaySummary(
     totalOffDays,
     extraLeavePenaltyDays,
     extraLeaveDeductionAmount,
+
+    totalDaysInMonth,
+    fixedOffDays,
+    totalOffIncludingFixed,
+    proportionateDeductionDays,
+    proportionateDeductionAmount,
+    isProportionateApplied,
 
     totalDeductions,
     totalNetPay: totalEarnedPay,

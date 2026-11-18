@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   XCircle,
   Calendar,
+  Scale,
 } from "lucide-react";
 
 interface EmployeeOption {
@@ -40,6 +41,11 @@ export default function CalculationRulesSandbox() {
   const [simShiftException, setSimShiftException] = useState<boolean>(false);
   const [simPenaltyAction, setSimPenaltyAction] = useState<"OFF" | "HALF_DAY">("HALF_DAY");
   const [simOffDaysInMonth, setSimOffDaysInMonth] = useState<number>(6);
+
+  // Proportionate Deduction Simulator States (Defaults to user's October case: 31d, 6 fixed offs, 19 worked)
+  const [propTotalDaysInMonth, setPropTotalDaysInMonth] = useState<number>(31);
+  const [propFixedOffs, setPropFixedOffs] = useState<number>(6);
+  const [propWorkedDays, setPropWorkedDays] = useState<number>(19);
 
   // Load employees list for optional selection
   useEffect(() => {
@@ -213,6 +219,21 @@ export default function CalculationRulesSandbox() {
   const simOffDeductionAmount = simTotalDeductedDays * dailyRate;
   const simNetPayAfterOff = Math.max(0, monthlySalary - simOffDeductionAmount);
 
+  // Proportionate Deduction Simulation Calculations
+  const propRequiredDays = Math.max(0, propTotalDaysInMonth - propFixedOffs);
+  const propDaysOffTaken = Math.max(0, propRequiredDays - propWorkedDays);
+  const prop6DayPenaltyDays = Math.floor(propDaysOffTaken / 6);
+  const propTotalOffsIncludingFixed = propDaysOffTaken + propFixedOffs;
+  const propClawbackDays =
+    propTotalDaysInMonth > 0 && propDaysOffTaken > 0
+      ? Number(((propFixedOffs / propTotalDaysInMonth) * propTotalOffsIncludingFixed).toFixed(2))
+      : 0;
+  const propTotalDeductedDays = Number(
+    (propDaysOffTaken + prop6DayPenaltyDays + propClawbackDays).toFixed(2)
+  );
+  const propTotalDeductionAmount = Math.round(propTotalDeductedDays * dailyRate);
+  const propNetMonthlyPay = Math.max(0, monthlySalary - propTotalDeductionAmount);
+
   return (
     <div className="space-y-6">
       {/* Top Banner Card */}
@@ -258,8 +279,8 @@ export default function CalculationRulesSandbox() {
           </div>
         </div>
 
-        {/* 5 Core Rule Columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        {/* 6 Core Rule Columns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Rule 1: Machine 1 - PV Punch Rules */}
           <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3">
             <div className="flex items-center gap-2">
@@ -435,6 +456,51 @@ export default function CalculationRulesSandbox() {
                   <code className="text-[11px] font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 block mt-1">
                     Total Deducted = Off Days + Extra Days
                   </code>
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Rule 6: Proportionate Deduction Rule */}
+          <div className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400">
+                <Scale className="w-4 h-4" />
+              </div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                6. Proportionate Deduction
+              </h3>
+            </div>
+
+            <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+              <li className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-500 mt-1.5 shrink-0" />
+                <span>
+                  <strong>Fixed Offs Identification</strong>: Count all weekly rest days (e.g. 5 Sundays in a 6-day work week) plus gazetted national holidays (e.g. 2nd Oct Gandhi Jayanti) = 6 Fixed Offs.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-500 mt-1.5 shrink-0" />
+                <span>
+                  <strong>Required Working Days</strong>: Required days for 100% pay = Total Days of Month &minus; Total Fixed Offs (e.g. 31 &minus; 6 = 25 Days).
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0" />
+                <span>
+                  <strong>Proportionate Clawback Formula</strong>: When taking leave, paid fixed offs are proportionately deducted:
+                  <code className="text-[11px] font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 block mt-1">
+                    Clawback = (Fixed Offs / Month Days) &times; (Off Days + Fixed Offs)
+                  </code>
+                  <code className="text-[11px] font-mono bg-white dark:bg-slate-900 px-1 py-0.5 rounded border border-slate-200 dark:border-slate-700 block mt-1">
+                    Total Deduction = Off Days + 6-Day Rule + Clawback
+                  </code>
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mt-1.5 shrink-0" />
+                <span>
+                  <strong>October Case (19 Days Worked)</strong>: 6 Offs taken + 1 (6-day rule) + (6/31 &times; 12) = <strong>9.32 Days Deducted</strong>.
                 </span>
               </li>
             </ul>
@@ -717,6 +783,192 @@ export default function CalculationRulesSandbox() {
                 <span>Net Estimated Pay:</span>
                 <span className="font-mono text-emerald-600 dark:text-emerald-400">
                   ₹{simNetPayAfterOff.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Interactive Proportionate Deduction Simulator */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
+        <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-2 flex items-center gap-2">
+          <Scale className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+          Interactive Proportionate Deduction Simulator
+        </h3>
+        <p className="text-xs text-slate-500 mb-5">
+          Simulate proportionate salary deduction when taking leave. Fixed rest days and national holidays are proportionately clawed back based on actual days worked.
+        </p>
+
+        {/* Quick Scenario Presets */}
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          <span className="text-xs font-semibold text-slate-500">Quick Test Scenarios:</span>
+          <button
+            type="button"
+            onClick={() => {
+              setPropTotalDaysInMonth(31);
+              setPropFixedOffs(6);
+              setPropWorkedDays(19);
+            }}
+            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 hover:bg-teal-100 transition"
+          >
+            October Example (19d Worked / 6d Off)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPropTotalDaysInMonth(31);
+              setPropFixedOffs(6);
+              setPropWorkedDays(25);
+            }}
+            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 transition"
+          >
+            100% Attendance (25d Worked / 0d Off)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPropTotalDaysInMonth(31);
+              setPropFixedOffs(6);
+              setPropWorkedDays(13);
+            }}
+            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 transition"
+          >
+            Heavy Absence (13d Worked / 12d Off)
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="space-y-4 lg:col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Total Days in Month
+                </label>
+                <input
+                  type="number"
+                  min="28"
+                  max="31"
+                  value={propTotalDaysInMonth}
+                  onChange={(e) => setPropTotalDaysInMonth(Math.max(1, Number(e.target.value)))}
+                  className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-mono font-bold"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">e.g. 31 days in October</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Total Fixed Offs (Sundays + Holidays)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max={propTotalDaysInMonth}
+                  value={propFixedOffs}
+                  onChange={(e) => setPropFixedOffs(Math.max(0, Number(e.target.value)))}
+                  className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-mono font-bold"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">5 Sundays + 1 Gandhi Jayanti = 6</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Actual Days Worked
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max={propRequiredDays}
+                  value={propWorkedDays}
+                  onChange={(e) => setPropWorkedDays(Math.max(0, Number(e.target.value)))}
+                  className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-mono font-bold"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Required: {propRequiredDays} days for 100% pay</span>
+              </div>
+            </div>
+
+            {/* Step-by-Step Mathematical Audit Card */}
+            <div className="p-4 rounded-xl bg-teal-50/60 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800/40 text-xs text-teal-950 dark:text-teal-200 space-y-2.5">
+              <div className="font-bold flex items-center gap-1.5 text-teal-900 dark:text-teal-300">
+                <Info className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                Step-by-Step Calculation Formula:
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                <div className="bg-white/80 dark:bg-slate-900/60 p-2.5 rounded-lg border border-teal-200/60 dark:border-teal-800/40">
+                  <span className="text-slate-500 block">1. Required Working Days:</span>
+                  <span className="font-mono font-bold">{propTotalDaysInMonth} - {propFixedOffs} = {propRequiredDays} Days</span>
+                </div>
+                <div className="bg-white/80 dark:bg-slate-900/60 p-2.5 rounded-lg border border-teal-200/60 dark:border-teal-800/40">
+                  <span className="text-slate-500 block">2. Days Off Taken:</span>
+                  <span className="font-mono font-bold">{propRequiredDays} - {propWorkedDays} = {propDaysOffTaken} Days</span>
+                </div>
+                <div className="bg-white/80 dark:bg-slate-900/60 p-2.5 rounded-lg border border-teal-200/60 dark:border-teal-800/40">
+                  <span className="text-slate-500 block">3. 6-Day Rule Extra Penalty:</span>
+                  <span className="font-mono font-bold">floor({propDaysOffTaken} / 6) = {prop6DayPenaltyDays} Day(s)</span>
+                </div>
+                <div className="bg-white/80 dark:bg-slate-900/60 p-2.5 rounded-lg border border-teal-200/60 dark:border-teal-800/40">
+                  <span className="text-slate-500 block">4. Total Offs Including Fixed:</span>
+                  <span className="font-mono font-bold">{propDaysOffTaken} + {propFixedOffs} = {propTotalOffsIncludingFixed} Days</span>
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/80 border border-teal-300 dark:border-teal-700/60 text-[11px] font-mono">
+                <span className="font-bold text-teal-900 dark:text-teal-300">5. Proportionate Deduction Formula:</span>
+                <div className="mt-1 text-slate-700 dark:text-slate-300">
+                  ({propFixedOffs} / {propTotalDaysInMonth}) &times; {propTotalOffsIncludingFixed} = <strong>{propClawbackDays} Days</strong>
+                </div>
+                <div className="mt-1 pt-1 border-t border-slate-200 dark:border-slate-800 text-teal-800 dark:text-teal-300">
+                  Total Deduction = {propDaysOffTaken} (Off) + {prop6DayPenaltyDays} (6-Day Penalty) + {propClawbackDays} (Proportionate) = <strong>{propTotalDeductedDays} Days Deducted</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Outcome Card */}
+          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col justify-between space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Calculated Outcome
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300">
+                  {propTotalDeductedDays} Days Deducted
+                </span>
+              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
+                <div className="flex justify-between">
+                  <span>Base Off Days:</span>
+                  <span className="font-semibold">{propDaysOffTaken} days</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>6-Day Extra Penalty:</span>
+                  <span className="font-semibold text-purple-600 dark:text-purple-400">+{prop6DayPenaltyDays} day(s)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Proportionate Clawback:</span>
+                  <span className="font-semibold text-teal-600 dark:text-teal-400">+{propClawbackDays} days</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                  <span>Total Deducted Days:</span>
+                  <span className="text-rose-600 dark:text-rose-400">{propTotalDeductedDays} days</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-3 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500">Gross Monthly Salary:</span>
+                <span className="font-mono font-semibold">₹{monthlySalary.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-rose-600 dark:text-rose-400">
+                <span>Total Deduction ({propTotalDeductedDays} days):</span>
+                <span className="font-mono font-bold">-₹{propTotalDeductionAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm font-bold text-slate-900 dark:text-white pt-2 border-t border-slate-200 dark:border-slate-700">
+                <span>Net Estimated Pay:</span>
+                <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                  ₹{propNetMonthlyPay.toLocaleString()}
                 </span>
               </div>
             </div>

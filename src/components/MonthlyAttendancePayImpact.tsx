@@ -77,6 +77,7 @@ export default function MonthlyAttendancePayImpact({
   // Pagination State (options: 10, 20, 50, 100, 250, 500)
   const [pageSize, setPageSize] = useState<number>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [applyProportionateDeduction, setApplyProportionateDeduction] = useState<boolean>(true);
 
   // Filter Popover & Conditions Modal State (Matching User's Reference Portal)
   const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
@@ -430,8 +431,9 @@ export default function MonthlyAttendancePayImpact({
       monthlySalary,
       workingDaysInMonth,
       standardShiftHours,
+      applyProportionateDeduction,
     });
-  }, [calculatedImpacts, selectedMonth, monthlySalary, workingDaysInMonth, standardShiftHours]);
+  }, [calculatedImpacts, selectedMonth, monthlySalary, workingDaysInMonth, standardShiftHours, applyProportionateDeduction]);
 
   // Reset current page when filters or month change
   useEffect(() => {
@@ -1605,15 +1607,39 @@ export default function MonthlyAttendancePayImpact({
         </div>
       </div>
 
-      {/* 6-Day Off Rule Notification Banner if active */}
-      {summary.extraLeavePenaltyDays > 0 && (
-        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 text-xs text-purple-900 dark:text-purple-300">
-          <Info className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
-          <span>
-            <strong>6-Day Off Rule Applied</strong>: {summary.totalOffDays} off/leave days accumulated in {monthLabel} trigger an extra <strong>{summary.extraLeavePenaltyDays} day</strong> salary deduction (-₹{summary.extraLeaveDeductionAmount.toLocaleString("en-IN")}). Total salary deducted: <strong>{summary.totalOffDays + summary.extraLeavePenaltyDays} days</strong>.
-          </span>
-        </div>
-      )}
+      {/* 6-Day Off Rule & Proportionate Deduction Notification Banners if active */}
+      <div className="space-y-2">
+        {summary.extraLeavePenaltyDays > 0 && (
+          <div className="flex items-center gap-2.5 p-3 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 text-xs text-purple-900 dark:text-purple-300">
+            <Info className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+            <span>
+              <strong>6-Day Off Rule Applied</strong>: {summary.totalOffDays} off/leave days accumulated in {monthLabel} trigger an extra <strong>{summary.extraLeavePenaltyDays} day</strong> salary deduction (-₹{summary.extraLeaveDeductionAmount.toLocaleString("en-IN")}). Total salary deducted: <strong>{summary.totalOffDays + summary.extraLeavePenaltyDays} days</strong>.
+            </span>
+          </div>
+        )}
+
+        {summary.proportionateDeductionDays > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800/60 text-xs text-teal-950 dark:text-teal-200">
+            <div className="flex items-center gap-2.5">
+              <Info className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+              <span>
+                <strong>Proportionate Deduction Applied</strong>: {summary.totalDaysInMonth}-day month with {summary.fixedOffDays} Fixed Offs. Taking {summary.totalOffDays} days off triggers proportionate clawback of <strong>{summary.proportionateDeductionDays} days</strong> (({summary.fixedOffDays}/{summary.totalDaysInMonth}) &times; {summary.totalOffIncludingFixed}) for <strong>-₹{summary.proportionateDeductionAmount.toLocaleString("en-IN")}</strong>.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setApplyProportionateDeduction(!applyProportionateDeduction)}
+              className={`px-3 py-1 text-[11px] font-semibold rounded-lg border transition shrink-0 self-start sm:self-auto ${
+                applyProportionateDeduction
+                  ? "bg-teal-600 text-white border-teal-600"
+                  : "bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-700"
+              }`}
+            >
+              {applyProportionateDeduction ? "Active (Included)" : "Disabled (Excluded)"}
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Main Table Card */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
