@@ -548,7 +548,17 @@ export default function EmployeeDetailPage({
                 : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
             }`}
           >
-            <User className="w-3.5 h-3.5" /> Master Details & Personal
+            <User className="w-3.5 h-3.5" /> Personal Details
+          </button>
+          <button
+            onClick={() => setActiveTab("leaves_offs")}
+            className={`pb-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5 ${
+              activeTab === "leaves_offs"
+                ? "border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF]"
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+            }`}
+          >
+            <CalendarDays className="w-3.5 h-3.5" /> Shift and Offs
           </button>
           <button
             onClick={() => setActiveTab("hierarchy")}
@@ -579,16 +589,6 @@ export default function EmployeeDetailPage({
             }`}
           >
             <CreditCard className="w-3.5 h-3.5" /> Sensitive Financials
-          </button>
-          <button
-            onClick={() => setActiveTab("leaves_offs")}
-            className={`pb-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5 ${
-              activeTab === "leaves_offs"
-                ? "border-[#293381] text-[#293381] dark:border-[#36B4FF] dark:text-[#36B4FF]"
-                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
-            }`}
-          >
-            <CalendarDays className="w-3.5 h-3.5" /> Shift and Offs
           </button>
           <button
             onClick={() => setActiveTab("salary_calculation")}
