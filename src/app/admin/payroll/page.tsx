@@ -22,7 +22,7 @@ import {
   ArrowDownCircle,
   Calculator,
 } from "lucide-react";
-import SalaryCalculationTab from "@/components/SalaryCalculationTab";
+import CalculationRulesSandbox from "@/components/CalculationRulesSandbox";
 
 interface MonthlyPayrollCycle {
   month: string;
@@ -150,7 +150,7 @@ export default function AdminPayrollPage() {
       </div>
 
       {activeTab === "salary_calculation" ? (
-        <SalaryCalculationTab employeeId="org" />
+        <CalculationRulesSandbox />
       ) : (
         <>
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4 shadow-sm">

@@ -28,6 +28,7 @@ import {
   PanelLeftOpen,
   X,
   Server,
+  Calculator,
 } from "lucide-react";
 
 interface NavItem {
@@ -47,6 +48,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { name: "Leave & Holidays", href: "/admin/leaves", icon: CalendarDays },
   { name: "Training Management", href: "/admin/training", icon: GraduationCap },
   { name: "Payroll Management", href: "/admin/payroll", icon: CreditCard, badge: "Confidential" },
+  { name: "Calculation Rules", href: "/admin/calculation-rules", icon: Calculator },
   { name: "Approvals & Requests", href: "/admin/approvals", icon: CheckSquare },
   { name: "Notifications", href: "/admin/notifications", icon: Bell },
   { name: "Reports & Analytics", href: "/admin/reports", icon: BarChart3 },
