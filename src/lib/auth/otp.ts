@@ -161,7 +161,9 @@ export function getOtpDeliveryProvider(): OtpDeliveryProvider {
  * Rejects any startup attempt where ALLOW_STAGING_STATIC_OTP is enabled in production.
  */
 export function assertValidOtpConfig(): void {
-  const isProd = process.env.PAYROLL_DB_ENV === "production" || process.env.NODE_ENV === "production";
+  const isProd =
+    process.env.PAYROLL_DB_ENV === "production" ||
+    (process.env.NODE_ENV === "production" && process.env.PAYROLL_DB_ENV !== "staging");
   const staticOtpEnabled = process.env.ALLOW_STAGING_STATIC_OTP === "true";
 
   if (isProd && staticOtpEnabled) {
@@ -173,12 +175,14 @@ export function assertValidOtpConfig(): void {
 
 /**
  * Strictly verifies whether static OTP (123456) is permitted.
- * ONLY when ALLOW_STAGING_STATIC_OTP === "true" is static OTP 123456 allowed.
- * Otherwise, the email API sends the real OTP and only the emailed OTP is accepted.
- * CANNOT be enabled when PAYROLL_DB_ENV === 'production'.
+ * In staging (PAYROLL_DB_ENV=staging) or development (NODE_ENV!=production),
+ * ALLOW_STAGING_STATIC_OTP=true permits static OTP 123456.
+ * In production (PAYROLL_DB_ENV=production), static OTP is strictly prohibited.
  */
 export function isStaticDevOtpAllowed(): boolean {
-  if (process.env.PAYROLL_DB_ENV === "production" || process.env.NODE_ENV === "production") return false;
+  if (process.env.PAYROLL_DB_ENV === "production") return false;
+  if (process.env.ALLOW_STAGING_STATIC_OTP === "true" && process.env.PAYROLL_DB_ENV === "staging") return true;
+  if (process.env.NODE_ENV === "production") return false;
 
   return process.env.ALLOW_STAGING_STATIC_OTP === "true";
 }
